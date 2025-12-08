@@ -471,6 +471,9 @@ export default function RecommendationsPage() {
             const priceInfo = calculatePriceWithOffer(rec, selectedOffer[rec.id]);
             const lensPrice = rec.pricing.lensPrice.totalLensPrice;
             
+            // Check if coupon is applied for this product
+            const hasCouponDiscount = priceInfo.couponDiscount && priceInfo.couponDiscount.savings > 0;
+            
             // Extract lens index from product name or use default
             const lensIndex = rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
             const indexLabel = lensIndex === '1.50' ? 'Standard' : lensIndex === '1.60' ? 'Thin' : lensIndex === '1.67' ? 'Thinner' : lensIndex === '1.74' ? 'Thinnest' : 'Standard';
@@ -547,10 +550,27 @@ export default function RecommendationsPage() {
                   {/* Price Row */}
                   <div className="mb-5 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-100">
                     <div className="flex items-baseline gap-2 mb-1">
-                      <span className="text-sm font-medium text-slate-600">Lens Price from:</span>
-                      <span className="text-2xl font-bold text-slate-900">₹{Math.round(lensPrice).toLocaleString()}</span>
+                      <span className="text-sm font-medium text-slate-600">Final Price:</span>
+                      <span className="text-2xl font-bold text-slate-900">₹{Math.round(priceInfo.finalPrice).toLocaleString()}</span>
+                      {priceInfo.finalPrice < rec.pricing.subtotal && (
+                        <span className="text-sm text-slate-500 line-through ml-2">
+                          ₹{Math.round(rec.pricing.subtotal).toLocaleString()}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs text-slate-500 font-medium">Offer, before frame & discounts</p>
+                    {hasCouponDiscount && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <Ticket size={14} className="text-yellow-600" />
+                        <span className="text-xs font-semibold text-yellow-700">
+                          Coupon Applied: Save ₹{Math.round(priceInfo.couponDiscount!.savings).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {priceInfo.savings > 0 && !hasCouponDiscount && (
+                      <p className="text-xs text-green-600 font-medium mt-1">
+                        You save ₹{Math.round(priceInfo.savings).toLocaleString()}
+                      </p>
+                    )}
                   </div>
 
                   {/* Icons/Tags */}
@@ -622,11 +642,13 @@ export default function RecommendationsPage() {
                   Have a Coupon Code?
                 </label>
                 <div className="flex gap-3">
-                  <Input
+                  <input
+                    type="text"
                     placeholder="Enter coupon code (e.g., WELCOME10)"
                     value={couponCode}
                     onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                    className="bg-slate-700/80 border-2 border-slate-600 text-white placeholder:text-slate-500 focus:border-yellow-500"
+                    className="flex-1 rounded-lg border-2 border-slate-600 bg-slate-700/80 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/50 transition-colors"
+                    style={{ backgroundColor: 'rgba(51, 65, 85, 0.8)', color: 'white' }}
                   />
                   <Button
                     onClick={async () => {
@@ -652,14 +674,29 @@ export default function RecommendationsPage() {
                         );
                         const result = await response.json();
                         if (result.success) {
-                          setAppliedCouponCode(couponCode);
-                          setRecalculatedOffers(prev => ({
-                            ...prev,
-                            [selectedProduct]: result.data,
-                          }));
-                          showToast('success', 'Coupon applied successfully!');
+                          // Check if coupon was actually applied or if there's an error
+                          if (result.data.couponError) {
+                            // Coupon validation failed
+                            showToast('error', result.data.couponError);
+                            setAppliedCouponCode(null);
+                            setCouponCode('');
+                          } else if (result.data.couponDiscount) {
+                            // Coupon applied successfully
+                            setAppliedCouponCode(couponCode);
+                            setRecalculatedOffers(prev => ({
+                              ...prev,
+                              [selectedProduct]: result.data,
+                            }));
+                            const discountAmount = result.data.couponDiscount.savings || 0;
+                            showToast('success', `Coupon applied! You saved ₹${Math.round(discountAmount).toLocaleString()}`);
+                          } else {
+                            // Coupon code was provided but no discount was applied
+                            showToast('warning', 'Coupon code is valid but no discount was applied');
+                            setAppliedCouponCode(null);
+                          }
                         } else {
-                          showToast('error', result.error?.message || 'Invalid coupon code');
+                          showToast('error', result.error?.message || 'Failed to apply coupon');
+                          setAppliedCouponCode(null);
                         }
                       } catch (error) {
                         showToast('error', 'Failed to apply coupon');
@@ -722,7 +759,8 @@ export default function RecommendationsPage() {
                       placeholder="e.g., 1500"
                       value={secondPairFrameMRP}
                       onChange={(e) => setSecondPairFrameMRP(e.target.value)}
-                      className="bg-slate-700/80 border-2 border-slate-600 text-white placeholder:text-slate-500 focus:border-purple-500"
+                      className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white !placeholder:text-slate-500 focus:!border-purple-500 focus:!ring-purple-500/50 [&_input]:!bg-slate-700/80 [&_input]:!text-white"
+                      style={{ backgroundColor: 'rgba(51, 65, 85, 0.8)' }}
                     />
                     <Input
                       label="Second Pair Lens Price"
@@ -730,7 +768,8 @@ export default function RecommendationsPage() {
                       placeholder="e.g., 2000"
                       value={secondPairLensPrice}
                       onChange={(e) => setSecondPairLensPrice(e.target.value)}
-                      className="bg-slate-700/80 border-2 border-slate-600 text-white placeholder:text-slate-500 focus:border-purple-500"
+                      className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white !placeholder:text-slate-500 focus:!border-purple-500 focus:!ring-purple-500/50 [&_input]:!bg-slate-700/80 [&_input]:!text-white"
+                      style={{ backgroundColor: 'rgba(51, 65, 85, 0.8)' }}
                     />
                   </div>
                 </div>

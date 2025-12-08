@@ -2,13 +2,14 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
 const updateBenefitsSchema = z.object({
   benefits: z.array(
     z.object({
       benefitCode: z.string(),
+      strength: z.number().min(0).max(3).default(1.0), // Benefit strength (0-3 scale)
     })
   ),
 });
@@ -64,21 +65,24 @@ export async function PUT(
       where: { productId: id },
     });
 
-    // Create new product benefits
+    // Create new product benefits with strength
     const productBenefits = await Promise.all(
-      validated.benefits.map(async (benefitInput) => {
-        const benefit = benefitMap.get(benefitInput.benefitCode);
-        if (!benefit) {
-          throw new Error(`Benefit code not found: ${benefitInput.benefitCode}`);
-        }
+      validated.benefits
+        .filter((benefitInput) => benefitInput.strength > 0) // Only create if strength > 0
+        .map(async (benefitInput) => {
+          const benefit = benefitMap.get(benefitInput.benefitCode);
+          if (!benefit) {
+            throw new Error(`Benefit code not found: ${benefitInput.benefitCode}`);
+          }
 
-        return prisma.productBenefit.create({
-          data: {
-            productId: id,
-            benefitId: benefit.id,
-          },
-        });
-      })
+          return prisma.productBenefit.create({
+            data: {
+              productId: id,
+              benefitId: benefit.id,
+              strength: Math.max(0, Math.min(3, benefitInput.strength)), // Clamp 0-3
+            },
+          });
+        })
     );
 
     // Return product benefits as-is (no date fields to serialize)

@@ -21,8 +21,15 @@ import {
   Calculator,
   FileText,
   ShoppingCart,
+  TrendingUp,
 } from 'lucide-react';
-import { UserRole } from '@prisma/client';
+// UserRole enum - defined inline since Prisma doesn't export unused enums
+enum UserRole {
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  ADMIN = 'ADMIN',
+  STORE_MANAGER = 'STORE_MANAGER',
+  SALES_EXECUTIVE = 'SALES_EXECUTIVE',
+}
 
 interface NavItem {
   label: string;
@@ -50,9 +57,27 @@ const navItems: NavItem[] = [
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.STORE_MANAGER],
   },
   {
-    label: 'Products',
+    label: 'Brands & Sub-Brands',
+    href: '/admin/brands',
+    icon: <Tag size={20} />,
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+  },
+  {
+    label: 'Retail Products',
     href: '/admin/products',
     icon: <Package size={20} />,
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+  },
+  {
+    label: 'Lens Brands',
+    href: '/admin/lens-brands',
+    icon: <Tag size={20} />,
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+  },
+  {
+    label: 'Lens Products',
+    href: '/admin/lens-products',
+    icon: <Glasses size={20} />,
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
   },
   {
@@ -62,15 +87,15 @@ const navItems: NavItem[] = [
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
   },
   {
-    label: 'Lenses',
-    href: '/admin/lenses',
-    icon: <Package size={20} />,
-    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
-  },
-  {
     label: 'Features',
     href: '/admin/features',
     icon: <Sparkles size={20} />,
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+  },
+  {
+    label: 'Benefits',
+    href: '/admin/benefits',
+    icon: <TrendingUp size={20} />,
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
   },
   {

@@ -8,7 +8,7 @@ import { Select } from '@/components/ui/Select';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Calculator, Tag, Percent, Ticket, Package } from 'lucide-react';
-import { BrandLine } from '@prisma/client';
+import { BRAND_LINES } from '@/lib/constants/lens';
 
 // CustomerCategory enum (client-side safe)
 const CustomerCategory = {
@@ -196,7 +196,7 @@ export default function OfferCalculatorPage() {
                   label="Brand Line *"
                   value={lensBrandLine}
                   onChange={(e) => setLensBrandLine(e.target.value)}
-                  options={Object.values(BrandLine).map(v => ({ value: v, label: v }))}
+                  options={BRAND_LINES.map(line => ({ value: line, label: line }))}
                   required
                 />
                 <label className="flex items-center gap-2 pt-8">

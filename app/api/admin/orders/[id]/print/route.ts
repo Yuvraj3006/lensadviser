@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError, ValidationError } from '@/lib/errors';
-import { UserRole, OrderStatus } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
+import { OrderStatus } from '@/lib/constants';
 
 /**
  * POST /api/admin/orders/[id]/print

@@ -2,23 +2,47 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError, NotFoundError } from '@/lib/errors';
-import { UpdateProductSchema } from '@/lib/validation';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
-// GET /api/admin/products/[id] - Get product details
+const updateProductSchema = z.object({
+  type: z.enum(['FRAME', 'SUNGLASS', 'CONTACT_LENS', 'ACCESSORY']).optional(),
+  brandId: z.string().optional(),
+  subBrandId: z.string().optional().nullable(),
+  name: z.string().optional().nullable(),
+  sku: z.string().optional().nullable(),
+  mrp: z.number().min(0).optional(),
+  hsnCode: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+// GET /api/admin/products/[id] - Get retail product details
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await authenticate(request);
+    authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
+
     const { id } = await params;
 
-    const product = await prisma.product.findUnique({
-      where: {
-        id,
-        organizationId: user.organizationId,
+    const product = await prisma.retailProduct.findUnique({
+      where: { id },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            name: true,
+            productTypes: true,
+          },
+        },
+        subBrand: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -26,50 +50,29 @@ export async function GET(
       throw new NotFoundError('Product');
     }
 
-    // Fetch related data manually
-    const features = await prisma.productFeature.findMany({
-      where: { productId: id },
-    });
-
-    // Fetch features separately
-    const featuresWithDetails = await Promise.all(
-      features.map(async (pf) => {
-        const feature = await prisma.feature.findUnique({
-          where: { id: pf.featureId },
-        });
-        return {
-          ...pf,
-          feature,
-        };
-      })
-    );
-
-    const storeProducts = await prisma.storeProduct.findMany({
-      where: { productId: id },
-    });
-
-    // Fetch stores separately
-    const storeProductsWithDetails = await Promise.all(
-      storeProducts.map(async (sp) => {
-        const store = await prisma.store.findUnique({
-          where: { id: sp.storeId },
-          select: {
-            name: true,
-          },
-        });
-        return {
-          ...sp,
-          store,
-        };
-      })
-    );
-
     return Response.json({
       success: true,
       data: {
-        ...product,
-        features: featuresWithDetails,
-        storeProducts: storeProductsWithDetails,
+        id: product.id,
+        type: product.type,
+        brand: {
+          id: product.brand.id,
+          name: product.brand.name,
+          productTypes: product.brand.productTypes,
+        },
+        subBrand: product.subBrand
+          ? {
+              id: product.subBrand.id,
+              name: product.subBrand.name,
+            }
+          : null,
+        name: product.name,
+        sku: product.sku,
+        mrp: product.mrp,
+        hsnCode: product.hsnCode,
+        isActive: product.isActive,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
       },
     });
   } catch (error) {
@@ -77,7 +80,7 @@ export async function GET(
   }
 }
 
-// PUT /api/admin/products/[id] - Update product
+// PUT /api/admin/products/[id] - Update retail product
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -88,49 +91,119 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const validatedData = UpdateProductSchema.parse(body);
+    const validated = updateProductSchema.parse(body);
 
-    const { features, ...productData } = validatedData;
-
-    // Filter out fields that don't exist in Product model
-    const allowedFields = [
-      'sku', 'name', 'description', 'category', 'brand', 'basePrice', 'imageUrl',
-      'itCode', 'brandLine', 'lensIndex', 'visionType', 'yopoEligible', 'isActive'
-    ] as const;
-    
-    const filteredData = Object.fromEntries(
-      Object.entries(productData).filter(([key]) => allowedFields.includes(key as any))
-    ) as any;
-
-    // Update product
-    const product = await prisma.product.update({
-      where: {
-        id,
-        organizationId: user.organizationId,
-      },
-      data: filteredData,
+    // Verify product exists
+    const existing = await prisma.retailProduct.findUnique({
+      where: { id },
     });
 
-    // Update features if provided
-    if (features) {
-      // Delete existing features
-      await prisma.productFeature.deleteMany({
-        where: { productId: id },
+    if (!existing) {
+      throw new NotFoundError('Product');
+    }
+
+    // Verify brand if updating
+    if (validated.brandId) {
+      const brand = await prisma.productBrand.findUnique({
+        where: { id: validated.brandId },
       });
 
-      // Create new features
-      await prisma.productFeature.createMany({
-        data: features.map((f) => ({
-          productId: id,
-          featureId: f.featureId,
-          strength: f.strength,
-        })),
-      });
+      if (!brand) {
+        return Response.json(
+          {
+            success: false,
+            error: {
+              code: 'INVALID_BRAND',
+              message: 'Brand not found',
+            },
+          },
+          { status: 400 }
+        );
+      }
     }
+
+    // Verify sub-brand if updating
+    if (validated.subBrandId && validated.brandId) {
+      const subBrand = await prisma.productSubBrand.findFirst({
+        where: {
+          id: validated.subBrandId,
+          brandId: validated.brandId,
+        },
+      });
+
+      if (!subBrand) {
+        return Response.json(
+          {
+            success: false,
+            error: {
+              code: 'INVALID_SUBBRAND',
+              message: 'Sub-brand not found or does not belong to this brand',
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const updated = await prisma.retailProduct.update({
+      where: { id },
+      data: {
+        ...(validated.type && { type: validated.type }),
+        ...(validated.brandId && { brandId: validated.brandId }),
+        ...(validated.subBrandId !== undefined && {
+          subBrandId: validated.subBrandId && validated.subBrandId.trim() !== '' ? validated.subBrandId : null,
+        }),
+        ...(validated.name !== undefined && {
+          name: validated.name && validated.name.trim() !== '' ? validated.name.trim() : null,
+        }),
+        ...(validated.sku !== undefined && {
+          sku: validated.sku && validated.sku.trim() !== '' ? validated.sku.trim() : null,
+        }),
+        ...(validated.mrp !== undefined && { mrp: validated.mrp }),
+        ...(validated.hsnCode !== undefined && {
+          hsnCode: validated.hsnCode && validated.hsnCode.trim() !== '' ? validated.hsnCode.trim() : null,
+        }),
+        ...(validated.isActive !== undefined && { isActive: validated.isActive }),
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        subBrand: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
 
     return Response.json({
       success: true,
-      data: product,
+      data: {
+        id: updated.id,
+        type: updated.type,
+        brand: {
+          id: updated.brand.id,
+          name: updated.brand.name,
+        },
+        subBrand: updated.subBrand
+          ? {
+              id: updated.subBrand.id,
+              name: updated.subBrand.name,
+            }
+          : null,
+        name: updated.name,
+        sku: updated.sku,
+        mrp: updated.mrp,
+        hsnCode: updated.hsnCode,
+        isActive: updated.isActive,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+      },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -150,7 +223,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/admin/products/[id] - Soft delete product
+// DELETE /api/admin/products/[id] - Soft delete retail product
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -161,11 +234,8 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const product = await prisma.product.update({
-      where: {
-        id,
-        organizationId: user.organizationId,
-      },
+    const product = await prisma.retailProduct.update({
+      where: { id },
       data: {
         isActive: false,
       },
@@ -179,4 +249,3 @@ export async function DELETE(
     return handleApiError(error);
   }
 }
-

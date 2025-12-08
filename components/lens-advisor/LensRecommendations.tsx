@@ -204,6 +204,7 @@ export function LensRecommendations() {
               brandLine: rec.brandLine,
               visionType: rec.visionType,
               index: rec.index || rec.lensIndex,
+              lensIndex: rec.lensIndex || rec.index,
               mrp: rec.pricing?.subtotal || rec.mrp,
               offerPrice: rec.pricing?.finalPrice || rec.offerPrice || rec.price,
               yopoEligible: rec.yopoEligible,
@@ -213,9 +214,12 @@ export function LensRecommendations() {
               itCode: rec.itCode || rec.sku,
               price: rec.pricing?.finalPrice || rec.price || rec.offerPrice,
               roleTag: rec.roleTag,
+              indexRecommendation: rec.indexRecommendation,
+              thicknessWarning: rec.thicknessWarning,
             }}
             isSelected={selectedLens?.id === rec.id}
             onSelect={() => handleSelectLens(rec)}
+            recommendedIndex={recommendedIndex}
           />
         ))}
       </div>

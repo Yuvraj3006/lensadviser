@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticate } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 
 // GET /api/admin/reports - Generate reports
 export async function GET(request: NextRequest) {

@@ -2,131 +2,231 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
-import { CreateProductSchema } from '@/lib/validation';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
+import { RetailProductType } from '@prisma/client';
 import { z } from 'zod';
 
-// GET /api/admin/products - List all products
+const createProductSchema = z.object({
+  type: z.enum(['FRAME', 'SUNGLASS', 'CONTACT_LENS', 'ACCESSORY']),
+  brandId: z.string().min(1, 'Brand ID is required'),
+  subBrandId: z.string().optional().nullable(),
+  name: z.string().optional().nullable(),
+  sku: z.string().optional().nullable(),
+  mrp: z.number().min(0, 'MRP must be positive'),
+  hsnCode: z.string().optional().nullable(),
+});
+
+// GET /api/admin/products - List products, optionally filtered by type
 export async function GET(request: NextRequest) {
   try {
+    console.log('[GET /api/admin/products] Starting request...');
+    
     const user = await authenticate(request);
+    console.log('[GET /api/admin/products] User authenticated:', { userId: user.userId, organizationId: user.organizationId });
+    
+    authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
+    console.log('[GET /api/admin/products] User authorized');
 
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search') || '';
-    const category = searchParams.get('category');
-    const storeId = searchParams.get('storeId');
-    const isActive = searchParams.get('isActive');
+    const typeParam = searchParams.get('type');
+    console.log('[GET /api/admin/products] Type filter:', typeParam);
 
-    const where: any = {
-      organizationId: user.organizationId,
-    };
+    const where: any = {};
 
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
-        { brand: { contains: search, mode: 'insensitive' } },
-      ];
+    // Validate type against enum values
+    const validTypes: RetailProductType[] = ['FRAME', 'SUNGLASS', 'CONTACT_LENS', 'ACCESSORY'];
+    if (typeParam && validTypes.includes(typeParam as RetailProductType)) {
+      where.type = typeParam as RetailProductType;
     }
 
-    if (category) {
-      where.category = category;
-    }
-
-    if (isActive !== null && isActive !== undefined) {
-      where.isActive = isActive === 'true';
-    }
-
-    const products = await prisma.product.findMany({
+    console.log('[GET /api/admin/products] Querying database with where:', where);
+    console.log('[GET /api/admin/products] Prisma client check:', {
+      hasPrisma: !!prisma,
+      hasRetailProduct: !!prisma?.retailProduct,
+      prismaKeys: prisma ? Object.keys(prisma).filter(k => !k.startsWith('_') && !k.startsWith('$')).slice(0, 10) : [],
+    });
+    const products = await prisma.retailProduct.findMany({
       where,
-      orderBy: {
-        createdAt: 'desc',
+      include: {
+        brand: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        subBrand: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
+      orderBy: [
+        { createdAt: 'desc' },
+      ],
     });
 
-    const formattedProducts = products.map((product) => ({
-      id: product.id,
-      sku: product.sku,
-      name: product.name,
-      description: product.description,
-      category: product.category,
-      brand: product.brand,
-      basePrice: Number(product.basePrice),
-      imageUrl: product.imageUrl,
-      isActive: product.isActive,
-      brandLine: product.brandLine,
-      visionType: product.visionType,
-      lensIndex: product.lensIndex,
-      itCode: product.itCode,
-      yopoEligible: product.yopoEligible,
-      createdAt: product.createdAt,
-      updatedAt: product.updatedAt,
-    }));
+    console.log('[GET /api/admin/products] Found products:', products.length);
 
     return Response.json({
       success: true,
-      data: formattedProducts,
+      data: products.map((product) => ({
+        id: product.id,
+        type: product.type,
+        brand: {
+          id: product.brand.id,
+          name: product.brand.name,
+        },
+        subBrand: product.subBrand
+          ? {
+              id: product.subBrand.id,
+              name: product.subBrand.name,
+            }
+          : null,
+        name: product.name,
+        sku: product.sku,
+        mrp: product.mrp,
+        hsnCode: product.hsnCode,
+        isActive: product.isActive,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
+      })),
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('[GET /api/admin/products] Error details:', {
+      message: error?.message,
+      code: error?.code,
+      name: error?.name,
+      stack: error?.stack?.substring(0, 500),
+    });
     return handleApiError(error);
   }
 }
 
-// POST /api/admin/products - Create new product
+// POST /api/admin/products - Create new retail product
 export async function POST(request: NextRequest) {
   try {
     const user = await authenticate(request);
     authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
 
     const body = await request.json();
-    const validatedData = CreateProductSchema.parse(body);
+    const validated = createProductSchema.parse(body);
 
-    const { features, ...productData } = validatedData;
-
-    // Ensure basePrice is set (use mrp if basePrice not provided)
-    const finalProductData = {
-      ...productData,
-      basePrice: productData.basePrice || productData.mrp || 0,
-    };
-
-    // Filter out fields that don't exist in Product model
-    const allowedFields = [
-      'sku', 'name', 'description', 'category', 'brand', 'basePrice', 'imageUrl',
-      'itCode', 'brandLine', 'lensIndex', 'visionType', 'yopoEligible', 'isActive'
-    ] as const;
-    
-    const filteredData = Object.fromEntries(
-      Object.entries(finalProductData).filter(([key]) => allowedFields.includes(key as any))
-    ) as any;
-
-    // Create product
-    const product = await prisma.product.create({
-      data: {
-        ...filteredData,
-        organizationId: user.organizationId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
+    // Verify brand exists (brands are global)
+    const brand = await prisma.productBrand.findUnique({
+      where: { id: validated.brandId },
     });
 
-    // Create features separately if provided
-    if (features && features.length > 0) {
-      await Promise.all(
-        features.map((f) =>
-          prisma.productFeature.create({
-            data: {
-              productId: product.id,
-              featureId: f.featureId,
-              strength: f.strength,
-            },
-          })
-        )
+    if (!brand) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'INVALID_BRAND',
+            message: 'Brand not found',
+          },
+        },
+        { status: 400 }
       );
     }
 
+    // Verify sub-brand if provided
+    if (validated.subBrandId) {
+      const subBrand = await prisma.productSubBrand.findFirst({
+        where: {
+          id: validated.subBrandId,
+          brandId: validated.brandId,
+        },
+      });
+
+      if (!subBrand) {
+        return Response.json(
+          {
+            success: false,
+            error: {
+              code: 'INVALID_SUBBRAND',
+              message: 'Sub-brand not found or does not belong to this brand',
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Check for duplicate SKU if provided (only if SKU is not empty)
+    // Note: SKU uniqueness is per brand+subBrand+name+type combination
+    // We check if exact combination exists
+    if (validated.sku && validated.sku.trim() !== '') {
+      const existing = await prisma.retailProduct.findFirst({
+        where: {
+          sku: validated.sku.trim(),
+          type: validated.type,
+        },
+      });
+
+      if (existing) {
+        return Response.json(
+          {
+            success: false,
+            error: {
+              code: 'DUPLICATE_SKU',
+              message: 'Product with this SKU already exists',
+            },
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    const product = await prisma.retailProduct.create({
+      data: {
+        type: validated.type,
+        brandId: validated.brandId,
+        subBrandId: validated.subBrandId && validated.subBrandId.trim() !== '' ? validated.subBrandId : null,
+        name: validated.name && validated.name.trim() !== '' ? validated.name.trim() : null,
+        sku: validated.sku && validated.sku.trim() !== '' ? validated.sku.trim() : null,
+        mrp: validated.mrp,
+        hsnCode: validated.hsnCode && validated.hsnCode.trim() !== '' ? validated.hsnCode.trim() : null,
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        subBrand: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
     return Response.json({
       success: true,
-      data: product,
+      data: {
+        id: product.id,
+        type: product.type,
+        brand: {
+          id: product.brand.id,
+          name: product.brand.name,
+        },
+        subBrand: product.subBrand
+          ? {
+              id: product.subBrand.id,
+              name: product.subBrand.name,
+            }
+          : null,
+        name: product.name,
+        sku: product.sku,
+        mrp: product.mrp,
+        hsnCode: product.hsnCode,
+        isActive: product.isActive,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
+      },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -145,4 +245,3 @@ export async function POST(request: NextRequest) {
     return handleApiError(error);
   }
 }
-

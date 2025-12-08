@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
+import { useSessionStore } from '@/stores/session-store';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
+import { Badge } from '@/components/ui/Badge';
 import { 
   ArrowLeft,
   ShoppingCart,
@@ -14,7 +17,8 @@ import {
   Package,
   Sparkles,
   ArrowRight,
-  Eye
+  Eye,
+  Loader2
 } from 'lucide-react';
 
 interface OfferDetail {
@@ -55,15 +59,32 @@ interface OfferSummaryData {
   upsellThreshold?: number;
 }
 
+interface EligibleProduct {
+  id: string;
+  name: string;
+  brand: string;
+  imageUrl?: string | null;
+  basePrice: number;
+  storePrice: number;
+  inStock: boolean;
+  sku?: string | null;
+  category?: string | null;
+}
+
 export default function OfferSummaryPage() {
   const router = useRouter();
   const params = useParams();
   const { showToast } = useToast();
   const sessionId = params.sessionId as string;
   const productId = params.productId as string;
+  const storeId = useSessionStore((state) => state.storeId);
 
   const [data, setData] = useState<OfferSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showEligibleProducts, setShowEligibleProducts] = useState(false);
+  const [eligibleProducts, setEligibleProducts] = useState<EligibleProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [sessionStoreId, setSessionStoreId] = useState<string | null>(null);
 
   useEffect(() => {
     if (sessionId && productId) {
@@ -74,6 +95,19 @@ export default function OfferSummaryPage() {
   const fetchOfferSummary = async () => {
     setLoading(true);
     try {
+      // Fetch session to get storeId as fallback
+      try {
+        const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          if (sessionData.success && sessionData.data?.session?.storeId) {
+            setSessionStoreId(sessionData.data.session.storeId);
+          }
+        }
+      } catch (e) {
+        // Ignore errors, use storeId from session store
+      }
+
       // Get selected product from recommendations
       const recommendationsResponse = await fetch(
         `/api/public/questionnaire/sessions/${sessionId}/recommendations`
@@ -260,6 +294,43 @@ export default function OfferSummaryPage() {
     return 'Add ₹500 more and get free Lenstrack Sunglass worth ₹1499';
   };
 
+  const fetchEligibleProducts = async () => {
+    const effectiveStoreId = storeId || sessionStoreId;
+    if (!effectiveStoreId) {
+      showToast('error', 'Store information not available');
+      return;
+    }
+
+    if (!data) {
+      showToast('error', 'Price information not available');
+      return;
+    }
+
+    setLoadingProducts(true);
+    try {
+      const currentTotal = data.priceBreakdown.finalPayable;
+      const minPrice = currentTotal;
+      const maxPrice = currentTotal + (data.upsellThreshold || 1000);
+
+      const response = await fetch(
+        `/api/public/products/eligible?storeId=${effectiveStoreId}&minPrice=${minPrice}&maxPrice=${maxPrice}&limit=20`
+      );
+
+      const result = await response.json();
+      if (result.success) {
+        setEligibleProducts(result.data);
+        setShowEligibleProducts(true);
+      } else {
+        showToast('error', result.error?.message || 'Failed to load eligible products');
+      }
+    } catch (error: any) {
+      console.error('[EligibleProducts] Error:', error);
+      showToast('error', 'Failed to load eligible products');
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
@@ -433,9 +504,7 @@ export default function OfferSummaryPage() {
           </Button>
           <Button
             onClick={() => {
-              // Navigate to checkout or create order
-              showToast('success', 'Proceeding to checkout...');
-              // TODO: Navigate to checkout page
+              router.push(`/questionnaire/${sessionId}/checkout/${productId}`);
             }}
             className="flex-1 bg-gradient-to-r from-green-600 via-emerald-600 to-green-600 hover:from-green-700 hover:via-emerald-700 hover:to-green-700 text-white font-bold py-4 text-base shadow-lg hover:shadow-xl transition-all"
           >
@@ -457,17 +526,80 @@ export default function OfferSummaryPage() {
               </p>
             </div>
             <Button
-              onClick={() => {
-                // TODO: Show eligible products modal
-                showToast('info', 'Eligible products feature coming soon!');
-              }}
-              className="bg-yellow-900 hover:bg-yellow-800 text-white font-semibold px-6 py-2 shadow-lg whitespace-nowrap"
+              onClick={fetchEligibleProducts}
+              disabled={loadingProducts}
+              className="bg-yellow-900 hover:bg-yellow-800 text-white font-semibold px-6 py-2 shadow-lg whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              See Eligible Products
+              {loadingProducts ? (
+                <>
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                'See Eligible Products'
+              )}
             </Button>
           </div>
         </div>
       )}
+
+      {/* Eligible Products Modal */}
+      <Modal
+        isOpen={showEligibleProducts}
+        onClose={() => setShowEligibleProducts(false)}
+        title="Eligible Products for Upsell"
+        size="lg"
+        footer={
+          <Button onClick={() => setShowEligibleProducts(false)}>
+            Close
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          {eligibleProducts.length === 0 ? (
+            <div className="text-center py-8">
+              <Package size={48} className="mx-auto text-slate-400 mb-4" />
+              <p className="text-slate-600">No eligible products found in this price range.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto">
+              {eligibleProducts.map((product) => (
+                <div
+                  key={product.id}
+                  className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex gap-4">
+                    {product.imageUrl && (
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="w-20 h-20 object-cover rounded-lg"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-slate-900 truncate">{product.name}</h3>
+                      <p className="text-sm text-slate-600">{product.brand}</p>
+                      {product.sku && (
+                        <p className="text-xs text-slate-500 mt-1">SKU: {product.sku}</p>
+                      )}
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-lg font-bold text-blue-600">
+                          ₹{Math.round(product.storePrice).toLocaleString()}
+                        </span>
+                        {product.inStock ? (
+                          <Badge variant="success" size="sm">In Stock</Badge>
+                        ) : (
+                          <Badge variant="secondary" size="sm">Out of Stock</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

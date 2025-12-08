@@ -5,7 +5,14 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 type ProductCategory = 'EYEGLASSES' | 'SUNGLASSES' | 'CONTACT_LENSES' | 'ACCESSORIES';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
+
+interface Benefit {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+}
 
 interface AnswerOption {
   key: string;
@@ -14,6 +21,9 @@ interface AnswerOption {
   textHiEn?: string;
   icon?: string;
   order: number;
+  benefitMapping: Record<string, number>; // { B01: 2, B04: 1.5, ... }
+  triggersSubQuestion?: boolean; // If true, this answer triggers a sub-question
+  subQuestionId?: string | null; // ID of the sub-question to show after this answer
 }
 
 interface QuestionFormProps {
@@ -34,13 +44,103 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
     isRequired: question?.isRequired ?? true,
     allowMultiple: question?.allowMultiple ?? false,
     isActive: question?.isActive ?? true,
+    parentAnswerId: question?.parentAnswerId || null, // For interconnected questions
   });
 
-  const [options, setOptions] = useState<AnswerOption[]>(
-    question?.options || [
-      { key: '', textEn: '', textHi: '', textHiEn: '', icon: '', order: 1 },
-    ]
-  );
+  const [options, setOptions] = useState<AnswerOption[]>(() => {
+    if (question?.options && question.options.length > 0) {
+      return question.options.map((opt: any) => ({
+        key: opt.key || '',
+        textEn: opt.textEn || opt.text || '',
+        textHi: opt.textHi || '',
+        textHiEn: opt.textHiEn || '',
+        icon: opt.icon || '',
+        order: opt.order || opt.displayOrder || 1,
+        benefitMapping: opt.benefitMapping || {},
+        triggersSubQuestion: opt.triggersSubQuestion || false,
+        subQuestionId: opt.subQuestionId || null,
+      }));
+    }
+    return [
+      { key: '', textEn: '', textHi: '', textHiEn: '', icon: '', order: 1, benefitMapping: {}, triggersSubQuestion: false, subQuestionId: null },
+    ];
+  });
+
+  const [benefits, setBenefits] = useState<Benefit[]>([]);
+  const [loadingBenefits, setLoadingBenefits] = useState(false);
+  const [expandedBenefitMappings, setExpandedBenefitMappings] = useState<Set<number>>(new Set());
+  const [allQuestions, setAllQuestions] = useState<any[]>([]); // All questions for sub-question dropdown
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+
+  useEffect(() => {
+    fetchBenefits();
+    fetchAllQuestions();
+  }, []);
+
+  const fetchAllQuestions = async () => {
+    setLoadingQuestions(true);
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch('/api/admin/questions', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          // Filter out the current question being edited (to prevent self-links)
+          const filtered = question?.id 
+            ? data.data.filter((q: any) => q.id !== question.id)
+            : data.data;
+          setAllQuestions(filtered);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch questions:', error);
+    } finally {
+      setLoadingQuestions(false);
+    }
+  };
+
+  // Update options when question prop changes (for editing)
+  useEffect(() => {
+    if (question?.options && question.options.length > 0) {
+      setOptions(
+        question.options.map((opt: any) => ({
+          key: opt.key || '',
+          textEn: opt.textEn || opt.text || '',
+          textHi: opt.textHi || '',
+          textHiEn: opt.textHiEn || '',
+          icon: opt.icon || '',
+          order: opt.order || opt.displayOrder || 1,
+          benefitMapping: opt.benefitMapping || {},
+          triggersSubQuestion: opt.triggersSubQuestion || false,
+          subQuestionId: opt.subQuestionId || null,
+        }))
+      );
+    }
+  }, [question]);
+
+  const fetchBenefits = async () => {
+    setLoadingBenefits(true);
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch('/api/admin/benefits', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setBenefits(data.data || []);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch benefits:', error);
+    } finally {
+      setLoadingBenefits(false);
+    }
+  };
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -49,25 +149,109 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
   const addOption = () => {
     setOptions([
       ...options,
-      { key: '', textEn: '', textHi: '', textHiEn: '', icon: '', order: options.length + 1 },
+      { 
+        key: '', 
+        textEn: '', 
+        textHi: '', 
+        textHiEn: '', 
+        icon: '', 
+        order: options.length + 1,
+        benefitMapping: {},
+        triggersSubQuestion: false,
+        subQuestionId: null,
+      },
     ]);
   };
 
   const removeOption = (index: number) => {
     if (options.length > 1) {
       setOptions(options.filter((_, i) => i !== index));
+      // Remove from expanded mappings if exists
+      const newExpanded = new Set(expandedBenefitMappings);
+      newExpanded.delete(index);
+      setExpandedBenefitMappings(newExpanded);
     }
   };
 
-  const updateOption = (index: number, field: string, value: string) => {
+  const updateOption = (index: number, field: string, value: any) => {
     const updated = [...options];
     updated[index] = { ...updated[index], [field]: value };
+    // If triggersSubQuestion is turned off, clear subQuestionId
+    if (field === 'triggersSubQuestion' && !value) {
+      updated[index].subQuestionId = null;
+    }
     setOptions(updated);
+  };
+
+  const updateAnswerBenefit = (answerIndex: number, benefitCode: string, value: number) => {
+    const updated = [...options];
+    updated[answerIndex].benefitMapping = {
+      ...updated[answerIndex].benefitMapping,
+      [benefitCode]: Math.max(0, Math.min(3, value)), // Clamp between 0-3
+    };
+    setOptions(updated);
+  };
+
+  const toggleBenefitMapping = (index: number) => {
+    const newExpanded = new Set(expandedBenefitMappings);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedBenefitMappings(newExpanded);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit({ ...formData, options });
+    
+    // Validate required fields
+    if (!formData.key || !formData.key.trim()) {
+      alert('Question key is required');
+      return;
+    }
+    
+    if (!formData.textEn || !formData.textEn.trim()) {
+      alert('Question text (English) is required');
+      return;
+    }
+    
+    if (!options || options.length === 0) {
+      alert('At least one answer option is required');
+      return;
+    }
+    
+    // Validate options
+    for (let i = 0; i < options.length; i++) {
+      const opt = options[i];
+      if (!opt.key || !opt.key.trim()) {
+        alert(`Option ${i + 1}: Key is required`);
+        return;
+      }
+      if (!opt.textEn || !opt.textEn.trim()) {
+        alert(`Option ${i + 1}: Text (English) is required`);
+        return;
+      }
+    }
+    
+    // Ensure all benefits are included in mapping (default to 0 if not set)
+    const optionsWithCompleteMapping = options.map((option) => {
+      const completeMapping: Record<string, number> = {};
+      benefits.forEach((benefit) => {
+        completeMapping[benefit.code] = option.benefitMapping[benefit.code] || 0;
+      });
+      return {
+        ...option,
+        benefitMapping: completeMapping,
+      };
+    });
+    
+    console.log('[QuestionForm] Submitting data:', {
+      ...formData,
+      options: optionsWithCompleteMapping,
+    });
+    
+    await onSubmit({ ...formData, options: optionsWithCompleteMapping });
   };
 
   const categoryOptions = [
@@ -194,6 +378,98 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                       value={option.textHiEn}
                       onChange={(e) => updateOption(index, 'textHiEn', e.target.value)}
                     />
+                  </div>
+
+                  {/* Benefit Mapping Accordion */}
+                  <div className="border-t border-slate-200 pt-3 mt-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleBenefitMapping(index)}
+                      className="flex items-center justify-between w-full text-left text-sm font-medium text-slate-700 hover:text-slate-900"
+                    >
+                      <span>Benefit Mapping</span>
+                      {expandedBenefitMappings.has(index) ? (
+                        <ChevronDown size={18} />
+                      ) : (
+                        <ChevronRight size={18} />
+                      )}
+                    </button>
+
+                    {expandedBenefitMappings.has(index) && (
+                      <div className="mt-3 pt-3 border-t border-slate-200">
+                        {loadingBenefits ? (
+                          <p className="text-sm text-slate-500">Loading benefits...</p>
+                        ) : benefits.length === 0 ? (
+                          <p className="text-sm text-slate-500">No benefits available. Create benefits first.</p>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-4">
+                            {benefits.map((benefit) => (
+                              <div key={benefit.code} className="space-y-1">
+                                <label className="block text-xs font-medium text-slate-600">
+                                  {benefit.code} — {benefit.name}
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  max="3"
+                                  value={option.benefitMapping[benefit.code] || 0}
+                                  onChange={(e) =>
+                                    updateAnswerBenefit(
+                                      index,
+                                      benefit.code,
+                                      parseFloat(e.target.value) || 0
+                                    )
+                                  }
+                                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  placeholder="0"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Sub-Question Toggle and Dropdown */}
+                  <div className="border-t border-slate-200 pt-3 mt-3">
+                    <div className="flex items-center gap-3 mb-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={option.triggersSubQuestion || false}
+                          onChange={(e) => updateOption(index, 'triggersSubQuestion', e.target.checked)}
+                          className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm font-medium text-slate-700">Triggers Sub-question?</span>
+                      </label>
+                    </div>
+
+                    {option.triggersSubQuestion && (
+                      <div className="mt-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                          Select follow-up question
+                        </label>
+                        <Select
+                          value={option.subQuestionId || ''}
+                          onChange={(e) => updateOption(index, 'subQuestionId', e.target.value || null)}
+                          options={[
+                            { value: '', label: '-- Select Question --' },
+                            ...allQuestions
+                              .filter((q) => q.id !== question?.id) // Prevent self-link
+                              .sort((a, b) => (a.displayOrder || a.order || 0) - (b.displayOrder || b.order || 0))
+                              .map((q) => ({
+                                value: q.id,
+                                label: `${q.textEn || q.text || q.key} (Order: ${q.displayOrder || q.order || 0})`,
+                              })),
+                          ]}
+                        />
+                        {loadingQuestions && (
+                          <p className="text-xs text-slate-500 mt-1">Loading questions...</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -33,19 +33,6 @@ export async function POST(request: NextRequest) {
         email: normalizedEmail,
         isActive: true,
       },
-      include: {
-        store: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        organization: {
-          select: {
-            id: true,
-          },
-        },
-      },
     });
     
     // Debug: Check if any users exist at all
@@ -53,9 +40,6 @@ export async function POST(request: NextRequest) {
       const totalUsers = await prisma.user.count();
       const activeUsers = await prisma.user.count({ where: { isActive: true } });
       console.log(`User lookup failed. Total users: ${totalUsers}, Active users: ${activeUsers}`);
-    }
-
-    if (!user) {
       console.error(`Login failed: User not found or inactive - ${email}`);
       return Response.json(
         {
@@ -85,17 +69,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch store name separately if needed
+    let storeName: string | null = null;
+    if (user.storeId) {
+      try {
+        const store = await prisma.store.findUnique({
+          where: { id: user.storeId },
+          select: { name: true },
+        });
+        storeName = store?.name || null;
+      } catch (storeError) {
+        console.warn(`Failed to fetch store for user ${user.id}:`, storeError);
+        // Continue without store name
+      }
+    }
+
     // Update last login
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+    } catch (updateError) {
+      console.warn(`Failed to update lastLoginAt for user ${user.id}:`, updateError);
+      // Continue even if update fails
+    }
 
     // Generate token
     const token = generateToken({
       userId: user.id,
       email: user.email,
-      role: user.role,
+      role: user.role as any, // user.role is String in DB, but we use UserRole enum in code
       organizationId: user.organizationId,
       storeId: user.storeId,
     });
@@ -111,7 +115,7 @@ export async function POST(request: NextRequest) {
           name: user.name,
           role: user.role,
           storeId: user.storeId,
-          storeName: user.store?.name || null,
+          storeName: storeName,
         },
       },
     });

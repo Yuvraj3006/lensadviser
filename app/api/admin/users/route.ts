@@ -4,7 +4,7 @@ import { authenticate, authorize, canManageRole } from '@/middleware/auth.middle
 import { handleApiError, ForbiddenError } from '@/lib/errors';
 import { CreateUserSchema } from '@/lib/validation';
 import { hashPassword } from '@/lib/auth';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
 // GET /api/admin/users - List all users

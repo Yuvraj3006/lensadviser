@@ -4,7 +4,7 @@ import { authenticate, authorize, canManageRole } from '@/middleware/auth.middle
 import { handleApiError, NotFoundError, ForbiddenError, BusinessRuleError } from '@/lib/errors';
 import { UpdateUserSchema } from '@/lib/validation';
 import { hashPassword } from '@/lib/auth';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
 // PUT /api/admin/users/[id] - Update user

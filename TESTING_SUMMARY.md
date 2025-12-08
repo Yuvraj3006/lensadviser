@@ -1,83 +1,127 @@
-# ✅ Browser Testing Summary
+# Testing Summary - Features & Benefits Refactor
 
-## 🎯 **Testing Complete**
+## ✅ Completed Tasks
 
-### **✅ Pages Tested & Working:**
+### 1. Seed Script ✅
+- **Status**: Successfully executed
+- **Result**: 
+  - F01-F11 Features created/updated
+  - B01-B12 Benefits created/updated for organization
+- **Command**: `npx tsx prisma/seed-features-benefits.ts`
 
-1. **Homepage/Questionnaire** ✅
-   - Loads successfully
-   - Store code input working
-   - Continue button present
-   - Staff Login link working
+### 2. Server Status ✅
+- **Status**: Running
+- **Health Check**: Database connection healthy
+- **URL**: http://localhost:3000
 
-2. **Login Page** ✅
-   - Loads successfully
-   - Email/Password inputs working
-   - Show/Hide password button working
-   - Sign In button functional
-   - ⚠️ API returning 400 (DB connection needed)
+### 3. Database Schema
+- **Note**: Unique index on `Feature.code` cannot be created due to existing null codes
+- **Workaround**: Schema allows nullable `code` for now
+- **Impact**: Features with valid codes (F01-F11) work correctly
 
-3. **Lens Advisor Page** ✅
-   - Loads successfully
-   - Prescription form rendering correctly
-   - All input fields present:
-     - Right Eye (OD): SPH, CYL, Axis, ADD
-     - Left Eye (OS): SPH, CYL, Axis, ADD
-     - Vision Type dropdown
-   - Next button present
+## 📋 Testing Checklist
 
----
+### Admin > Features Page
+**URL**: http://localhost:3000/admin/features
 
-## ⚠️ **Issues Found:**
+**Expected**:
+- ✅ List shows F01-F11 features
+- ✅ Features sorted by displayOrder
+- ✅ Core features (F01-F11) cannot be deleted
+- ✅ Categories: DURABILITY, COATING, PROTECTION, LIFESTYLE, VISION
+- ✅ Code column shows F01, F02, etc.
 
-### **1. Database Connection**
-- All APIs requiring database access are failing
-- Login API: 400/500 error
-- Store Verification API: 500 error
-- **Solution:** Check `DATABASE_URL` in `.env` and verify MongoDB connection
+**Test Steps**:
+1. Navigate to `/admin/features`
+2. Verify F01-F11 are listed
+3. Try editing a feature (name/description only for F01-F11)
+4. Try deleting F01 (should be disabled)
 
-### **2. API Endpoints**
-- Cannot test authenticated pages without login
-- Cannot test questionnaire flow without store verification
-- **Solution:** Fix database connection first
+### Admin > Benefits Page
+**URL**: http://localhost:3000/admin/benefits
 
----
+**Expected**:
+- ✅ List shows B01-B12 benefits
+- ✅ Benefits sorted by code
+- ✅ Core benefits (B01-B12) cannot be deleted
+- ✅ Shows maxScore (3.0), pointWeight (1.0)
+- ✅ Shows questionMappingCount and productMappingCount
 
-## ✅ **What's Working:**
+**Test Steps**:
+1. Navigate to `/admin/benefits`
+2. Verify B01-B12 are listed
+3. Try editing a benefit
+4. Try creating a new benefit (B13, B14, etc.)
 
-1. ✅ **Frontend Pages**
-   - All pages load without errors
-   - No runtime serialization errors
-   - UI components rendering correctly
-   - Navigation working
+### Admin > Lenses Page
+**URL**: http://localhost:3000/admin/lenses
 
-2. ✅ **UI Components**
-   - Input fields functional
-   - Buttons clickable
-   - Forms rendering correctly
-   - Dropdowns working
+**Expected**:
+- ✅ Features Tab: Checkbox list of F01-F11
+- ✅ Benefits Tab: Sliders (0-3) for B01-B12
+- ✅ RX Ranges Tab: Dynamic rows for SPH/CYL ranges
+- ✅ General Tab: IT Code, Name, Brand Line, Vision Type, Index, etc.
 
-3. ✅ **Code Quality**
-   - All enum validation fixes applied
-   - Date serialization fixed
-   - QueryClient serialization fixed
+**Test Steps**:
+1. Navigate to `/admin/lenses`
+2. Click "New Lens" or edit existing
+3. Go to Features tab - verify F01-F11 checkboxes
+4. Go to Benefits tab - verify B01-B12 sliders (0-3)
+5. Go to RX Ranges tab - add/edit ranges
+6. Save lens - verify API call succeeds
 
----
+### Questionnaire Builder
+**URL**: http://localhost:3000/admin/questionnaire
 
-## 📋 **Next Steps:**
+**Expected**:
+- ✅ Answer options have "Benefit Mapping" accordion
+- ✅ Benefit Mapping shows B01-B12 with number inputs (0-3)
+- ✅ Sub-question toggle and dropdown work
+- ✅ Save creates AnswerBenefit records with points
 
-1. **Fix Database Connection**
-   - Verify `.env` file
-   - Test MongoDB connection
-   - Run database migrations if needed
+**Test Steps**:
+1. Navigate to `/admin/questionnaire`
+2. Create/Edit a question
+3. Add answer options
+4. Expand "Benefit Mapping" for an answer
+5. Set points for B01, B02, etc.
+6. Save question - verify API call succeeds
 
-2. **Test Full Flows**
-   - Login flow
-   - Questionnaire flow
-   - Lens Advisor wizard
-   - Admin dashboard
+## 🔧 Known Issues
 
----
+1. **Feature.code Unique Index**: Cannot create unique index due to existing null codes
+   - **Impact**: Low - F01-F11 have valid codes, old null-code features are obsolete
+   - **Solution**: Manually delete old features with null codes from MongoDB
 
-*Testing Status: Frontend ✅ | Backend APIs ⚠️ (Need DB Connection)*
+2. **Schema**: `Feature.code` is currently nullable
+   - **Impact**: None for new features (F01-F11 have codes)
+   - **Future**: Can make non-nullable after cleanup
 
+## 🎯 Next Steps
+
+1. **Manual Testing**:
+   - Open http://localhost:3000/admin/features
+   - Open http://localhost:3000/admin/benefits
+   - Open http://localhost:3000/admin/lenses
+   - Open http://localhost:3000/admin/questionnaire
+
+2. **Verify API Endpoints**:
+   - `GET /api/admin/features` - Should return F01-F11
+   - `GET /api/admin/benefits` - Should return B01-B12
+   - `POST /api/admin/lenses` - Should accept featureCodes and benefitScores
+   - `POST /api/admin/questions` - Should accept benefitMapping in options
+
+3. **Database Cleanup** (Optional):
+   - Delete old features with null codes
+   - Make `Feature.code` non-nullable
+   - Create unique index
+
+## ✅ Success Criteria
+
+- [x] Seed script runs successfully
+- [x] Server starts and database connects
+- [ ] Features page shows F01-F11
+- [ ] Benefits page shows B01-B12
+- [ ] Lens creation includes Features & Benefits tabs
+- [ ] Questionnaire Builder includes Benefit Mapping
+- [ ] All APIs return 200 OK

@@ -50,6 +50,12 @@ export default function FramePage() {
   // Debug: Log frame state changes
   useEffect(() => {
     console.log('[FramePage] Frame state updated:', frame);
+    console.log('[FramePage] Frame type check:', {
+      frameType: frame?.frameType,
+      hasFrameType: !!frame?.frameType,
+      frameTypeValue: frame?.frameType,
+      frameTypeType: typeof frame?.frameType,
+    });
   }, [frame]);
 
   const handleNext = async () => {
@@ -66,7 +72,14 @@ export default function FramePage() {
       return;
     }
     
-    if (!frame?.frameType) {
+    // Check frameType - allow empty string check too
+    const frameType = frame?.frameType;
+    if (!frameType || frameType.trim() === '') {
+      console.error('[FramePage] Frame type validation failed:', {
+        frameType,
+        frameTypeType: typeof frameType,
+        frame: frame,
+      });
       showToast('error', 'Please select a frame type');
       return;
     }
@@ -79,11 +92,24 @@ export default function FramePage() {
 
       // Get all collected data
       const customerDetails = JSON.parse(localStorage.getItem('lenstrack_customer_details') || '{}');
-      const lensType = localStorage.getItem('lenstrack_lens_type');
+      const lensType = localStorage.getItem('lenstrack_lens_type') || localStorage.getItem('lenstrack_category') || 'EYEGLASSES';
       const prescription = JSON.parse(localStorage.getItem('lenstrack_prescription') || '{}');
 
-      // Validate required data
-      if (!lensType) {
+      console.log('[FramePage] Lens type check:', {
+        lensType,
+        lensTypeFromStorage: localStorage.getItem('lenstrack_lens_type'),
+        categoryFromStorage: localStorage.getItem('lenstrack_category'),
+        allStorageKeys: Object.keys(localStorage).filter(k => k.includes('lens') || k.includes('category')),
+      });
+
+      // Validate required data - use default if not found
+      const finalLensType = lensType || 'EYEGLASSES';
+      if (!finalLensType || finalLensType.trim() === '') {
+        console.error('[FramePage] Lens type validation failed:', {
+          lensType,
+          finalLensType,
+          allLocalStorage: Object.keys(localStorage).map(k => ({ key: k, value: localStorage.getItem(k) })),
+        });
         showToast('error', 'Lens type is required. Please go back and select a lens type.');
         setIsSubmitting(false);
         return;
@@ -105,7 +131,8 @@ export default function FramePage() {
 
       console.log('[FramePage] Creating session with:', {
         storeCode,
-        category: lensType,
+        category: finalLensType,
+        lensType: finalLensType,
         frame: cleanedFrame,
         customerDetails,
         prescription: prescription && Object.keys(prescription).length > 0 ? prescription : null,
@@ -129,7 +156,7 @@ export default function FramePage() {
         },
         body: JSON.stringify({
           storeCode: storeCode || 'MAIN-001',
-          category: lensType || 'EYEGLASSES',
+          category: finalLensType,
           customerName: customerDetails?.name || undefined,
           customerPhone: customerDetails?.phone || undefined,
           customerEmail: customerDetails?.email || undefined,
@@ -336,7 +363,14 @@ export default function FramePage() {
             </Button>
             <Button
               onClick={handleNext}
-              disabled={!frame?.brand || !frame?.mrp || !frame?.frameType || isSubmitting}
+              disabled={
+                !frame?.brand || 
+                !frame?.mrp || 
+                frame.mrp <= 0 ||
+                !frame?.frameType || 
+                frame.frameType.trim() === '' ||
+                isSubmitting
+              }
               loading={isSubmitting}
               className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
             >

@@ -56,13 +56,15 @@ interface RecommendedProduct {
   imageUrl?: string | null;
   category: ProductCategory;
   matchScore: number;
+  matchPercent?: number; // BACKEND SPEC: Match percentage (0-100)
+  benefitComponent?: number; // BACKEND SPEC: Benefit component score
+  finalScore?: number; // BACKEND SPEC: Final score (benefitComponent only - Answer Boosts removed)
   rank: number;
   features: {
     id: string;
     name: string;
     key: string;
     price: number;
-    strength: number;
   }[];
   storeInfo?: {
     priceOverride?: number | null;
@@ -91,12 +93,12 @@ interface RecommendationResult {
  * Calculate lens pricing from database feature prices
  */
 function calculateLensPricing(
-  features: { id: string; name: string; key: string; price: number; strength: number }[],
+  features: { id: string; name: string; key: string; price: number }[],
   baseLensPrice: number
 ): LensPricing {
   const featureAddons = features.map((feature) => ({
     name: feature.name,
-    price: Math.round(feature.price * feature.strength), // Price scales with strength
+    price: Math.round(feature.price), // Price from feature (no strength multiplier)
     featureId: feature.id,
   }));
 
@@ -363,12 +365,36 @@ export async function generateRecommendations(
     }
   });
 
-  // 5. Get all active products in this category for this organization
-  const products = await prisma.product.findMany({
+  // 5. Get all active retail products (frames) for this category
+  // Map session.category to RetailProductType
+  // EYEGLASSES -> FRAME, SUNGLASSES -> SUNGLASS, etc.
+  const categoryMap: Record<string, 'FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY'> = {
+    'EYEGLASSES': 'FRAME',
+    'SUNGLASSES': 'SUNGLASS',
+    'CONTACT_LENSES': 'CONTACT_LENS',
+    'ACCESSORIES': 'ACCESSORY',
+  };
+  
+  const productType = (categoryMap[session.category] || 'FRAME') as 'FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY';
+  
+  const products = await (prisma as any).retailProduct.findMany({
     where: {
-      organizationId,
-      category: session.category,
+      type: productType,
       isActive: true,
+    },
+    include: {
+      brand: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      subBrand: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 
@@ -377,7 +403,7 @@ export async function generateRecommendations(
   }
 
   // Get product IDs
-  const productIds = products.map((p) => p.id);
+  const productIds = products.map((p: any) => p.id);
 
   // Get product features separately (no relation in schema)
   const productFeatures = await prisma.productFeature.findMany({
@@ -414,38 +440,167 @@ export async function generateRecommendations(
     storeProductsByProductId.get(sp.productId)!.push(sp);
   });
 
-  // 6. Calculate match scores and pricing for each product
-  const scoredProducts = await Promise.all(products.map(async (product) => {
-    // Get features and store products for this product from maps
-    const productFeatureList = featuresByProductId.get(product.id) || [];
-    const productStoreProducts = storeProductsByProductId.get(product.id) || [];
+    // 6. Get feature-benefit mappings for interconnected scoring
+    const featureIds = Array.from(featureWeights.keys());
+    // FeatureBenefit model - use type assertion if needed
+    const featureBenefitMappings = featureIds.length > 0
+      ? await (prisma as any).featureBenefit?.findMany({
+          where: {
+            featureId: { in: featureIds },
+          },
+          include: {
+            benefit: true,
+          },
+        }) || []
+      : [];
 
-    let matchScore = 0;
-    let maxPossibleScore = 0;
+    // Get benefit scores from answers for interconnected scoring
+    const answerIds = sessionAnswers.map((a) => a.optionId);
+    // Query AnswerBenefit - MongoDB ObjectId filtering
+    const answerBenefits = answerIds.length > 0
+      ? await (prisma.answerBenefit.findMany as any)({
+          where: {
+            answerId: { in: answerIds },
+          },
+          include: {
+            benefit: true,
+          },
+        })
+      : [];
 
-    // Calculate how well product features match customer preferences
-    featureWeights.forEach(({ feature, totalWeight }) => {
-      maxPossibleScore += totalWeight;
-
-      const productFeature = productFeatureList.find(
-        (pf) => pf.featureId === feature.id
-      );
-
-      if (productFeature) {
-        matchScore += totalWeight * productFeature.strength;
+    // Build benefit scores map
+    const benefitScoresMap = new Map<string, number>();
+    answerBenefits.forEach((ab: any) => {
+      if (ab.benefit && typeof ab.points === 'number') {
+        const code = ab.benefit.code;
+        const existing = benefitScoresMap.get(code) || 0;
+        benefitScoresMap.set(code, existing + ab.points);
       }
     });
 
-    // Normalize to percentage (0-100)
-    const normalizedScore = maxPossibleScore > 0 
-      ? Math.min(100, (matchScore / maxPossibleScore) * 100) 
-      : 50;
+    // Get product benefits for interconnected scoring
+    // Query ProductBenefit - MongoDB ObjectId filtering
+    const productBenefits = productIds.length > 0
+      ? await (prisma.productBenefit.findMany as any)({
+          where: { productId: { in: productIds } },
+          include: {
+            benefit: true,
+          },
+        })
+      : [];
+
+    const productBenefitsByProductId = new Map<string, any[]>();
+    productBenefits.forEach((pb: any) => {
+      const productId = String(pb.productId);
+      if (!productBenefitsByProductId.has(productId)) {
+        productBenefitsByProductId.set(productId, []);
+      }
+      productBenefitsByProductId.get(productId)!.push(pb);
+    });
+
+    // 7. Answer Boosts removed - all scoring now via Benefits only
+    const selectedAnswerIds = new Set(answerIds.map(id => String(id)));
+
+    // 8. Calculate match scores and pricing for each product (Backend Spec Algorithm)
+    const scoredProducts = await Promise.all(products.map(async (product: any) => {
+      // Get features and store products for this product from maps
+      const productFeatureList = featuresByProductId.get(product.id) || [];
+      const productStoreProducts = storeProductsByProductId.get(product.id) || [];
+      const productBenefitList = productBenefitsByProductId.get(product.id) || [];
+
+      // BACKEND SPEC: Benefit Component Calculation (Answer Boosts removed - all via Benefits)
+      let benefitComponent = 0;
+      for (const pb of productBenefitList) {
+        if (pb.benefit && typeof pb.score === 'number') {
+          const benefitCode = pb.benefit.code;
+          const userBenefitScore = benefitScoresMap.get(benefitCode) || 0;
+          // Multiply user benefit score by product benefit score (0-3 scale)
+          benefitComponent += userBenefitScore * pb.score;
+        }
+      }
+
+      // Final Score = benefitComponent only (Answer Boosts removed)
+      const finalScore = benefitComponent;
+
+      // Feature-based score (for backward compatibility and hybrid scoring)
+      let featureScore = 0;
+      let maxFeatureScore = 0;
+
+      featureWeights.forEach(({ feature, totalWeight }) => {
+        maxFeatureScore += totalWeight;
+
+        const productFeature = productFeatureList.find(
+          (pf) => pf.featureId === feature.id
+        );
+
+        if (productFeature) {
+          // ProductFeature is now just a join table - presence means feature is enabled (strength = 1.0)
+          featureScore += totalWeight * 1.0;
+        }
+      });
+
+      const normalizedFeatureScore = maxFeatureScore > 0 
+        ? Math.min(100, (featureScore / maxFeatureScore) * 100) 
+        : 50;
+
+      // Interconnected score (Feature → Benefit) - Enhanced scoring
+      let interconnectedScore = 0;
+      let maxInterconnectedScore = 0;
+
+      featureWeights.forEach(({ feature, totalWeight }) => {
+        const featureMappings = featureBenefitMappings.filter(
+          (fb: any) => String(fb.featureId) === String(feature.id)
+        );
+
+        featureMappings.forEach((mapping: any) => {
+          const benefitCode = mapping.benefit.code;
+          const benefitPoints = benefitScoresMap.get(benefitCode) || 0;
+
+          if (benefitPoints > 0) {
+            const productBenefit = productBenefitList.find(
+              (pb: any) => pb.benefit.code === benefitCode
+            );
+
+            if (productBenefit) {
+              interconnectedScore += totalWeight * mapping.weight * productBenefit.score;
+            }
+          }
+
+          maxInterconnectedScore += Math.abs(totalWeight) * mapping.weight * 3; // Max strength 3
+        });
+      });
+
+      const normalizedInterconnectedScore = maxInterconnectedScore > 0
+        ? Math.min(100, (interconnectedScore / maxInterconnectedScore) * 100)
+        : 0;
+
+      // BACKEND SPEC: Use benefit-based scoring as primary, with feature-based as fallback
+      // If benefit scores exist, use them; otherwise fall back to feature-based
+      let normalizedScore: number;
+      if (benefitScoresMap.size > 0 || productBenefitList.length > 0) {
+        // Calculate max possible benefit score for normalization
+        const maxPossibleBenefitScore = Array.from(benefitScoresMap.values()).reduce((sum, score) => sum + score, 0) * 3; // Max product benefit score is 3
+        
+        // Normalize to 0-100
+        normalizedScore = maxPossibleBenefitScore > 0
+          ? Math.min(100, (finalScore / maxPossibleBenefitScore) * 100)
+          : 0;
+        
+        // Hybrid approach: 70% benefit-based + 20% feature + 10% interconnected
+        if (normalizedFeatureScore > 0 || normalizedInterconnectedScore > 0) {
+          normalizedScore = normalizedScore * 0.7 + normalizedFeatureScore * 0.2 + normalizedInterconnectedScore * 0.1;
+        }
+      } else {
+        // Fallback to feature-based if no benefits
+        normalizedScore = normalizedFeatureScore * 0.8 + normalizedInterconnectedScore * 0.2;
+      }
 
     // Store info
     const storeProduct = productStoreProducts[0];
-    const framePrice = storeProduct?.priceOverride || product.basePrice;
-    const discount = storeProduct?.priceOverride && storeProduct.priceOverride < product.basePrice
-      ? Math.round(((product.basePrice - storeProduct.priceOverride) / product.basePrice) * 100)
+    const frameMrp = (product as any).mrp || 0;
+    const framePrice = storeProduct?.priceOverride || frameMrp;
+    const discount = storeProduct?.priceOverride && storeProduct.priceOverride < frameMrp
+      ? Math.round(((frameMrp - storeProduct.priceOverride) / frameMrp) * 100)
       : undefined;
 
     // Calculate lens pricing from DB feature prices
@@ -453,8 +608,7 @@ export async function generateRecommendations(
       id: pf.feature.id,
       name: pf.feature.name,
       key: pf.feature.key,
-      price: pf.feature.price || 0, // Price from database!
-      strength: pf.strength,
+      price: pf.feature.price || 0, // Price from database! (no strength multiplier)
     }));
     
     const lensPrice = calculateLensPricing(productFeatures, baseLensPrice);
@@ -468,33 +622,27 @@ export async function generateRecommendations(
     }
 
     // Prepare inputs for new Offer Engine
+    // RetailProduct has: brand (via relation), mrp, type, name, sku
     const frameInput: FrameInput = {
-      brand: product.brand || 'UNKNOWN',
-      subCategory: null, // Product model doesn't have subCategory field
+      brand: (product as any).brand?.name || 'UNKNOWN', // Get brand name from relation
+      subCategory: (product as any).subBrand?.name || null, // Get subBrand name from relation
       mrp: Math.max(0, framePrice), // Ensure non-negative
-      frameType: undefined, // Can be added to Product model if needed
+      frameType: undefined, // Can be added to RetailProduct model if needed
     };
 
-    // For lens, we need to determine IT code and brand line
-    // Using SKU as IT code for now, and default brand line
-    const itCodeValue = product.itCode || product.sku;
-    
-    // Convert brandLine enum to string if needed
-    const brandLineValue = product.brandLine 
-      ? (typeof product.brandLine === 'string' ? product.brandLine : String(product.brandLine))
-      : 'STANDARD';
-    
+    // For lens, use default values since RetailProduct doesn't have lens-specific fields
+    // These will be set when a lens is actually selected
     const lensInput: LensInput = {
-      itCode: itCodeValue || product.sku, // Fallback to SKU if itCode is empty
+      itCode: 'DEFAULT', // Default IT code - will be replaced when lens is selected
       price: Math.max(0, lensPrice.totalLensPrice), // Ensure non-negative
-      brandLine: brandLineValue,
-      yopoEligible: product.yopoEligible || false,
+      brandLine: 'STANDARD', // Default brand line
+      yopoEligible: false, // Default value
     };
 
     // Validate required fields before calling offer engine
     if (!lensInput.itCode || lensInput.itCode.trim() === '') {
       console.warn(`[generateRecommendations] Missing itCode for product ${product.id}, using SKU: ${product.sku}`);
-      lensInput.itCode = product.sku;
+      lensInput.itCode = String(product.sku);
     }
 
     // Calculate offers using new Offer Engine
@@ -531,7 +679,7 @@ export async function generateRecommendations(
         baseLensPrice: baseLensPrice,
         featureAddons: productFeatures.map(f => ({
           name: f.name,
-          price: f.price * f.strength,
+          price: f.price, // No strength multiplier (ProductFeature is just a join table)
           featureId: f.id,
         })),
         totalLensPrice: offerResult.lensPrice,
@@ -581,16 +729,23 @@ export async function generateRecommendations(
       }] : []),
     ];
 
+    // BACKEND SPEC: Calculate matchPercent (normalized score as percentage)
+    const matchPercent = Math.round(normalizedScore);
+
+    // Reuse frameMrp from line 600 (already declared above)
     return {
       id: product.id,
-      name: product.name,
-      sku: product.sku,
-      description: product.description,
-      brand: product.brand,
-      basePrice: product.basePrice,
-      imageUrl: product.imageUrl,
-      category: product.category as ProductCategory,
+      name: (product as any).name || '',
+      sku: (product as any).sku || '',
+      description: null,
+      brand: (product as any).brand?.name || null,
+      basePrice: frameMrp, // Use frameMrp from line 600
+      imageUrl: null,
+      category: productType as ProductCategory,
       matchScore: Math.round(normalizedScore * 10) / 10,
+      matchPercent, // BACKEND SPEC: Match percentage (0-100)
+      benefitComponent: Math.round(benefitComponent * 10) / 10, // BACKEND SPEC: Benefit component score
+      finalScore: Math.round(finalScore * 10) / 10, // BACKEND SPEC: Final score (benefitComponent only)
       rank: 0,
       features: productFeatures,
       storeInfo: storeProduct ? {
@@ -603,7 +758,7 @@ export async function generateRecommendations(
         priceOverride: null,
         stockQuantity: 10,
         isAvailable: true,
-        finalPrice: product.basePrice,
+        finalPrice: frameMrp,
         discount: undefined,
       },
       pricing,
@@ -611,8 +766,13 @@ export async function generateRecommendations(
     };
   }));
 
-  // 7. Sort by match score (descending) and assign ranks
-  scoredProducts.sort((a, b) => b.matchScore - a.matchScore);
+  // 9. Sort by final score (or match score) - BACKEND SPEC: Sort by finalScore
+  scoredProducts.sort((a, b) => {
+    // Use finalScore if available, otherwise use matchScore
+    const scoreA = a.finalScore ?? a.matchScore;
+    const scoreB = b.finalScore ?? b.matchScore;
+    return scoreB - scoreA;
+  });
   scoredProducts.forEach((product, index) => {
     product.rank = index + 1;
   });
@@ -626,7 +786,7 @@ export async function generateRecommendations(
 
   const now = new Date();
   await Promise.all(
-    topRecommendations.map((rec) =>
+    topRecommendations.map((rec: any) =>
       prisma.sessionRecommendation.create({
         data: {
           sessionId,
@@ -712,9 +872,37 @@ export async function getSessionRecommendations(
   const productIds = sessionRecommendations.map((rec) => rec.productId);
 
   // Get products separately (no relations in schema)
-  const products = await prisma.product.findMany({
+  // productIds can be from RetailProduct or LensProduct, try both
+  const retailProducts = await (prisma as any).retailProduct.findMany({
     where: { id: { in: productIds } },
   });
+  const lensProducts = await (prisma as any).lensProduct.findMany({
+    where: { id: { in: productIds } },
+  });
+  
+  // Combine and map to common format
+  const products = [
+    ...retailProducts.map((p: any) => ({
+      id: p.id,
+      name: p.name || '',
+      sku: p.sku || '',
+      description: null,
+      brand: null,
+      basePrice: p.mrp,
+      imageUrl: null,
+      category: p.type as ProductCategory,
+    })),
+    ...lensProducts.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      sku: p.itCode,
+      description: null,
+      brand: null,
+      basePrice: p.baseOfferPrice,
+      imageUrl: null,
+      category: 'EYEGLASSES' as ProductCategory, // Lenses are part of eyeglasses
+    })),
+  ];
 
   // Get product features separately
   const productFeatures = await prisma.productFeature.findMany({
@@ -766,9 +954,10 @@ export async function getSessionRecommendations(
     const productStoreProducts = storeProductsByProductId.get(product.id) || [];
 
     const storeProduct = productStoreProducts[0];
-    const framePrice = storeProduct?.priceOverride || product.basePrice;
-    const discount = storeProduct?.priceOverride && storeProduct.priceOverride < product.basePrice
-      ? Math.round(((product.basePrice - storeProduct.priceOverride) / product.basePrice) * 100)
+    const frameMrp = (product as any).mrp || 0;
+    const framePrice = storeProduct?.priceOverride || frameMrp;
+    const discount = storeProduct?.priceOverride && storeProduct.priceOverride < frameMrp
+      ? Math.round(((frameMrp - storeProduct.priceOverride) / frameMrp) * 100)
       : undefined;
 
     // Calculate lens pricing from DB
@@ -776,8 +965,7 @@ export async function getSessionRecommendations(
       id: pf.feature.id,
       name: pf.feature.name,
       key: pf.feature.key,
-      price: pf.feature.price || 0,
-      strength: pf.strength,
+      price: pf.feature.price || 0, // No strength multiplier (ProductFeature is just a join table)
     }));
     
     const lensPrice = calculateLensPricing(productFeatures, baseLensPrice);
@@ -805,8 +993,11 @@ export async function getSessionRecommendations(
       ? (typeof product.brandLine === 'string' ? product.brandLine : String(product.brandLine))
       : 'STANDARD';
     
+    // Ensure itCode is a string
+    const itCodeValueStr = String(itCodeValue || product.sku);
+    
     const lensInput: LensInput = {
-      itCode: itCodeValue || product.sku, // Fallback to SKU if itCode is empty
+      itCode: itCodeValueStr, // Use string version
       price: Math.max(0, lensPrice.totalLensPrice), // Ensure non-negative
       brandLine: brandLineValue,
       yopoEligible: product.yopoEligible || false,
@@ -815,7 +1006,7 @@ export async function getSessionRecommendations(
     // Validate required fields before calling offer engine
     if (!lensInput.itCode || lensInput.itCode.trim() === '') {
       console.warn(`[getSessionRecommendations] Missing itCode for product ${product.id}, using SKU: ${product.sku}`);
-      lensInput.itCode = product.sku;
+      lensInput.itCode = String(product.sku);
     }
 
     // Calculate offers using new Offer Engine
@@ -852,7 +1043,7 @@ export async function getSessionRecommendations(
         baseLensPrice: baseLensPrice,
         featureAddons: productFeatures.map(f => ({
           name: f.name,
-          price: f.price * f.strength,
+          price: f.price, // No strength multiplier (ProductFeature is just a join table)
           featureId: f.id,
         })),
         totalLensPrice: offerResult.lensPrice,
@@ -901,15 +1092,25 @@ export async function getSessionRecommendations(
       }] : []),
     ];
 
+    // Determine category from product type (reuse frameMrp from line 957)
+    const productCategory = (product as any).type || 'FRAME';
+    const categoryMap: Record<string, ProductCategory> = {
+      'FRAME': 'EYEGLASSES',
+      'SUNGLASS': 'SUNGLASSES',
+      'CONTACT_LENS': 'CONTACT_LENSES',
+      'ACCESSORY': 'ACCESSORIES',
+    };
+    const mappedCategory = categoryMap[productCategory] || 'EYEGLASSES';
+    
     return {
       id: product.id,
-      name: product.name,
-      sku: product.sku,
-      description: product.description,
-      brand: product.brand,
-      basePrice: product.basePrice,
-      imageUrl: product.imageUrl,
-      category: product.category as ProductCategory,
+      name: (product as any).name || '',
+      sku: (product as any).sku || '',
+      description: null,
+      brand: (product as any).brand?.name || null,
+      basePrice: frameMrp, // Use frameMrp from line 957
+      imageUrl: null,
+      category: mappedCategory,
       matchScore: rec.matchScore,
       rank: Number(rec.rank),
       features: productFeatures,
@@ -923,7 +1124,7 @@ export async function getSessionRecommendations(
         priceOverride: null,
         stockQuantity: 10,
         isAvailable: true,
-        finalPrice: product.basePrice,
+        finalPrice: frameMrp,
         discount: undefined,
       },
       pricing,

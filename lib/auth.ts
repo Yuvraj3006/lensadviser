@@ -1,6 +1,6 @@
 import jwt, { Secret } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 
 const JWT_SECRET: Secret = (process.env.JWT_SECRET || 'your-secret-key-change-this') as Secret;
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';

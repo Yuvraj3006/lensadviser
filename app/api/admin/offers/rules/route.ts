@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { handleApiError, ValidationError, NotFoundError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
 // Validation schema for creating offer rules - matches Prisma OfferRule model
@@ -80,8 +80,28 @@ export async function GET(request: NextRequest) {
     // Transform rules to include discount fields from config for frontend compatibility
     const transformedRules = rules.map((rule) => {
       const config = rule.config as any || {};
+      
+      // Generate display name from code and offerType
+      const getDisplayName = (code: string, offerType: string) => {
+        // If code is descriptive, use it
+        if (code && code.length > 0) {
+          // Convert code to readable format: "YOPO_OFFER" -> "YOPO Offer"
+          return code
+            .split('_')
+            .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+            .join(' ');
+        }
+        // Fallback to offerType
+        return offerType
+          .split('_')
+          .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+          .join(' ');
+      };
+      
       return {
         ...rule,
+        // Add name field for display
+        name: getDisplayName(rule.code, rule.offerType),
         // Extract discount fields from config for frontend
         discountType: config.discountType || null,
         discountValue: config.discountValue || 0,

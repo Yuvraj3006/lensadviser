@@ -14,10 +14,9 @@ export interface FrameInput {
 
 export class IndexRecommendationService {
   /**
-   * Recommend lens index based on prescription power and frame type
+   * Calculate maximum power from prescription
    */
-  recommendIndex(rx: RxInput, frame?: FrameInput | null): string {
-    // Calculate maximum power from both eyes
+  computeMaxPower(rx: RxInput): number {
     const powers = [
       Math.abs(rx.rSph || 0),
       Math.abs(rx.lSph || 0),
@@ -25,39 +24,60 @@ export class IndexRecommendationService {
       Math.abs((rx.lSph || 0) + (rx.lCyl || 0)),
     ].filter(p => p > 0);
 
-    if (powers.length === 0) {
-      // Default to 1.56 if no power
-      return '1.56';
-    }
+    return powers.length > 0 ? Math.max(...powers) : 0;
+  }
 
-    const maxPower = Math.max(...powers);
+  /**
+   * Recommend lens index based on prescription power and frame type
+   * Returns LensIndex enum value (INDEX_156, INDEX_160, INDEX_167, INDEX_174)
+   */
+  recommendIndex(rx: RxInput, frame?: FrameInput | null): 'INDEX_156' | 'INDEX_160' | 'INDEX_167' | 'INDEX_174' {
+    const maxPower = this.computeMaxPower(rx);
 
     // Base index recommendation based on power
-    let baseIndex: string;
+    let baseIndex: 'INDEX_156' | 'INDEX_160' | 'INDEX_167' | 'INDEX_174';
     if (maxPower <= 3) {
-      baseIndex = '1.56';
+      baseIndex = 'INDEX_156';
     } else if (maxPower <= 5) {
-      baseIndex = '1.60';
+      baseIndex = 'INDEX_160';
     } else if (maxPower <= 8) {
-      baseIndex = '1.67';
+      baseIndex = 'INDEX_167';
     } else {
-      baseIndex = '1.74';
+      baseIndex = 'INDEX_174';
     }
 
     // Adjust based on frame type
     if (frame?.frameType) {
       // Rimless frames need higher index for higher powers
-      if (frame.frameType === 'RIMLESS' && maxPower > 2 && baseIndex === '1.56') {
-        baseIndex = '1.60';
+      if (frame.frameType === 'RIMLESS' && maxPower > 2 && baseIndex === 'INDEX_156') {
+        baseIndex = 'INDEX_160';
       }
 
       // Half-rim frames need higher index for higher powers
-      if (frame.frameType === 'HALF_RIM' && maxPower > 4 && baseIndex === '1.56') {
-        baseIndex = '1.67';
+      if (frame.frameType === 'HALF_RIM' && maxPower > 4 && baseIndex === 'INDEX_156') {
+        baseIndex = 'INDEX_167';
       }
     }
 
     return baseIndex;
+  }
+
+  /**
+   * Calculate index delta (thickness difference)
+   * Returns: >0 if thinner than recommended, 0 if ideal, <0 if thicker
+   */
+  calculateIndexDelta(
+    lensIndex: 'INDEX_156' | 'INDEX_160' | 'INDEX_167' | 'INDEX_174',
+    recommendedIndex: 'INDEX_156' | 'INDEX_160' | 'INDEX_167' | 'INDEX_174'
+  ): number {
+    const indexRank: Record<string, number> = {
+      'INDEX_156': 1,
+      'INDEX_160': 2,
+      'INDEX_167': 3,
+      'INDEX_174': 4,
+    };
+
+    return indexRank[lensIndex] - indexRank[recommendedIndex];
   }
 
   /**

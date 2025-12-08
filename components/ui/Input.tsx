@@ -20,6 +20,7 @@ export const Input = forwardRef<HTMLInputElement | HTMLTextAreaElement, InputPro
         : 'border-slate-300 bg-white text-slate-900 placeholder-slate-400',
       icon && 'pl-11',
       props.disabled && 'opacity-50 cursor-not-allowed bg-slate-100',
+      // Allow className to override default styles
       className
     );
 
@@ -54,6 +55,11 @@ export const Input = forwardRef<HTMLInputElement | HTMLTextAreaElement, InputPro
             rows={multiline ? rows : undefined}
             value={safeValue ?? ''}
             onChange={onChange}
+            style={{
+              ...(className?.includes('text-white') ? { color: 'white' } : {}),
+              ...(className?.includes('bg-slate-700') ? { backgroundColor: 'rgba(51, 65, 85, 0.8)' } : {}),
+              ...(props.style || {}),
+            }}
             {...(props as any)}
           />
         </div>

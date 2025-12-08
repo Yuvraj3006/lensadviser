@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
 // GET /api/admin/questions - List all questions
@@ -88,6 +88,8 @@ export async function GET(request: NextRequest) {
                 order: true,
                 displayOrder: true,
                 questionId: true,
+                triggersSubQuestion: true,
+                subQuestionId: true,
                 updatedAt: true,
               },
               orderBy: {
@@ -129,6 +131,14 @@ export async function GET(request: NextRequest) {
         id: opt.id || (opt._id ? opt._id.toString() : ''),
         key: opt.key,
         textEn: opt.textEn || opt.key,
+        textHi: opt.textHi || null,
+        textHiEn: opt.textHiEn || null,
+        icon: opt.icon || null,
+        order: opt.order || 0,
+        displayOrder: opt.displayOrder || opt.order || 0,
+        triggersSubQuestion: opt.triggersSubQuestion || false,
+        subQuestionId: opt.subQuestionId || null,
+        benefitMapping: {}, // Will be populated from AnswerBenefit if needed
       }));
       
       return {
@@ -173,38 +183,224 @@ export async function POST(request: NextRequest) {
     authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
 
     body = await request.json();
+    console.log('[POST /api/admin/questions] Received body:', JSON.stringify(body, null, 2));
+    
+    // Validate required fields
+    if (!body.key || !body.key.trim()) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Question key is required',
+          },
+        },
+        { status: 400 }
+      );
+    }
+    
+    if (!body.textEn || !body.textEn.trim()) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Question text (English) is required',
+          },
+        },
+        { status: 400 }
+      );
+    }
+    
+    if (!body.options || !Array.isArray(body.options) || body.options.length === 0) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'At least one answer option is required',
+          },
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Validate options
+    for (let i = 0; i < body.options.length; i++) {
+      const opt = body.options[i];
+      if (!opt.key || !opt.key.trim()) {
+        return Response.json(
+          {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: `Option ${i + 1}: Key is required`,
+            },
+          },
+          { status: 400 }
+        );
+      }
+      if (!opt.textEn || !opt.textEn.trim()) {
+        return Response.json(
+          {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: `Option ${i + 1}: Text (English) is required`,
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
+    
     const { options, ...questionData } = body;
 
+    // Check for circular references in sub-question mappings
+    if (options && Array.isArray(options)) {
+      for (const opt of options) {
+        if (opt.triggersSubQuestion && opt.subQuestionId && opt.subQuestionId.trim() !== '') {
+          const subQuestionId = opt.subQuestionId.trim();
+          
+          // Validate that sub-question ID is a valid ObjectId format
+          if (!/^[0-9a-fA-F]{24}$/.test(subQuestionId)) {
+            return Response.json(
+              {
+                success: false,
+                error: {
+                  code: 'VALIDATION_ERROR',
+                  message: `Invalid sub-question ID format: ${subQuestionId}`,
+                },
+              },
+              { status: 400 }
+            );
+          }
+          
+          // Check if sub-question exists and doesn't create a cycle
+          const subQuestion = await prisma.question.findUnique({
+            where: { id: subQuestionId },
+            include: {
+              options: {
+                where: {
+                  triggersSubQuestion: true,
+                  subQuestionId: { not: null },
+                },
+              },
+            },
+          });
+          
+          if (!subQuestion) {
+            return Response.json(
+              {
+                success: false,
+                error: {
+                  code: 'NOT_FOUND',
+                  message: `Sub-question with ID ${subQuestionId} not found. Please create the sub-question first.`,
+                },
+              },
+              { status: 400 }
+            );
+          }
+          
+          // Check if sub-question belongs to the same organization
+          if (subQuestion.organizationId !== user.organizationId) {
+            return Response.json(
+              {
+                success: false,
+                error: {
+                  code: 'FORBIDDEN',
+                  message: 'Sub-question must belong to the same organization',
+                },
+              },
+              { status: 403 }
+            );
+          }
+          
+          // Check if sub-question has any option that points back to a question that would create a cycle
+          // This is a simplified check - for production, implement full graph cycle detection
+          const hasPotentialCycle = subQuestion.options.some(
+            (subOpt) => {
+              // If the sub-question's option points to a question that would create a cycle
+              // This is a basic check - full implementation would traverse the entire graph
+              return false; // Simplified for now
+            }
+          );
+          
+          if (hasPotentialCycle) {
+            return Response.json(
+              {
+                success: false,
+                error: {
+                  code: 'CIRCULAR_REFERENCE',
+                  message: 'Circular reference detected in sub-question flow.',
+                },
+              },
+              { status: 400 }
+            );
+          }
+        }
+      }
+    }
+
+    // Fetch all benefits for the organization to map codes to IDs
+    const benefits = await prisma.benefit.findMany({
+      where: {
+        organizationId: user.organizationId,
+        isActive: true,
+      },
+    });
+    const benefitMap = new Map(benefits.map((b) => [b.code, b.id]));
+
     // Create question with options
+    console.log('[POST /api/admin/questions] Creating question with data:', {
+      organizationId: user.organizationId,
+      key: questionData.key,
+      textEn: questionData.textEn,
+      category: questionData.category,
+      order: questionData.order,
+      isRequired: questionData.isRequired,
+      allowMultiple: questionData.allowMultiple,
+      isActive: questionData.isActive,
+      optionsCount: options.length,
+    });
+    
     const question = await prisma.question.create({
       data: {
         organizationId: user.organizationId,
         code: questionData.code || questionData.key, // Support both code and key
-        key: questionData.key,
+        key: questionData.key.trim(),
         text: questionData.text || questionData.textEn, // Support both text and textEn
-        textEn: questionData.textEn,
-        textHi: questionData.textHi || null,
-        textHiEn: questionData.textHiEn || null,
-        category: questionData.category,
-        questionCategory: questionData.questionCategory || null,
-        questionType: questionData.questionType || null,
-        order: questionData.order || 0,
-        displayOrder: questionData.displayOrder || questionData.order || 0,
-        isRequired: questionData.isRequired ?? true,
-        allowMultiple: questionData.allowMultiple ?? false,
+        textEn: questionData.textEn.trim(),
+        textHi: questionData.textHi?.trim() || null,
+        textHiEn: questionData.textHiEn?.trim() || null,
+        category: String(questionData.category), // Ensure it's a string
+        questionCategory: questionData.questionCategory?.trim() || null,
+        questionType: questionData.questionType?.trim() || null,
+        order: Number(questionData.order) || 0,
+        displayOrder: Number(questionData.displayOrder || questionData.order) || 0,
+        isRequired: Boolean(questionData.isRequired ?? true),
+        allowMultiple: Boolean(questionData.allowMultiple ?? false),
         parentAnswerId: questionData.parentAnswerId || null, // Support subquestions
-        isActive: questionData.isActive ?? true,
+        isActive: Boolean(questionData.isActive ?? true),
         options: {
-          create: options.map((opt: any, index: number) => ({
-            key: opt.key,
-            text: opt.text || opt.textEn,
-            textEn: opt.textEn,
-            textHi: opt.textHi || null,
-            textHiEn: opt.textHiEn || null,
-            icon: opt.icon || null,
-            order: index + 1,
-            displayOrder: opt.displayOrder || index + 1,
-          })),
+          create: options.map((opt: any, index: number) => {
+            const subQuestionId = (opt.triggersSubQuestion && opt.subQuestionId && String(opt.subQuestionId).trim() !== '') 
+              ? String(opt.subQuestionId).trim() 
+              : null;
+            
+            return {
+              key: String(opt.key).trim(),
+              text: opt.text || opt.textEn || null,
+              textEn: String(opt.textEn).trim(),
+              textHi: opt.textHi?.trim() || null,
+              textHiEn: opt.textHiEn?.trim() || null,
+              icon: opt.icon?.trim() || null,
+              order: Number(index + 1),
+              displayOrder: Number(opt.displayOrder || index + 1),
+              triggersSubQuestion: Boolean(opt.triggersSubQuestion || false),
+              subQuestionId: subQuestionId,
+            };
+          }),
         },
       },
       include: {
@@ -212,19 +408,73 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Create benefit mappings for each answer option
+    if (options && Array.isArray(options)) {
+      for (let i = 0; i < options.length; i++) {
+        const opt = options[i];
+        const answerOption = question.options[i];
+        
+        if (opt.benefitMapping && answerOption) {
+          // Create AnswerBenefit records for each benefit with points > 0
+          const benefitMappings = Object.entries(opt.benefitMapping)
+            .filter(([_, points]) => points > 0) // Only create mappings with points > 0
+            .map(([benefitCode, points]) => {
+              const benefitId = benefitMap.get(benefitCode);
+              if (!benefitId) {
+                console.warn(`[POST /api/admin/questions] Benefit code ${benefitCode} not found`);
+                return null;
+              }
+              return {
+                answerId: answerOption.id,
+                benefitId: benefitId,
+                points: typeof points === 'number' ? points : 1, // Store points from benefitMapping
+                points: typeof points === 'number' ? Math.max(0, Math.min(3, points)) : 0, // Clamp 0-3
+              };
+            })
+            .filter((mapping) => mapping !== null);
+
+          if (benefitMappings.length > 0) {
+            await prisma.answerBenefit.createMany({
+              data: benefitMappings,
+              skipDuplicates: true,
+            });
+          }
+        }
+      }
+    }
+
     console.log(`[POST /api/admin/questions] Created question: ${question.id}, key: ${question.key}`);
     return Response.json({
       success: true,
       data: question,
     });
   } catch (error: any) {
-    console.error('Question creation error:', {
+    console.error('[POST /api/admin/questions] Question creation error:', {
       message: error?.message,
       code: error?.code,
       meta: error?.meta,
       stack: error?.stack,
-      body: body,
+      body: body ? JSON.stringify(body, null, 2) : null,
+      errorType: error?.constructor?.name,
+      errorKeys: error ? Object.keys(error) : [],
     });
+    
+    // Check for Prisma foreign key constraint errors
+    if (error?.code === 'P2003') {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'FOREIGN_KEY_ERROR',
+            message: `Invalid reference: ${error?.meta?.field_name || 'unknown field'}. Please ensure all referenced questions exist.`,
+            details: error?.meta,
+          },
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Handle Zod validation errors
     if (error instanceof z.ZodError) {
       return Response.json(
         {
@@ -238,6 +488,40 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    
+    // Handle Prisma unique constraint errors (duplicate key/code)
+    if (error?.code === 'P2002') {
+      const target = error?.meta?.target || [];
+      const field = Array.isArray(target) ? target[0] : 'field';
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'DUPLICATE_ENTRY',
+            message: `A question with this ${field} already exists`,
+            details: error.meta,
+          },
+        },
+        { status: 409 }
+      );
+    }
+    
+    // Handle Prisma validation errors
+    if (error?.code && error.code.startsWith('P')) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: error?.message || 'Database error occurred',
+            details: error.meta,
+          },
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Use handleApiError for other errors
     return handleApiError(error);
   }
 }

@@ -26,6 +26,7 @@ interface Question {
   textEn: string;
   category: ProductCategory;
   order: number;
+  displayOrder?: number | null; // Add displayOrder field
   parentQuestionId?: string | null;
   parentAnswerId?: string | null; // Answer option ID (from API)
   parentAnswerKey?: string | null; // Answer option key (legacy)
@@ -56,168 +57,23 @@ export default function QuestionnaireBuilderPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   
-  // Feature mapping states
-  const [features, setFeatures] = useState<Array<{ id: string; key: string; name: string; category: string }>>([]);
-  const [featureMappings, setFeatureMappings] = useState<Array<{ optionKey: string; featureKey: string; weight: number }>>([]);
-  const [showFeatureMapping, setShowFeatureMapping] = useState(false);
-  const [mappingLoading, setMappingLoading] = useState(false);
-  
   // Drag and drop states
   const [draggedQuestion, setDraggedQuestion] = useState<Question | null>(null);
   const [dragOverOption, setDragOverOption] = useState<{ questionId: string; optionId: string } | null>(null);
-  
-  // Feature mapping for tree view
-  const [expandedOptionMappings, setExpandedOptionMappings] = useState<Set<string>>(new Set()); // questionId-optionId
-  const [questionFeatureMappings, setQuestionFeatureMappings] = useState<Map<string, Array<{ optionKey: string; featureKey: string; weight: number }>>>(new Map());
 
   useEffect(() => {
     fetchQuestions();
-    fetchFeatures();
   }, [categoryFilter]);
 
-  useEffect(() => {
-    if (selectedQuestion) {
-      fetchFeatureMappings(selectedQuestion.id);
-    } else {
-      setFeatureMappings([]);
-    }
-  }, [selectedQuestion]);
+  // Note: Feature mapping functions removed - using Benefits-based flow instead
 
-  const fetchFeatures = async () => {
-    try {
-      const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/features?category=${categoryFilter}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setFeatures(data.data || []);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch features:', error);
-    }
-  };
-
-  const fetchFeatureMappings = async (questionId: string) => {
-    try {
-      const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/questionnaire/questions/${questionId}/feature-mappings`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          // Convert API format to UI format
-          const mappings = (data.data || []).map((m: any) => ({
-            optionKey: m.optionKey,
-            featureKey: m.featureKey,
-            weight: m.weight,
-          }));
-          setFeatureMappings(mappings);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch feature mappings:', error);
-    }
-  };
-
-  const fetchAllFeatureMappings = async (questions: Question[]) => {
-    try {
-      const token = localStorage.getItem('lenstrack_token');
-      const mappingsMap = new Map<string, Array<{ optionKey: string; featureKey: string; weight: number }>>();
-      
-      // Fetch mappings for all questions in parallel
-      await Promise.all(
-        questions.map(async (q) => {
-          try {
-            const response = await fetch(`/api/admin/questionnaire/questions/${q.id}/feature-mappings`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              if (data.success) {
-                const mappings = (data.data || []).map((m: any) => ({
-                  optionKey: m.optionKey,
-                  featureKey: m.featureKey,
-                  weight: m.weight,
-                }));
-                mappingsMap.set(q.id, mappings);
-              }
-            }
-          } catch (error) {
-            console.error(`Failed to fetch mappings for question ${q.id}:`, error);
-          }
-        })
-      );
-      
-      setQuestionFeatureMappings(mappingsMap);
-    } catch (error) {
-      console.error('Failed to fetch all feature mappings:', error);
-    }
-  };
-
-  const saveFeatureMappings = async () => {
-    if (!selectedQuestion) return;
-    
-    setMappingLoading(true);
-    try {
-      const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/questionnaire/questions/${selectedQuestion.id}/feature-mappings`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          mappings: featureMappings,
-        }),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        showToast('success', `Saved ${featureMappings.length} feature mappings`);
-        fetchFeatureMappings(selectedQuestion.id);
-      } else {
-        showToast('error', data.error?.message || 'Failed to save mappings');
-      }
-    } catch (error) {
-      showToast('error', 'An error occurred while saving mappings');
-    } finally {
-      setMappingLoading(false);
-    }
-  };
-
-  const addFeatureMapping = (optionKey: string) => {
-    setFeatureMappings([
-      ...featureMappings,
-      {
-        optionKey,
-        featureKey: features[0]?.key || '',
-        weight: 1.0,
-      },
-    ]);
-  };
-
-  const removeFeatureMapping = (index: number) => {
-    setFeatureMappings(featureMappings.filter((_, i) => i !== index));
-  };
-
-  const updateFeatureMapping = (index: number, field: 'featureKey' | 'weight', value: string | number) => {
-    const updated = [...featureMappings];
-    updated[index] = {
-      ...updated[index],
-      [field]: value,
-    };
-    setFeatureMappings(updated);
-  };
-
-  // Drag and Drop handlers
+  // Drag and Drop handlers - ONLY for reordering main questions (displayOrder)
   const handleDragStart = (e: React.DragEvent, question: Question) => {
+    // Only allow dragging main questions (not sub-questions)
+    if (question.parentAnswerId) {
+      e.preventDefault();
+      return;
+    }
     setDraggedQuestion(question);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', question.id);
@@ -228,43 +84,61 @@ export default function QuestionnaireBuilderPage() {
     setDragOverOption(null);
   };
 
-  const handleDragOver = (e: React.DragEvent, questionId: string, optionId: string) => {
+  const handleDragOver = (e: React.DragEvent, questionId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setDragOverOption({ questionId, optionId });
+    // Only allow dropping on main questions (not sub-questions)
+    const targetQuestion = allQuestions.find((q) => q.id === questionId);
+    if (targetQuestion && !targetQuestion.parentAnswerId) {
+      setDragOverOption({ questionId, optionId: '' });
+    }
   };
 
   const handleDragLeave = () => {
     setDragOverOption(null);
   };
 
-  const handleDrop = async (e: React.DragEvent, targetQuestionId: string, targetOptionId: string) => {
+  const handleDrop = async (e: React.DragEvent, targetQuestionId: string) => {
     e.preventDefault();
     setDragOverOption(null);
 
     if (!draggedQuestion) return;
 
-    // Don't allow dropping on itself
-    if (draggedQuestion.id === targetQuestionId) {
-      showToast('error', 'Cannot drop question on itself');
+    // Only allow reordering main questions
+    if (draggedQuestion.parentAnswerId) {
+      showToast('error', 'Cannot reorder sub-questions. Use the answer option settings to manage sub-questions.');
       return;
     }
 
-    // Don't allow dropping on its own child
-    const isChild = (question: Question, targetId: string): boolean => {
-      if (question.id === targetId) return true;
-      return question.childQuestions?.some(child => isChild(child, targetId)) || false;
-    };
+    const targetQuestion = allQuestions.find((q) => q.id === targetQuestionId);
+    if (!targetQuestion || targetQuestion.parentAnswerId) {
+      showToast('error', 'Can only reorder main questions');
+      return;
+    }
 
-    if (isChild(draggedQuestion, targetQuestionId)) {
-      showToast('error', 'Cannot drop question on its own child');
+    // Don't allow dropping on itself
+    if (draggedQuestion.id === targetQuestionId) {
       return;
     }
 
     try {
       const token = localStorage.getItem('lenstrack_token');
       
-      // Update the dragged question to set parentAnswerId
+      // Get all main questions sorted by displayOrder
+      const mainQuestions = allQuestions
+        .filter((q) => !q.parentAnswerId)
+        .sort((a, b) => (a.displayOrder || a.order || 0) - (b.displayOrder || b.order || 0));
+      
+      // Find indices
+      const draggedIndex = mainQuestions.findIndex((q) => q.id === draggedQuestion.id);
+      const targetIndex = mainQuestions.findIndex((q) => q.id === targetQuestionId);
+      
+      if (draggedIndex === -1 || targetIndex === -1) return;
+      
+      // Calculate new displayOrder
+      const newDisplayOrder = targetQuestion.displayOrder || targetQuestion.order || 0;
+      
+      // Update displayOrder of dragged question
       const response = await fetch(`/api/admin/questions/${draggedQuestion.id}`, {
         method: 'PUT',
         headers: {
@@ -272,19 +146,20 @@ export default function QuestionnaireBuilderPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          parentAnswerId: targetOptionId, // Set parent to the answer option
+          ...draggedQuestion,
+          displayOrder: newDisplayOrder,
         }),
       });
 
       const data = await response.json();
       if (data.success) {
-        showToast('success', `Question "${draggedQuestion.textEn}" is now a subquestion of "${targetQuestionId}"`);
+        showToast('success', `Question order updated`);
         fetchQuestions();
       } else {
-        showToast('error', data.error?.message || 'Failed to update question relationship');
+        showToast('error', data.error?.message || 'Failed to update question order');
       }
     } catch (error) {
-      showToast('error', 'An error occurred while updating question relationship');
+      showToast('error', 'An error occurred while updating question order');
     } finally {
       setDraggedQuestion(null);
     }
@@ -351,29 +226,43 @@ export default function QuestionnaireBuilderPage() {
         // Store all questions for table view
         setAllQuestions(data.data || []);
         
-        // Build tree structure
-        // parentAnswerId is the answer option ID, not question ID
+        // Build tree structure based on triggersSubQuestion + subQuestionId
         const allQuestionsList = data.data || [];
         console.log('[fetchQuestions] Building tree from', allQuestionsList.length, 'questions');
         
-        // Root questions are those without parentAnswerId
+        // Root questions are those without parentAnswerId (for backward compatibility)
+        // New implementation: sub-questions are linked via AnswerOption.triggersSubQuestion + subQuestionId
         const rootQuestions = allQuestionsList.filter((q: Question) => !q.parentAnswerId);
         console.log('[fetchQuestions] Root questions:', rootQuestions.length);
         
-        // Build tree: attach child questions to their parent answer options
+        // Build tree: attach sub-questions to their parent answer options
         const buildTree = (questions: Question[]): Question[] => {
           return questions.map((q) => {
-            // Find all questions that have this question's answer options as parent
-            const childQuestions = allQuestionsList.filter(
+            // Find sub-questions linked via answer options
+            const subQuestions: Question[] = [];
+            if (q.options && Array.isArray(q.options)) {
+              q.options.forEach((opt: any) => {
+                if (opt.triggersSubQuestion && opt.subQuestionId) {
+                  const subQ = allQuestionsList.find((sq: Question) => sq.id === opt.subQuestionId);
+                  if (subQ) {
+                    subQuestions.push(subQ);
+                  }
+                }
+              });
+            }
+            
+            // Also check legacy parentAnswerId for backward compatibility
+            const legacyChildren = allQuestionsList.filter(
               (cq: Question) => {
-                // Check if cq.parentAnswerId matches any of this question's option IDs
                 return q.options?.some(opt => opt.id === cq.parentAnswerId);
               }
             );
             
+            const allChildren = [...subQuestions, ...legacyChildren.filter((c: Question) => !subQuestions.find(sq => sq.id === c.id))];
+            
             return {
               ...q,
-              childQuestions: buildTree(childQuestions),
+              childQuestions: buildTree(allChildren),
             };
           });
         };
@@ -382,8 +271,7 @@ export default function QuestionnaireBuilderPage() {
         console.log('[fetchQuestions] Tree questions:', treeQuestions.length);
         setQuestions(treeQuestions);
         
-        // Fetch feature mappings for all questions
-        fetchAllFeatureMappings(allQuestionsList);
+        // Note: Feature mappings removed - using Benefits-based flow
       } else {
         // Handle error response
         const errorObj = data.error || {};
@@ -483,14 +371,21 @@ export default function QuestionnaireBuilderPage() {
         <div key={question.id} className="select-none">
           {/* Question Row - Draggable */}
           <div
-            draggable
+            draggable={!question.parentAnswerId} // Only allow dragging main questions
             onDragStart={(e) => handleDragStart(e, question)}
             onDragEnd={handleDragEnd}
+            onDragOver={(e) => !question.parentAnswerId && handleDragOver(e, question.id)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => !question.parentAnswerId && handleDrop(e, question.id)}
             onClick={() => handleQuestionSelect(question)}
-            className={`flex items-center gap-2 p-2 rounded cursor-move transition-colors group ${
+            className={`flex items-center gap-2 p-2 rounded transition-colors group ${
+              !question.parentAnswerId ? 'cursor-move' : 'cursor-pointer'
+            } ${
               isSelected ? 'bg-blue-100 border border-blue-300' : 'hover:bg-slate-50'
             } ${
               isDragging ? 'opacity-50' : ''
+            } ${
+              dragOverOption?.questionId === question.id ? 'border-2 border-blue-500 bg-blue-50' : ''
             }`}
             style={{ paddingLeft: `${level * 20 + 8}px` }}
           >
@@ -548,19 +443,23 @@ export default function QuestionnaireBuilderPage() {
           {/* Answer Options - Drop Zones */}
           {question.options && question.options.length > 0 && (
             <div className="ml-8 space-y-1 mt-1">
-              {question.options.map((option) => {
-                const isDragOver = dragOverOption?.questionId === question.id && dragOverOption?.optionId === option.id;
-                // Find child questions for this option
-                const optionChildren = question.childQuestions?.filter(
+              {question.options.map((option: any) => {
+                // Find sub-questions linked via triggersSubQuestion + subQuestionId
+                const subQuestionId = option.subQuestionId;
+                const hasSubQuestion = option.triggersSubQuestion && subQuestionId;
+                const subQuestion = hasSubQuestion 
+                  ? (allQuestions.find((q: Question) => q.id === subQuestionId) || 
+                     questions.find((q: Question) => q.id === subQuestionId))
+                  : null;
+                
+                // Also check legacy parentAnswerId for backward compatibility
+                const legacyChildren = question.childQuestions?.filter(
                   (cq: any) => cq.parentAnswerId === option.id
                 ) || [];
                 
-                // Get feature mappings for this option
-                const optionMappings = questionFeatureMappings.get(question.id)?.filter(
-                  m => m.optionKey === option.key
-                ) || [];
-                const mappingKey = `${question.id}-${option.id}`;
-                const isMappingExpanded = expandedOptionMappings.has(mappingKey);
+                const allSubQuestions = subQuestion 
+                  ? [subQuestion, ...legacyChildren.filter(c => c.id !== subQuestion.id)]
+                  : legacyChildren;
                 
                 return (
                   <div
@@ -568,190 +467,28 @@ export default function QuestionnaireBuilderPage() {
                     className="ml-4"
                   >
                     {/* Option Row */}
-                    <div
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        handleDragOver(e, question.id, option.id);
-                      }}
-                      onDragLeave={handleDragLeave}
-                      onDrop={(e) => handleDrop(e, question.id, option.id)}
-                      className={`p-2 rounded border-2 border-dashed transition-all ${
-                        isDragOver
-                          ? 'border-blue-500 bg-blue-50 border-solid'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
+                    <div className="p-2 rounded border border-slate-200 bg-slate-50">
                       <div className="flex items-center gap-2">
                         <ChevronRight size={12} className="text-slate-400" />
                         <span className="text-xs font-medium text-slate-700">{option.textEn}</span>
                         <span className="text-xs text-slate-400 font-mono">({option.key})</span>
-                        {optionMappings.length > 0 && (
-                          <Badge color="purple" size="sm" className="text-xs">
-                            {optionMappings.length} features
-                          </Badge>
-                        )}
-                        {optionChildren.length > 0 && (
+                        {hasSubQuestion && (
                           <Badge color="green" size="sm" className="text-xs">
-                            {optionChildren.length} sub-Q
+                            → Sub-Q
                           </Badge>
                         )}
-                        {isDragOver && (
-                          <Badge color="blue" size="sm" className="ml-auto">
-                            Drop here
+                        {legacyChildren.length > 0 && !hasSubQuestion && (
+                          <Badge color="purple" size="sm" className="text-xs">
+                            {legacyChildren.length} sub-Q (legacy)
                           </Badge>
                         )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const newExpanded = new Set(expandedOptionMappings);
-                            if (newExpanded.has(mappingKey)) {
-                              newExpanded.delete(mappingKey);
-                            } else {
-                              newExpanded.add(mappingKey);
-                            }
-                            setExpandedOptionMappings(newExpanded);
-                          }}
-                          className="ml-auto text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                          title="Toggle feature mappings"
-                        >
-                          <Settings size={12} />
-                          Features
-                        </button>
                       </div>
-                      
-                      {/* Feature Mappings */}
-                      {isMappingExpanded && (
-                        <div className="mt-2 ml-4 space-y-2 p-2 bg-slate-50 rounded border border-slate-200">
-                          <div className="text-xs font-semibold text-slate-700 mb-2">Feature Mappings:</div>
-                          {optionMappings.length > 0 ? (
-                            optionMappings.map((mapping, idx) => {
-                              const allMappings = questionFeatureMappings.get(question.id) || [];
-                              const mappingIndex = allMappings.findIndex(
-                                m => m.optionKey === mapping.optionKey && 
-                                m.featureKey === mapping.featureKey &&
-                                m.weight === mapping.weight
-                              );
-                              return (
-                                <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border border-slate-200">
-                                  <Select
-                                    value={mapping.featureKey}
-                                    onChange={(e) => {
-                                      const updated = new Map(questionFeatureMappings);
-                                      const questionMappings = [...(updated.get(question.id) || [])];
-                                      if (mappingIndex >= 0) {
-                                        questionMappings[mappingIndex] = {
-                                          ...questionMappings[mappingIndex],
-                                          featureKey: e.target.value,
-                                        };
-                                        updated.set(question.id, questionMappings);
-                                        setQuestionFeatureMappings(updated);
-                                      }
-                                    }}
-                                    options={[
-                                      { value: '', label: 'Select Feature' },
-                                      ...features.map(f => ({ value: f.key, label: `${f.name} (${f.key})` }))
-                                    ]}
-                                    className="flex-1 text-xs"
-                                  />
-                                  <Input
-                                    type="number"
-                                    value={mapping.weight}
-                                    onChange={(e) => {
-                                      const updated = new Map(questionFeatureMappings);
-                                      const questionMappings = [...(updated.get(question.id) || [])];
-                                      if (mappingIndex >= 0) {
-                                        questionMappings[mappingIndex] = {
-                                          ...questionMappings[mappingIndex],
-                                          weight: parseFloat(e.target.value) || 0,
-                                        };
-                                        updated.set(question.id, questionMappings);
-                                        setQuestionFeatureMappings(updated);
-                                      }
-                                    }}
-                                    placeholder="Weight"
-                                    className="w-20 text-xs"
-                                    min="0"
-                                    max="3"
-                                    step="0.1"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => {
-                                      const updated = new Map(questionFeatureMappings);
-                                      const questionMappings = [...(updated.get(question.id) || [])];
-                                      questionMappings.splice(mappingIndex, 1);
-                                      updated.set(question.id, questionMappings);
-                                      setQuestionFeatureMappings(updated);
-                                    }}
-                                    className="text-red-600 hover:text-red-700 p-1"
-                                  >
-                                    <X size={12} />
-                                  </Button>
-                                </div>
-                              );
-                            })
-                          ) : (
-                            <p className="text-xs text-slate-400 italic">No features mapped</p>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const updated = new Map(questionFeatureMappings);
-                              const questionMappings = [...(updated.get(question.id) || [])];
-                              questionMappings.push({
-                                optionKey: option.key,
-                                featureKey: features[0]?.key || '',
-                                weight: 1.0,
-                              });
-                              updated.set(question.id, questionMappings);
-                              setQuestionFeatureMappings(updated);
-                            }}
-                            className="w-full text-xs"
-                          >
-                            <Plus size={12} className="mr-1" />
-                            Add Feature
-                          </Button>
-                            <Button
-                            size="sm"
-                            onClick={async () => {
-                              const mappings = questionFeatureMappings.get(question.id) || [];
-                              try {
-                                const token = localStorage.getItem('lenstrack_token');
-                                const response = await fetch(`/api/admin/questionnaire/questions/${question.id}/feature-mappings`, {
-                                  method: 'PUT',
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                    Authorization: `Bearer ${token}`,
-                                  },
-                                  body: JSON.stringify({ mappings }),
-                                });
-                                
-                                const data = await response.json();
-                                if (data.success) {
-                                  showToast('success', `Saved ${mappings.length} feature mappings`);
-                                  // Refresh mappings
-                                  await fetchAllFeatureMappings(allQuestions);
-                                } else {
-                                  showToast('error', data.error?.message || 'Failed to save');
-                                }
-                              } catch (error) {
-                                showToast('error', 'Failed to save mappings');
-                              }
-                            }}
-                            className="w-full text-xs"
-                          >
-                            Save Mappings
-                          </Button>
-                        </div>
-                      )}
                     </div>
                     
-                    {/* Show child questions under this option */}
-                    {optionChildren.length > 0 && (
+                    {/* Show sub-question under this option */}
+                    {allSubQuestions.length > 0 && (
                       <div className="mt-2 ml-4">
-                        {renderQuestionTree(optionChildren, level + 1)}
+                        {renderQuestionTree(allSubQuestions, level + 1)}
                       </div>
                     )}
                   </div>
@@ -869,7 +606,7 @@ export default function QuestionnaireBuilderPage() {
                   </Button>
                 </div>
                 <p className="text-xs text-slate-500">
-                  💡 Drag questions onto answer options to create subquestions. This makes the questionnaire flow more accurate.
+                  💡 Drag main questions to reorder them. Use the answer option settings (toggle + dropdown) to create sub-questions.
                 </p>
               </div>
               <div className="p-2 max-h-[600px] overflow-y-auto">
@@ -895,14 +632,6 @@ export default function QuestionnaireBuilderPage() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold">Edit Question</h3>
-                    <Button
-                      size="sm"
-                      variant={showFeatureMapping ? 'primary' : 'outline'}
-                      onClick={() => setShowFeatureMapping(!showFeatureMapping)}
-                    >
-                      <Settings size={16} className="mr-2" />
-                      {showFeatureMapping ? 'Hide' : 'Show'} Feature Mapping
-                    </Button>
                   </div>
                   <QuestionForm
                     question={selectedQuestion}
@@ -934,133 +663,7 @@ export default function QuestionnaireBuilderPage() {
                     loading={false}
                   />
                   
-                  {/* Feature Mapping Section */}
-                  {showFeatureMapping && selectedQuestion && (
-                    <div className="mt-6 pt-6 border-t border-slate-200">
-                      <h4 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <Settings size={20} />
-                        Feature Mapping (Question → Options → Features)
-                      </h4>
-                      <p className="text-sm text-slate-600 mb-4">
-                        Map answer options to lens features with weights. This helps the recommendation engine match products to customer answers.
-                      </p>
-
-                      <div className="space-y-4">
-                        {selectedQuestion.options && selectedQuestion.options.length > 0 ? (
-                          selectedQuestion.options.map((option) => {
-                            const optionMappings = featureMappings.filter(m => m.optionKey === option.key);
-                            return (
-                              <div key={option.id} className="border border-slate-200 rounded-lg p-4 bg-slate-50">
-                                <div className="flex items-center justify-between mb-3">
-                                  <div>
-                                    <p className="font-medium text-slate-900">{option.textEn}</p>
-                                    <p className="text-xs text-slate-500 font-mono">{option.key}</p>
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => addFeatureMapping(option.key)}
-                                  >
-                                    <Plus size={14} className="mr-1" />
-                                    Add Feature
-                                  </Button>
-                                </div>
-
-                                {optionMappings.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {optionMappings.map((mapping, idx) => {
-                                      // Find the actual index in featureMappings array
-                                      let mappingIndex = -1;
-                                      let foundCount = 0;
-                                      for (let i = 0; i < featureMappings.length; i++) {
-                                        if (featureMappings[i].optionKey === option.key) {
-                                          if (foundCount === idx) {
-                                            mappingIndex = i;
-                                            break;
-                                          }
-                                          foundCount++;
-                                        }
-                                      }
-                                      
-                                      return (
-                                        <div key={`${option.key}-${idx}`} className="flex items-center gap-2 bg-white p-2 rounded border border-slate-200">
-                                          <Select
-                                            value={mapping.featureKey}
-                                            onChange={(e) => {
-                                              if (mappingIndex >= 0) {
-                                                updateFeatureMapping(mappingIndex, 'featureKey', e.target.value);
-                                              }
-                                            }}
-                                            options={[
-                                              { value: '', label: 'Select Feature' },
-                                              ...features.map(f => ({ value: f.key, label: `${f.name} (${f.key})` }))
-                                            ]}
-                                            className="flex-1"
-                                          />
-                                          <Input
-                                            type="number"
-                                            value={mapping.weight}
-                                            onChange={(e) => {
-                                              if (mappingIndex >= 0) {
-                                                updateFeatureMapping(mappingIndex, 'weight', parseFloat(e.target.value) || 0);
-                                              }
-                                            }}
-                                            placeholder="Weight"
-                                            className="w-24"
-                                            min="0"
-                                            max="3"
-                                            step="0.1"
-                                          />
-                                          <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => {
-                                              if (mappingIndex >= 0) {
-                                                removeFeatureMapping(mappingIndex);
-                                              }
-                                            }}
-                                            className="text-red-600 hover:text-red-700"
-                                          >
-                                            <X size={16} />
-                                          </Button>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-slate-400 italic">No features mapped yet</p>
-                                )}
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <p className="text-sm text-slate-500">No options available. Add options to the question first.</p>
-                        )}
-
-                        {featureMappings.length > 0 && (
-                          <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setFeatureMappings([]);
-                                if (selectedQuestion) {
-                                  fetchFeatureMappings(selectedQuestion.id);
-                                }
-                              }}
-                            >
-                              Reset
-                            </Button>
-                            <Button
-                              onClick={saveFeatureMappings}
-                              loading={mappingLoading}
-                            >
-                              Save Feature Mappings
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  {/* Note: Feature mapping removed - using Benefits-based flow instead */}
                 </div>
               ) : (
                 <div>
@@ -1081,6 +684,8 @@ export default function QuestionnaireBuilderPage() {
 
                         const data = await response.json();
                         console.log('[onSubmit] Create response:', data);
+                        console.log('[onSubmit] Response status:', response.status);
+                        
                         if (data.success) {
                           showToast('success', 'Question created successfully');
                           setSelectedQuestion(null);
@@ -1089,11 +694,33 @@ export default function QuestionnaireBuilderPage() {
                             fetchQuestions();
                           }, 500);
                         } else {
-                          console.error('[onSubmit] Create failed:', data.error);
-                          showToast('error', data.error?.message || 'Failed to create question');
+                          console.error('[onSubmit] Create failed:', {
+                            error: data.error,
+                            status: response.status,
+                            fullResponse: data,
+                          });
+                          
+                          // Handle different error formats
+                          let errorMessage = 'Failed to create question';
+                          if (data.error) {
+                            if (typeof data.error === 'string') {
+                              errorMessage = data.error;
+                            } else if (data.error.message) {
+                              errorMessage = data.error.message;
+                            } else if (data.error.code) {
+                              errorMessage = `Error: ${data.error.code}`;
+                            } else if (Object.keys(data.error).length > 0) {
+                              errorMessage = JSON.stringify(data.error);
+                            }
+                          } else if (data.message) {
+                            errorMessage = data.message;
+                          }
+                          
+                          showToast('error', errorMessage);
                         }
-                      } catch (error) {
-                        showToast('error', 'An error occurred while creating question');
+                      } catch (error: any) {
+                        console.error('[onSubmit] Exception caught:', error);
+                        showToast('error', error?.message || 'An error occurred while creating question');
                       }
                     }}
                     onCancel={() => setSelectedQuestion(null)}
@@ -1243,6 +870,48 @@ export default function QuestionnaireBuilderPage() {
                     body: JSON.stringify(formData),
                   });
 
+                  // Check if response is ok before parsing
+                  if (!response.ok) {
+                    let errorText = '';
+                    let errorData: any = null;
+                    
+                    try {
+                      errorText = await response.text();
+                      console.log('[Modal onSubmit] Error response text:', errorText);
+                      
+                      if (errorText) {
+                        try {
+                          errorData = JSON.parse(errorText);
+                        } catch (parseError) {
+                          console.warn('[Modal onSubmit] Failed to parse error as JSON:', parseError);
+                          errorData = { error: { message: errorText || `HTTP ${response.status}: ${response.statusText}` } };
+                        }
+                      } else {
+                        errorData = { error: { message: `HTTP ${response.status}: ${response.statusText}` } };
+                      }
+                    } catch (textError) {
+                      console.error('[Modal onSubmit] Failed to read error response:', textError);
+                      errorData = { error: { message: `HTTP ${response.status}: ${response.statusText}` } };
+                    }
+                    
+                    console.error('[Modal onSubmit] Response not OK:', {
+                      status: response.status,
+                      statusText: response.statusText,
+                      errorText: errorText.substring(0, 500), // Limit to first 500 chars
+                      errorData,
+                      headers: Object.fromEntries(response.headers.entries()),
+                    });
+                    
+                    const errorMessage = 
+                      errorData?.error?.message || 
+                      errorData?.error?.code || 
+                      errorData?.message || 
+                      errorText?.substring(0, 200) ||
+                      `Failed to ${selectedQuestion ? 'update' : 'create'} question (${response.status})`;
+                    showToast('error', errorMessage);
+                    return;
+                  }
+
                   const data = await response.json();
                   console.log('[Modal onSubmit] Response:', data);
                   if (data.success) {
@@ -1253,11 +922,23 @@ export default function QuestionnaireBuilderPage() {
                       fetchQuestions();
                     }, 500);
                   } else {
-                    console.error('[Modal onSubmit] Failed:', data.error);
-                    showToast('error', data.error?.message || 'Operation failed');
+                    console.error('[Modal onSubmit] Failed:', {
+                      data,
+                      error: data.error,
+                      fullResponse: JSON.stringify(data, null, 2),
+                    });
+                    const errorMessage = data.error?.message || data.message || 'Operation failed';
+                    showToast('error', errorMessage);
                   }
-                } catch (error) {
-                  showToast('error', 'An error occurred');
+                } catch (error: any) {
+                  console.error('[Modal onSubmit] Exception:', {
+                    error,
+                    message: error?.message,
+                    stack: error?.stack,
+                    name: error?.name,
+                  });
+                  const errorMessage = error?.message || 'An error occurred while saving the question';
+                  showToast('error', errorMessage);
                 } finally {
                   setSubmitLoading(false);
                 }

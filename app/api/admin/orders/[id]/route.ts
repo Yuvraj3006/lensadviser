@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError, NotFoundError } from '@/lib/errors';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 
 /**
  * GET /api/admin/orders/[id]
@@ -20,27 +20,6 @@ export async function GET(
 
     const order = await prisma.order.findUnique({
       where: { id },
-      include: {
-        store: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            city: true,
-            state: true,
-            phone: true,
-            email: true,
-          },
-        },
-        staff: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
-            phone: true,
-          },
-        },
-      },
     });
 
     if (!order) {
@@ -52,10 +31,47 @@ export async function GET(
       throw new NotFoundError('Order');
     }
 
+    // Fetch store and staff separately (Order model doesn't have relations)
+    const [store, staff] = await Promise.all([
+      prisma.store.findUnique({
+        where: { id: order.storeId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          city: true,
+          state: true,
+          phone: true,
+          email: true,
+        },
+      }),
+      (() => {
+        const staffId = order.assistedByStaffId;
+        if (!staffId) return Promise.resolve(null);
+        const staffIdStr = typeof staffId === 'string' 
+          ? staffId 
+          : (typeof staffId === 'object' && 'value' in staffId) 
+            ? String(staffId.value) 
+            : null;
+        if (!staffIdStr) return Promise.resolve(null);
+        return prisma.user.findUnique({
+          where: { id: staffIdStr },
+          select: {
+            id: true,
+            name: true,
+            role: true,
+            phone: true,
+          },
+        }).catch(() => null);
+      })(),
+    ]);
+
     return Response.json({
       success: true,
       data: {
         ...order,
+        store: store || null,
+        staff: staff || null,
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
       },

@@ -12,34 +12,52 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Plus, Search, Edit2, Trash2, Tag, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { Select } from '@/components/ui/Select';
 
-interface OfferRule {
-  id: string;
-  code: string;
-  name: string;
-}
 
 interface SubBrand {
   id: string;
-  subBrandName: string;
-  offerRuleIds: string[];
+  name: string;
   isActive: boolean;
 }
 
 interface Brand {
   id: string;
-  brandName: string;
+  name: string;
   isActive: boolean;
+  productTypes: ('FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY')[];
   subBrands: SubBrand[];
 }
 
+interface RetailProduct {
+  id: string;
+  type: 'FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY';
+  brand: {
+    id: string;
+    name: string;
+  };
+  subBrand: {
+    id: string;
+    name: string;
+  } | null;
+  name: string | null;
+  sku: string | null;
+  mrp: number;
+  hsnCode: string | null;
+  isActive: boolean;
+}
+
+type ProductType = 'FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY';
+
 export default function ProductsPage() {
   const { showToast } = useToast();
+  const [activeTab, setActiveTab] = useState<ProductType>('FRAME');
   const [brands, setBrands] = useState<Brand[]>([]);
-  const [offerRules, setOfferRules] = useState<OfferRule[]>([]);
+  const [products, setProducts] = useState<RetailProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [isSubBrandModalOpen, setIsSubBrandModalOpen] = useState(false);
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
   const [editingSubBrandId, setEditingSubBrandId] = useState<string | null>(null);
   const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set());
@@ -47,73 +65,261 @@ export default function ProductsPage() {
   
   // Brand form
   const [brandFormData, setBrandFormData] = useState({
-    brandName: '',
+    name: '',
+    productTypes: [] as ProductType[],
   });
   
   // Sub-brand form
   const [subBrandFormData, setSubBrandFormData] = useState({
-    subBrandName: '',
-    offerRuleIds: [] as string[],
+    name: '',
+  });
+
+  // Product form
+  const [productFormData, setProductFormData] = useState({
+    type: 'FRAME' as ProductType,
+    brandId: '',
+    subBrandId: '',
+    name: '',
+    sku: '',
+    mrp: 0,
+    hsnCode: '',
   });
 
   useEffect(() => {
     fetchBrands();
-    fetchOfferRules();
   }, []);
+
+  useEffect(() => {
+    fetchProducts(activeTab);
+  }, [activeTab]);
 
   const fetchBrands = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch('/api/admin/frame-brands', {
+      if (!token) {
+        showToast('error', 'Please login to continue');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch('/api/admin/brands', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      const data = await response.json();
-      if (data.success) {
-        setBrands(data.data);
+      // Check if response is ok
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error - Response not OK:', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType: response.headers.get('content-type'),
+          rawText: errorText,
+          textLength: errorText?.length || 0,
+        });
+        
+        let errorData: any = {};
+        if (errorText && errorText.trim() !== '') {
+          try {
+            errorData = JSON.parse(errorText);
+          } catch (parseError) {
+            console.error('Failed to parse error response as JSON:', parseError);
+            errorData = { 
+              error: { 
+                message: errorText || `HTTP ${response.status}: ${response.statusText}` 
+              } 
+            };
+          }
+        } else {
+          errorData = { 
+            error: { 
+              message: `HTTP ${response.status}: ${response.statusText || 'Unknown error'}` 
+            } 
+          };
+        }
+        
+        console.error('API Error Response (parsed):', errorData);
+        console.error('Full error object:', JSON.stringify(errorData, null, 2));
+        
+        // Extract error message with details if available
+        let errorMessage = errorData?.error?.message || errorData?.message || `Failed to load brands (${response.status})`;
+        if (errorData?.error?.details) {
+          console.error('Error details:', errorData.error.details);
+          if (errorData.error.details.message) {
+            errorMessage += `: ${errorData.error.details.message}`;
+          }
+        }
+        
+        showToast('error', errorMessage);
+        if (response.status === 401) {
+          window.location.href = '/login';
+        }
+        return;
       }
-    } catch (error) {
-      console.error('Failed to load brands');
-      showToast('error', 'Failed to load brands');
+
+      // Parse JSON response
+      let data;
+      try {
+        const responseText = await response.text();
+        if (!responseText || responseText.trim() === '') {
+          console.error('Empty response from API');
+          showToast('error', 'Empty response from server');
+          return;
+        }
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        showToast('error', 'Invalid response from server');
+        return;
+      }
+
+      if (data.success) {
+        setBrands(data.data || []);
+      } else {
+        const errorMessage = data.error?.message || data.message || 'Failed to load brands';
+        console.error('API returned error:', {
+          success: data.success,
+          error: data.error,
+          message: data.message,
+          fullData: data,
+        });
+        showToast('error', errorMessage);
+        if (response.status === 401) {
+          window.location.href = '/login';
+        }
+      }
+    } catch (error: any) {
+      console.error('Failed to load brands - Exception:', error);
+      showToast('error', error?.message || 'Network error. Please check your connection.');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchOfferRules = async () => {
+  const fetchProducts = async (type: ProductType) => {
+    setProductsLoading(true);
     try {
       const token = localStorage.getItem('lenstrack_token');
-      const sessionRes = await fetch('/api/auth/session', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const sessionData = await sessionRes.json();
-      
-      if (sessionData.success && sessionData.data?.organizationId) {
-        const response = await fetch(
-          `/api/admin/offers/rules?organizationId=${sessionData.data.organizationId}&isActive=true`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+      if (!token) {
+        showToast('error', 'Please login to continue');
+        setProductsLoading(false);
+        return;
+      }
 
-        const data = await response.json();
-        if (data.success) {
-          setOfferRules(data.data);
+      const response = await fetch(`/api/admin/products?type=${type}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      // Check if response is ok
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error - Response not OK:', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType: response.headers.get('content-type'),
+          rawText: errorText,
+          textLength: errorText?.length || 0,
+        });
+        
+        let errorData: any = {};
+        if (errorText && errorText.trim() !== '') {
+          try {
+            errorData = JSON.parse(errorText);
+          } catch (parseError) {
+            console.error('Failed to parse error response as JSON:', parseError);
+            errorData = { 
+              error: { 
+                message: errorText || `HTTP ${response.status}: ${response.statusText}` 
+              } 
+            };
+          }
+        } else {
+          errorData = { 
+            error: { 
+              message: `HTTP ${response.status}: ${response.statusText || 'Unknown error'}` 
+            } 
+          };
+        }
+        
+        console.error('API Error Response (parsed):', errorData);
+        console.error('Full error object:', JSON.stringify(errorData, null, 2));
+        
+        // Extract error message with details if available
+        let errorMessage = errorData?.error?.message || errorData?.message || `Failed to load products (${response.status})`;
+        if (errorData?.error?.details) {
+          console.error('Error details:', errorData.error.details);
+          if (errorData.error.details.message) {
+            errorMessage += `: ${errorData.error.details.message}`;
+          }
+        }
+        
+        showToast('error', errorMessage);
+        if (response.status === 401) {
+          window.location.href = '/login';
+        }
+        return;
+      }
+
+      // Parse JSON response
+      let data;
+      try {
+        const responseText = await response.text();
+        if (!responseText || responseText.trim() === '') {
+          console.error('Empty response from API');
+          showToast('error', 'Empty response from server');
+          return;
+        }
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        showToast('error', 'Invalid response from server');
+        return;
+      }
+
+      if (data.success) {
+        setProducts(data.data || []);
+      } else {
+        const errorMessage = data.error?.message || data.message || 'Failed to load products';
+        console.error('API returned error:', {
+          success: data.success,
+          error: data.error,
+          message: data.message,
+          fullData: data,
+        });
+        showToast('error', errorMessage);
+        if (response.status === 401) {
+          window.location.href = '/login';
         }
       }
-    } catch (error) {
-      console.error('Failed to load offer rules');
+    } catch (error: any) {
+      console.error('Failed to load products - Exception:', error);
+      showToast('error', error?.message || 'Network error. Please check your connection.');
+    } finally {
+      setProductsLoading(false);
     }
   };
 
+
   const handleCreateBrand = () => {
-    setBrandFormData({ brandName: '' });
+    setBrandFormData({ name: '', productTypes: [] });
     setIsBrandModalOpen(true);
+  };
+
+  const handleCreateProduct = () => {
+    setProductFormData({
+      type: activeTab,
+      brandId: '',
+      subBrandId: '',
+      name: '',
+      sku: '',
+      mrp: 0,
+      hsnCode: '',
+    });
+    setIsProductModalOpen(true);
   };
 
   const handleSubmitBrand = async (e: React.FormEvent) => {
@@ -122,7 +328,7 @@ export default function ProductsPage() {
 
     try {
       // Validate brand name before sending
-      const trimmedBrandName = brandFormData.brandName?.trim() || '';
+      const trimmedBrandName = brandFormData.name?.trim() || '';
       if (!trimmedBrandName) {
         showToast('error', 'Brand name is required');
         setSubmitting(false);
@@ -136,11 +342,14 @@ export default function ProductsPage() {
         return;
       }
 
-      const requestBody = { brandName: trimmedBrandName };
+      const requestBody = { 
+        name: trimmedBrandName,
+        productTypes: brandFormData.productTypes,
+      };
       console.log('Sending brand creation request:', JSON.stringify(requestBody, null, 2));
       console.log('Current brandFormData state:', JSON.stringify(brandFormData, null, 2));
       
-      const response = await fetch('/api/admin/frame-brands', {
+      const response = await fetch('/api/admin/brands', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -235,7 +444,7 @@ export default function ProductsPage() {
       if (data.success) {
         showToast('success', 'Brand created successfully');
         setIsBrandModalOpen(false);
-        setBrandFormData({ brandName: '' });
+        setBrandFormData({ name: '', productTypes: [] });
         fetchBrands();
       } else {
         const errorMessage = 
@@ -258,8 +467,7 @@ export default function ProductsPage() {
     setSelectedBrand(brand);
     setEditingSubBrandId(null);
     setSubBrandFormData({
-      subBrandName: '',
-      offerRuleIds: [],
+      name: '',
     });
     setIsSubBrandModalOpen(true);
   };
@@ -272,13 +480,15 @@ export default function ProductsPage() {
 
     try {
       const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/frame-brands/${selectedBrand.id}/sub-brands`, {
+      const response = await fetch(`/api/admin/brands/${selectedBrand.id}/subbrands`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(subBrandFormData),
+        body: JSON.stringify({
+          name: subBrandFormData.name,
+        }),
       });
 
       const data = await response.json();
@@ -302,8 +512,7 @@ export default function ProductsPage() {
     setSelectedBrand(brands.find(b => b.id === brandId) || null);
     setEditingSubBrandId(subBrand.id);
     setSubBrandFormData({
-      subBrandName: subBrand.subBrandName,
-      offerRuleIds: subBrand.offerRuleIds,
+      name: subBrand.name,
     });
     setIsSubBrandModalOpen(true);
   };
@@ -316,15 +525,18 @@ export default function ProductsPage() {
 
     try {
       const token = localStorage.getItem('lenstrack_token');
+      // Note: Update endpoint needs to be created
       const response = await fetch(
-        `/api/admin/frame-brands/${selectedBrand.id}/sub-brands/${editingSubBrandId}`,
+        `/api/admin/brands/${selectedBrand.id}/subbrands/${editingSubBrandId}`,
         {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(subBrandFormData),
+          body: JSON.stringify({
+            name: subBrandFormData.name,
+          }),
         }
       );
 
@@ -349,7 +561,8 @@ export default function ProductsPage() {
   const handleDeleteBrand = async (brandId: string) => {
     try {
       const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/frame-brands/${brandId}`, {
+      // Note: Delete endpoint needs to be created
+      const response = await fetch(`/api/admin/brands/${brandId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -372,8 +585,9 @@ export default function ProductsPage() {
   const handleDeleteSubBrand = async (brandId: string, subBrandId: string) => {
     try {
       const token = localStorage.getItem('lenstrack_token');
+      // Note: Delete endpoint needs to be created
       const response = await fetch(
-        `/api/admin/frame-brands/${brandId}/sub-brands/${subBrandId}`,
+        `/api/admin/brands/${brandId}/subbrands/${subBrandId}`,
         {
           method: 'DELETE',
           headers: {
@@ -406,34 +620,119 @@ export default function ProductsPage() {
   };
 
   const filteredBrands = brands.filter((brand) =>
-    brand.brandName.toLowerCase().includes(search.toLowerCase())
+    brand.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleSubmitProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch('/api/admin/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          type: productFormData.type,
+          brandId: productFormData.brandId,
+          subBrandId: productFormData.subBrandId || null,
+          name: productFormData.name || null,
+          sku: productFormData.sku || null,
+          mrp: productFormData.mrp,
+          hsnCode: productFormData.hsnCode || null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('success', 'Product created successfully');
+        setIsProductModalOpen(false);
+        fetchProducts(activeTab);
+      } else {
+        showToast('error', data.error?.message || 'Failed to create product');
+      }
+    } catch (error) {
+      showToast('error', 'An error occurred');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getProductTypeLabel = (type: ProductType) => {
+    switch (type) {
+      case 'FRAME': return 'Frames';
+      case 'SUNGLASS': return 'Sunglasses';
+      case 'CONTACT_LENS': return 'Contact Lenses';
+      case 'ACCESSORY': return 'Accessories';
+      default: return type;
+    }
+  };
+
+  const getAddButtonLabel = () => {
+    switch (activeTab) {
+      case 'FRAME': return 'Add Frame';
+      case 'SUNGLASS': return 'Add Sunglass';
+      case 'CONTACT_LENS': return 'Add Contact Lens';
+      case 'ACCESSORY': return 'Add Accessory';
+      default: return 'Add Product';
+    }
+  };
 
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Frame Brands & Sub-Brands</h1>
-          <p className="text-slate-600 mt-1">Manage frame brands, sub-brands, and their offer mappings</p>
-        </div>
-        <Button icon={<Plus size={18} />} onClick={handleCreateBrand}>
-          Add Brand
-        </Button>
-      </div>
-
-      {/* Search */}
       <div className="mb-6">
-        <Input
-          placeholder="Search brands..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          icon={<Search size={18} />}
-        />
+        <h1 className="text-3xl font-bold text-slate-900 mb-1">Products</h1>
+        <p className="text-slate-600">Manage products, brands, and sub-brands</p>
       </div>
 
-      {/* Brands List */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      {/* Product Type Tabs */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1 inline-flex">
+          {(['FRAME', 'SUNGLASS', 'CONTACT_LENS', 'ACCESSORY'] as ProductType[]).map((type) => (
+            <button
+              key={type}
+              onClick={() => setActiveTab(type)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === type
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {getProductTypeLabel(type)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: Brands & Sub-Brands */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">Brands & Sub-Brands</h2>
+              <Button size="sm" icon={<Plus size={14} />} onClick={handleCreateBrand}>
+                Add Brand
+              </Button>
+            </div>
+
+            {/* Search */}
+            <div className="mb-4">
+              <Input
+                placeholder="Search brands..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                icon={<Search size={16} />}
+              />
+            </div>
+
+            {/* Brands List */}
+            <div>
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Spinner />
@@ -465,7 +764,7 @@ export default function ProductsPage() {
                       )}
                     </button>
                     <Badge color="blue" size="md">
-                      {brand.brandName}
+                      {brand.name}
                     </Badge>
                     <span className="text-sm text-slate-500">
                       {brand.subBrands.length} sub-brand{brand.subBrands.length !== 1 ? 's' : ''}
@@ -496,64 +795,93 @@ export default function ProductsPage() {
                     {brand.subBrands.length === 0 ? (
                       <p className="text-sm text-slate-500">No sub-brands yet. Add one to get started.</p>
                     ) : (
-                      brand.subBrands.map((subBrand) => {
-                        const mappedOffers = offerRules.filter(or =>
-                          subBrand.offerRuleIds.includes(or.id)
-                        );
-                        return (
-                          <div
-                            key={subBrand.id}
-                            className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200"
-                          >
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Badge color="green" size="sm">
-                                  {subBrand.subBrandName}
-                                </Badge>
-                                {mappedOffers.length > 0 && (
-                                  <span className="text-xs text-slate-500">
-                                    {mappedOffers.length} offer{mappedOffers.length !== 1 ? 's' : ''} mapped
-                                  </span>
-                                )}
-                              </div>
-                              {mappedOffers.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {mappedOffers.map((offer) => (
-                                    <Badge key={offer.id} color="purple" size="sm" variant="soft">
-                                      {offer.name}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                icon={<Edit2 size={14} />}
-                                onClick={() => handleEditSubBrand(brand.id, subBrand)}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                icon={<Trash2 size={14} />}
-                                onClick={() => handleDeleteSubBrand(brand.id, subBrand.id)}
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })
+                      brand.subBrands.map((subBrand) => (
+                        <div
+                          key={subBrand.id}
+                          className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200"
+                        >
+                          <Badge color="green" size="sm">
+                            {subBrand.name}
+                          </Badge>
+                        </div>
+                      ))
                     )}
                   </div>
                 )}
               </div>
             ))}
+            </div>
+          )}
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* Right: Products List */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">
+                {getProductTypeLabel(activeTab)}
+              </h2>
+              <Button size="sm" icon={<Plus size={14} />} onClick={handleCreateProduct}>
+                {getAddButtonLabel()}
+              </Button>
+            </div>
+
+            {productsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Spinner />
+              </div>
+            ) : products.length === 0 ? (
+              <EmptyState
+                icon={<Tag size={48} />}
+                title={`No ${getProductTypeLabel(activeTab).toLowerCase()} found`}
+                description={`Create your first ${getProductTypeLabel(activeTab).toLowerCase().slice(0, -1)} to get started`}
+                action={{
+                  label: getAddButtonLabel(),
+                  onClick: handleCreateProduct,
+                }}
+              />
+            ) : (
+              <div className="divide-y divide-slate-200">
+                {products.map((product) => (
+                  <div key={product.id} className="p-4 hover:bg-slate-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-slate-900">
+                            {product.name || 'Unnamed Product'}
+                          </span>
+                          {product.sku && (
+                            <Badge color="gray" size="sm" variant="soft">
+                              {product.sku}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <span>{product.brand.name}</span>
+                          {product.subBrand && (
+                            <>
+                              <span>•</span>
+                              <span>{product.subBrand.name}</span>
+                            </>
+                          )}
+                          <span>•</span>
+                          <span className="font-medium text-slate-900">₹{product.mrp.toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge color={product.isActive ? 'green' : 'red'} size="sm">
+                          {product.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Create Brand Modal */}
@@ -576,18 +904,37 @@ export default function ProductsPage() {
         <form id="brand-form" onSubmit={handleSubmitBrand} className="space-y-4">
           <Input
             label="Brand Name"
-            placeholder="e.g., LensTrack, RayBan"
-            value={brandFormData.brandName}
+            placeholder="e.g., LensTrack, RayBan, Bausch & Lomb"
+            value={brandFormData.name}
             onChange={(e) => {
-              console.log('Input onChange:', e.target.value);
-              setBrandFormData({ brandName: e.target.value });
+              setBrandFormData({ ...brandFormData, name: e.target.value });
             }}
             required
             maxLength={100}
           />
-          <p className="text-xs text-slate-500">
-            Enter a unique brand name. This will be used to organize frame sub-brands.
-          </p>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Product Types *
+            </label>
+            <div className="space-y-2">
+              {(['FRAME', 'SUNGLASS', 'CONTACT_LENS', 'ACCESSORY'] as ProductType[]).map((type) => (
+                <label key={type} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={brandFormData.productTypes.includes(type)}
+                    onChange={() => {
+                      const types = brandFormData.productTypes.includes(type)
+                        ? brandFormData.productTypes.filter((t) => t !== type)
+                        : [...brandFormData.productTypes, type];
+                      setBrandFormData({ ...brandFormData, productTypes: types });
+                    }}
+                    className="w-4 h-4 rounded border-slate-300"
+                  />
+                  <span className="text-sm text-slate-700">{type.replace('_', ' ')}</span>
+                </label>
+              ))}
+            </div>
+          </div>
         </form>
       </Modal>
 
@@ -628,86 +975,112 @@ export default function ProductsPage() {
         >
           <Input
             label="Sub-Brand Name"
-            placeholder="e.g., ESSENTIAL, ADVANCED, PREMIUM"
-            value={subBrandFormData.subBrandName}
-            onChange={(e) => setSubBrandFormData({ ...subBrandFormData, subBrandName: e.target.value })}
+            placeholder="e.g., ESSENTIAL, ADVANCED, PREMIUM, Classic, Premium"
+            value={subBrandFormData.name}
+            onChange={(e) => setSubBrandFormData({ ...subBrandFormData, name: e.target.value })}
             required
             disabled={!!editingSubBrandId}
           />
+        </form>
+      </Modal>
 
+      {/* Create Product Modal */}
+      <Modal
+        isOpen={isProductModalOpen}
+        onClose={() => setIsProductModalOpen(false)}
+        title={getAddButtonLabel()}
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setIsProductModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitProduct}
+              loading={submitting}
+            >
+              Create
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleSubmitProduct} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Map Offers {subBrandFormData.offerRuleIds.length > 0 && `(${subBrandFormData.offerRuleIds.length} selected)`}
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Brand <span className="text-red-500">*</span>
             </label>
-            
-            {offerRules.length === 0 ? (
-              <p className="text-sm text-slate-500 p-3 border border-slate-200 rounded-lg bg-slate-50">
-                No offers available. Create offers first.
-              </p>
-            ) : (
-              <>
-                <Select
-                  label="Select Offers"
-                  placeholder={offerRules.filter(o => !subBrandFormData.offerRuleIds.includes(o.id)).length === 0 
-                    ? "All offers selected" 
-                    : "Choose offers to map..."}
-                  options={offerRules
-                    .filter(offer => !subBrandFormData.offerRuleIds.includes(offer.id))
-                    .map(offer => ({
-                      value: offer.id,
-                      label: `${offer.name} (${offer.code})`
-                    }))}
-                  value=""
-                  onChange={(e) => {
-                    const selectedId = e.target.value;
-                    if (selectedId && !subBrandFormData.offerRuleIds.includes(selectedId)) {
-                      setSubBrandFormData({
-                        ...subBrandFormData,
-                        offerRuleIds: [...subBrandFormData.offerRuleIds, selectedId],
-                      });
-                      // Reset select
-                      e.target.value = '';
-                    }
-                  }}
-                  disabled={offerRules.filter(o => !subBrandFormData.offerRuleIds.includes(o.id)).length === 0}
-                />
-                
-                {subBrandFormData.offerRuleIds.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-xs text-slate-600 font-medium">Selected Offers:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {subBrandFormData.offerRuleIds.map((offerId) => {
-                        const offer = offerRules.find(o => o.id === offerId);
-                        if (!offer) return null;
-                        return (
-                          <Badge
-                            key={offerId}
-                            color="blue"
-                            size="sm"
-                            className="flex items-center gap-1"
-                          >
-                            {offer.name}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSubBrandFormData({
-                                  ...subBrandFormData,
-                                  offerRuleIds: subBrandFormData.offerRuleIds.filter(id => id !== offerId),
-                                });
-                              }}
-                              className="ml-1 hover:text-red-600"
-                            >
-                              <X size={12} />
-                            </button>
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+            <Select
+              value={productFormData.brandId}
+              onChange={(e) => {
+                setProductFormData({
+                  ...productFormData,
+                  brandId: e.target.value,
+                  subBrandId: '', // Reset sub-brand when brand changes
+                });
+              }}
+              options={[
+                { value: '', label: 'Select Brand' },
+                ...brands
+                  .filter(b => b.productTypes.includes(activeTab))
+                  .map(b => ({ value: b.id, label: b.name })),
+              ]}
+              required
+            />
           </div>
+
+          {productFormData.brandId && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Sub-Brand (Optional)
+              </label>
+              <Select
+                value={productFormData.subBrandId}
+                onChange={(e) => setProductFormData({ ...productFormData, subBrandId: e.target.value })}
+                options={[
+                  { value: '', label: 'No Sub-Brand' },
+                  ...(brands.find(b => b.id === productFormData.brandId)?.subBrands || []).map(sb => ({
+                    value: sb.id,
+                    label: sb.name,
+                  })),
+                ]}
+              />
+            </div>
+          )}
+
+          <Input
+            label="Product Name / Model (Optional)"
+            placeholder="e.g., Wayfarer 5121"
+            value={productFormData.name}
+            onChange={(e) => setProductFormData({ ...productFormData, name: e.target.value })}
+          />
+
+          <Input
+            label="SKU (Optional)"
+            placeholder="e.g., RB-5121-BLK"
+            value={productFormData.sku}
+            onChange={(e) => setProductFormData({ ...productFormData, sku: e.target.value })}
+          />
+
+          <Input
+            label="MRP"
+            type="number"
+            placeholder="0.00"
+            value={productFormData.mrp || ''}
+            onChange={(e) => setProductFormData({ ...productFormData, mrp: parseFloat(e.target.value) || 0 })}
+            required
+            min="0"
+            step="0.01"
+          />
+
+          <Input
+            label="HSN Code (Optional)"
+            placeholder="e.g., 9001"
+            value={productFormData.hsnCode}
+            onChange={(e) => setProductFormData({ ...productFormData, hsnCode: e.target.value })}
+          />
         </form>
       </Modal>
     </div>

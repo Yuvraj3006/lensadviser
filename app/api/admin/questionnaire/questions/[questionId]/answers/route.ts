@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
 const createAnswersSchema = z.object({
@@ -94,7 +94,7 @@ export async function POST(
           },
         });
 
-        // Create answer-benefit mappings
+        // Create answer-benefit mappings with points
         if (answerData.benefits && answerData.benefits.length > 0) {
           await Promise.all(
             answerData.benefits.map(async (benefitInput) => {
@@ -104,6 +104,7 @@ export async function POST(
                   data: {
                     answerId: answer.id,
                     benefitId: benefit.id,
+                    points: benefitInput.points || 0, // Store points from benefitEffects
                   },
                 });
               }

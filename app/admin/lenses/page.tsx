@@ -14,17 +14,16 @@ import { Input } from '@/components/ui/Input';
 import { DataTable, Column } from '@/components/data-display/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Plus, Search, Edit2, Copy, ToggleLeft, ToggleRight, Package } from 'lucide-react';
-import { BrandLine } from '@prisma/client';
-
 interface Lens {
   id: string;
   itCode: string;
   name: string;
-  brandLine: BrandLine | null;
-  index: string | null; // subCategory
-  offerPrice: number; // basePrice
+  brandLine: string;
+  lensIndex: string;
+  baseOfferPrice: number;
+  category: string;
+  yopoEligible: boolean;
   isActive: boolean;
-  sku: string;
 }
 
 export default function AdminLensesPage() {
@@ -33,48 +32,26 @@ export default function AdminLensesPage() {
   const [lenses, setLenses] = useState<Lens[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [organizationId, setOrganizationId] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('lenstrack_token');
-    if (token) {
-      fetch('/api/auth/session', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.data?.organizationId) {
-            setOrganizationId(data.data.organizationId);
-            fetchLenses(data.data.organizationId);
-          }
-        });
-    }
-  }, []);
+    fetchLenses();
+  }, [search]);
 
-  const fetchLenses = async (orgId: string) => {
+  const fetchLenses = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('lenstrack_token');
       const params = new URLSearchParams();
-      params.append('category', 'EYEGLASSES');
       if (search) params.append('search', search);
 
-      // Use admin products API to get all lenses including inactive ones
-      const response = await fetch(`/api/admin/products?${params}`, {
+      const response = await fetch(`/api/admin/lenses?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
       if (data.success) {
-        setLenses(data.data.map((p: any) => ({
-          id: p.id,
-          itCode: p.itCode || p.sku,
-          name: p.name,
-          brandLine: p.brandLine,
-          index: p.subCategory,
-          offerPrice: p.basePrice,
-          isActive: p.isActive,
-          sku: p.sku,
-        })));
+        setLenses(data.data || []);
+      } else {
+        showToast('error', data.error?.message || 'Failed to load lenses');
       }
     } catch (error) {
       showToast('error', 'Failed to load lenses');
@@ -91,7 +68,7 @@ export default function AdminLensesPage() {
         return;
       }
 
-      const response = await fetch(`/api/admin/products/${lens.id}`, {
+      const response = await fetch(`/api/admin/lenses/${lens.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -105,7 +82,7 @@ export default function AdminLensesPage() {
       const data = await response.json();
       if (data.success) {
         showToast('success', `Lens ${!lens.isActive ? 'activated' : 'deactivated'}`);
-        if (organizationId) fetchLenses(organizationId);
+        fetchLenses();
       } else {
         showToast('error', data.error?.message || 'Failed to update lens');
       }
@@ -122,52 +99,39 @@ export default function AdminLensesPage() {
         return;
       }
 
-      // Fetch full product details
-      const productResponse = await fetch(`/api/admin/products/${lens.id}`, {
+      // Fetch full lens details
+      const lensResponse = await fetch(`/api/admin/lenses/${lens.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const productData = await productResponse.json();
+      const lensData = await lensResponse.json();
       
-      if (!productData.success) {
+      if (!lensData.success) {
         showToast('error', 'Failed to fetch lens details');
         return;
       }
 
-      const product = productData.data;
+      const lensDetails = lensData.data;
       
-      // Create cloned product with modified SKU
-      const clonedSku = `${product.sku}-COPY-${Date.now()}`;
-      const cloneResponse = await fetch('/api/admin/products', {
+      // Create cloned lens with modified IT code
+      const clonedItCode = `${lensDetails.itCode}-COPY-${Date.now()}`;
+      const cloneResponse = await fetch('/api/admin/lenses', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          sku: clonedSku,
-          itCode: product.itCode || clonedSku,
-          name: `${product.name} (Copy)`,
-          brand: product.brand,
-          brandLine: product.brandLine,
-          subCategory: product.subCategory,
-          basePrice: product.basePrice,
-          mrp: product.mrp,
-          category: product.category,
-          description: product.description || '',
-          imageUrl: product.imageUrl || '',
-          isActive: product.isActive,
-          yopoEligible: product.yopoEligible || false,
-          features: product.features?.map((f: any) => ({
-            featureId: f.featureId || f.feature?.id,
-            strength: f.strength || 1,
-          })) || [],
+          ...lensDetails,
+          itCode: clonedItCode,
+          name: `${lensDetails.name} (Copy)`,
+          isActive: false, // Clone as inactive by default
         }),
       });
 
       const cloneData = await cloneResponse.json();
       if (cloneData.success) {
         showToast('success', 'Lens cloned successfully');
-        if (organizationId) fetchLenses(organizationId);
+        fetchLenses();
       } else {
         showToast('error', cloneData.error?.message || 'Failed to clone lens');
       }
@@ -182,7 +146,7 @@ export default function AdminLensesPage() {
       key: 'itCode',
       header: 'IT Code',
       render: (lens) => (
-        <span className="font-mono text-sm font-medium">{lens.itCode || lens.sku}</span>
+        <span className="font-mono text-sm font-medium">{lens.itCode}</span>
       ),
     },
     {
@@ -200,17 +164,26 @@ export default function AdminLensesPage() {
       ),
     },
     {
-      key: 'index',
+      key: 'lensIndex',
       header: 'Index',
       render: (lens) => (
-        <span className="text-sm text-slate-600">{lens.index || 'N/A'}</span>
+        <span className="text-sm text-slate-600">
+          {lens.lensIndex?.replace('INDEX_', '') || 'N/A'}
+        </span>
       ),
     },
     {
-      key: 'offerPrice',
+      key: 'baseOfferPrice',
       header: 'Offer Price',
       render: (lens) => (
-        <span className="font-medium">₹{lens.offerPrice.toLocaleString()}</span>
+        <span className="font-medium">₹{lens.baseOfferPrice.toLocaleString()}</span>
+      ),
+    },
+    {
+      key: 'category',
+      header: 'Category',
+      render: (lens) => (
+        <span className="text-sm text-slate-600">{lens.category}</span>
       ),
     },
     {
@@ -277,7 +250,6 @@ export default function AdminLensesPage() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
-              if (organizationId) fetchLenses(organizationId);
             }}
             className="pl-10"
           />

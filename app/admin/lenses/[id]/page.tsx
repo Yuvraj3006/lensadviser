@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Admin Lens Detail Page
- * Matches Frontend Specification exactly
- * 5 Tabs: GENERAL | SPECIFICATIONS | FEATURES | BENEFITS | ANSWER BOOSTS
+ * Admin Lens Detail Page - Refactored
+ * Tabs: General | RX Ranges | Features | Benefits | Specifications
+ * REMOVED: Answer Boosts tab
  */
 
 import { useEffect, useState } from 'react';
@@ -12,30 +12,49 @@ import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Card } from '@/components/ui/Card';
-import { Package, Settings, Sparkles, TrendingUp, Target } from 'lucide-react';
-import { BrandLine } from '@prisma/client';
+import { Package, Settings, Sparkles, TrendingUp, Eye } from 'lucide-react';
+import { BRAND_LINES, SPEC_GROUPS } from '@/lib/constants/lens';
 
-type Tab = 'general' | 'specifications' | 'features' | 'benefits' | 'answerBoosts';
+type Tab = 'general' | 'rxRanges' | 'features' | 'benefits' | 'specifications';
 
-interface Lens {
-  id: string;
+interface RxRange {
+  sphMin: number;
+  sphMax: number;
+  cylMin: number;
+  cylMax: number;
+  addOnPrice: number;
+}
+
+interface LensFormData {
   itCode: string;
   name: string;
-  brandLine: BrandLine | null;
-  index: string | null;
-  price: number;
+  brandLine: string;
+  visionType: 'SINGLE_VISION' | 'PROGRESSIVE' | 'BIFOCAL' | 'ANTI_FATIGUE' | 'MYOPIA_CONTROL';
+  lensIndex: 'INDEX_156' | 'INDEX_160' | 'INDEX_167' | 'INDEX_174';
+  tintOption: 'CLEAR' | 'TINT' | 'PHOTOCHROMIC' | 'TRANSITION';
+  baseOfferPrice: number;
+  addOnPrice: number;
+  category: 'ECONOMY' | 'STANDARD' | 'PREMIUM' | 'ULTRA';
   yopoEligible: boolean;
-  features: Array<{ id: string; key: string; name: string; enabled: boolean }>;
-  specifications?: Array<{ key: string; value: string; group: string }>;
-  benefits?: Array<{ id: string; name: string; score: number }>;
-  answerBoosts?: Array<{ questionId: string; optionKey: string; boost: number }>;
+  deliveryDays: number;
+  isActive: boolean;
+  rxRanges: RxRange[];
+  featureCodes: string[];
+  benefitScores: Record<string, number>;
+  specs: Array<{ group: string; key: string; value: string }>;
 }
 
 interface Feature {
   id: string;
-  key: string;
+  code: string;
   name: string;
+}
+
+interface Benefit {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
 }
 
 export default function AdminLensDetailPage() {
@@ -44,85 +63,57 @@ export default function AdminLensDetailPage() {
   const { showToast } = useToast();
   const lensId = params.id as string;
   const [activeTab, setActiveTab] = useState<Tab>('general');
-  const [lens, setLens] = useState<Lens | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [availableFeatures, setAvailableFeatures] = useState<Feature[]>([]);
-  const [organizationId, setOrganizationId] = useState('');
-  
-  // Specifications state
-  const [newSpec, setNewSpec] = useState({ key: '', value: '', group: '' });
-  
-  // Benefits state
-  const [availableBenefits, setAvailableBenefits] = useState<Array<{ id: string; name: string }>>([]);
-  const [newBenefitName, setNewBenefitName] = useState('');
-  
-  // Answer Boosts state
-  const [questions, setQuestions] = useState<Array<{ id: string; key: string; textEn: string; options: Array<{ key: string; textEn: string }> }>>([]);
-  const [newBoost, setNewBoost] = useState({ questionId: '', optionKey: '', boost: 0 });
+  const [features, setFeatures] = useState<Feature[]>([]);
+  const [benefits, setBenefits] = useState<Benefit[]>([]);
+
+  const [formData, setFormData] = useState<LensFormData>({
+    itCode: '',
+    name: '',
+    brandLine: '',
+    visionType: 'SINGLE_VISION',
+    lensIndex: 'INDEX_156',
+    tintOption: 'CLEAR',
+    baseOfferPrice: 0,
+    addOnPrice: 0,
+    category: 'STANDARD',
+    yopoEligible: true,
+    deliveryDays: 4,
+    isActive: true,
+    rxRanges: [],
+    featureCodes: [],
+    benefitScores: {},
+    specs: [],
+  });
 
   const tabs = [
     { id: 'general' as Tab, label: 'General', icon: Package },
-    { id: 'specifications' as Tab, label: 'Specifications', icon: Settings },
+    { id: 'rxRanges' as Tab, label: 'RX Ranges', icon: Eye },
     { id: 'features' as Tab, label: 'Features', icon: Sparkles },
     { id: 'benefits' as Tab, label: 'Benefits', icon: TrendingUp },
-    { id: 'answerBoosts' as Tab, label: 'Answer Boosts', icon: Target },
+    { id: 'specifications' as Tab, label: 'Specifications', icon: Settings },
   ];
 
   useEffect(() => {
-    const token = localStorage.getItem('lenstrack_token');
-    if (token) {
-      fetch('/api/auth/session', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.data?.organizationId) {
-            setOrganizationId(data.data.organizationId);
-            fetchFeatures(data.data.organizationId);
-            fetchBenefits();
-            fetchQuestions();
-          }
-        });
-    }
-  }, []);
-
-  useEffect(() => {
+    fetchFeatures();
+    fetchBenefits();
     if (lensId && lensId !== 'new') {
       fetchLens();
     } else {
-      setLens({
-        id: '',
-        itCode: '',
-        name: '',
-        brandLine: null,
-        index: null,
-        price: 0,
-        yopoEligible: false,
-        features: [],
-        specifications: [],
-        benefits: [
-          { id: 'B01', name: 'Comfort', score: 0 },
-          { id: 'B02', name: 'Durability', score: 0 },
-          { id: 'B03', name: 'Clarity', score: 0 },
-          { id: 'B04', name: 'Style', score: 0 },
-          { id: 'B05', name: 'Value', score: 0 },
-        ],
-        answerBoosts: [],
-      });
       setLoading(false);
     }
   }, [lensId]);
 
-  const fetchFeatures = async (orgId: string) => {
+  const fetchFeatures = async () => {
     try {
       const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/features?category=EYEGLASSES`, {
+      const response = await fetch('/api/admin/features', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
       if (data.success) {
-        setAvailableFeatures(data.data);
+        setFeatures(data.data || []);
       }
     } catch (error) {
       console.error('Failed to fetch features');
@@ -132,18 +123,20 @@ export default function AdminLensDetailPage() {
   const fetchBenefits = async () => {
     try {
       const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/benefits`, {
+      const response = await fetch('/api/admin/benefits', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
       if (data.success) {
-        setAvailableBenefits(data.data);
-        // Initialize benefits if empty
-        if (lens && (!lens.benefits || lens.benefits.length === 0)) {
-          setLens({
-            ...lens,
-            benefits: data.data.map((b: any) => ({ id: b.id, name: b.name, score: 0 }))
+        const benefitsList = data.data || [];
+        setBenefits(benefitsList);
+        // Initialize benefit scores if creating new lens
+        if (lensId === 'new') {
+          const initialScores: Record<string, number> = {};
+          benefitsList.forEach((b: Benefit) => {
+            initialScores[b.code] = 0;
           });
+          setFormData((prev) => ({ ...prev, benefitScores: initialScores }));
         }
       }
     } catch (error) {
@@ -151,53 +144,33 @@ export default function AdminLensDetailPage() {
     }
   };
 
-  const fetchQuestions = async () => {
-    try {
-      const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/questions?category=EYEGLASSES`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      console.log('[fetchQuestions] Lens page - Questions data:', data);
-      if (data.success) {
-        const mappedQuestions = data.data.map((q: any) => ({
-          id: q.id,
-          key: q.key,
-          textEn: q.textEn,
-          options: (q.options || []).map((opt: any) => ({
-            key: opt.key,
-            textEn: opt.textEn,
-            id: opt.id,
-          }))
-        }));
-        console.log('[fetchQuestions] Mapped questions:', mappedQuestions);
-        setQuestions(mappedQuestions);
-      } else {
-        console.error('[fetchQuestions] API error:', data.error);
-      }
-    } catch (error) {
-      console.error('Failed to fetch questions:', error);
-    }
-  };
-
   const fetchLens = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/products/${lensId}`, {
+      const response = await fetch(`/api/admin/lenses/${lensId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
       if (data.success) {
-        setLens({
-          id: data.data.id,
-          itCode: data.data.itCode || data.data.sku,
-          name: data.data.name,
-          brandLine: data.data.brandLine,
-          index: data.data.subCategory,
-          price: data.data.basePrice,
-          yopoEligible: data.data.yopoEligible || false,
-          features: data.data.features || [],
+        const lens = data.data;
+        setFormData({
+          itCode: lens.itCode || '',
+          name: lens.name || '',
+          brandLine: lens.brandLine || '',
+          visionType: lens.visionType || 'SINGLE_VISION',
+          lensIndex: lens.lensIndex || 'INDEX_156',
+          tintOption: lens.tintOption || 'CLEAR',
+          baseOfferPrice: lens.baseOfferPrice || 0,
+          addOnPrice: lens.addOnPrice || 0,
+          category: lens.category || 'STANDARD',
+          yopoEligible: lens.yopoEligible ?? true,
+          deliveryDays: lens.deliveryDays || 4,
+          isActive: lens.isActive ?? true,
+          rxRanges: lens.rxRanges || [],
+          featureCodes: lens.featureCodes || [],
+          benefitScores: lens.benefitScores || {},
+          specs: lens.specs || [],
         });
       }
     } catch (error) {
@@ -208,50 +181,48 @@ export default function AdminLensDetailPage() {
   };
 
   const handleSave = async () => {
-    if (!lens || !organizationId) return;
-    
-    // Validation
-    if (!lens.itCode || !lens.name || lens.price <= 0) {
+    if (!formData.itCode || !formData.name || !formData.brandLine || formData.baseOfferPrice <= 0) {
       showToast('error', 'Please fill all required fields');
       return;
     }
-    
+
     setSubmitting(true);
     try {
       const token = localStorage.getItem('lenstrack_token');
       const isNew = lensId === 'new';
-      
+      const url = isNew ? '/api/admin/lenses' : `/api/admin/lenses/${lensId}`;
+      const method = isNew ? 'POST' : 'PUT';
+
       const payload = {
-        sku: lens.itCode,
-        itCode: lens.itCode,
-        name: lens.name,
-        brandLine: lens.brandLine,
-        subCategory: lens.index, // Index stored in subCategory
-        basePrice: lens.price,
-        yopoEligible: lens.yopoEligible,
-        category: 'EYEGLASSES',
-        description: `${lens.name} - ${lens.brandLine || 'Standard'}`,
-        imageUrl: '/images/lens-placeholder.jpg',
-        isActive: true,
-        organizationId,
+        itCode: formData.itCode,
+        name: formData.name,
+        brandLine: formData.brandLine,
+        visionType: formData.visionType,
+        lensIndex: formData.lensIndex,
+        tintOption: formData.tintOption,
+        baseOfferPrice: formData.baseOfferPrice,
+        addOnPrice: formData.addOnPrice || null,
+        category: formData.category,
+        yopoEligible: formData.yopoEligible,
+        deliveryDays: formData.deliveryDays,
+        isActive: formData.isActive,
+        rxRanges: formData.rxRanges,
+        featureCodes: formData.featureCodes,
+        benefitScores: formData.benefitScores,
       };
-      
-      const url = isNew 
-        ? '/api/admin/products' 
-        : `/api/admin/products/${lensId}`;
-      
+
       const response = await fetch(url, {
-        method: isNew ? 'POST' : 'PUT',
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
-      
+
       const data = await response.json();
       if (data.success) {
-        showToast('success', `Lens ${isNew ? 'created' : 'saved'} successfully`);
+        showToast('success', `Lens ${isNew ? 'created' : 'updated'} successfully`);
         router.push('/admin/lenses');
       } else {
         showToast('error', data.error?.message || 'Failed to save lens');
@@ -263,27 +234,86 @@ export default function AdminLensDetailPage() {
     }
   };
 
+  const addRxRange = () => {
+    setFormData((prev) => ({
+      ...prev,
+      rxRanges: [
+        ...prev.rxRanges,
+        { sphMin: -10, sphMax: 10, cylMin: 0, cylMax: -4, addOnPrice: 0 },
+      ],
+    }));
+  };
+
+  const removeRxRange = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      rxRanges: prev.rxRanges.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateRxRange = (index: number, field: keyof RxRange, value: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      rxRanges: prev.rxRanges.map((range, i) =>
+        i === index ? { ...range, [field]: value } : range
+      ),
+    }));
+  };
+
+  const toggleFeature = (code: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      featureCodes: prev.featureCodes.includes(code)
+        ? prev.featureCodes.filter((c) => c !== code)
+        : [...prev.featureCodes, code],
+    }));
+  };
+
+  const updateBenefitScore = (code: string, score: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      benefitScores: { ...prev.benefitScores, [code]: score },
+    }));
+  };
+
+  const addSpec = () => {
+    setFormData((prev) => ({
+      ...prev,
+      specs: [...prev.specs, { group: '', key: '', value: '' }],
+    }));
+  };
+
+  const removeSpec = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      specs: prev.specs.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateSpec = (index: number, field: 'group' | 'key' | 'value', value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      specs: prev.specs.map((spec, i) => (i === index ? { ...spec, [field]: value } : spec)),
+    }));
+  };
+
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
-  if (!lens) {
-    return <div>Lens not found</div>;
-  }
-
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <Button variant="outline" onClick={() => router.push('/admin/lenses')}>
             ← Back
           </Button>
           <h1 className="text-3xl font-bold text-slate-900 mt-4">
-            {lensId === 'new' ? 'New Lens' : lens.name}
+            {lensId === 'new' ? 'New Lens' : formData.name || 'Edit Lens'}
           </h1>
         </div>
         <Button onClick={handleSave} loading={submitting}>
@@ -292,7 +322,7 @@ export default function AdminLensDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200 mb-6">
+      <div className="border-b border-slate-200">
         <div className="flex gap-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -303,7 +333,7 @@ export default function AdminLensDetailPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${
                   isActive
-                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -316,444 +346,434 @@ export default function AdminLensDetailPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="space-y-6">
-        {/* Tab 1: GENERAL */}
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+        {/* General Tab */}
         {activeTab === 'general' && (
-          <Card>
-            <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="IT Code *"
-                  value={lens.itCode}
-                  onChange={(e) => setLens({ ...lens, itCode: e.target.value })}
-                  required
-                />
-                <Input
-                  label="Name *"
-                  value={lens.name}
-                  onChange={(e) => setLens({ ...lens, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Select
-                  label="Brand Line"
-                  value={lens.brandLine || ''}
-                  onChange={(e) => setLens({ ...lens, brandLine: (e.target.value || null) as BrandLine | null })}
-                  options={Object.values(BrandLine).map(v => ({ value: v, label: v }))}
-                />
-                <Input
-                  label="Index"
-                  value={lens.index || ''}
-                  onChange={(e) => setLens({ ...lens, index: e.target.value || null })}
-                  placeholder="e.g., 1.56, 1.60, 1.67"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Offer Price (₹) *"
-                  type="number"
-                  value={lens.price.toString()}
-                  onChange={(e) => setLens({ ...lens, price: parseFloat(e.target.value) || 0 })}
-                  required
-                />
-                <label className="flex items-center gap-2 pt-8">
-                  <input
-                    type="checkbox"
-                    checked={lens.yopoEligible}
-                    onChange={(e) => setLens({ ...lens, yopoEligible: e.target.checked })}
-                    className="w-5 h-5 rounded border-slate-300"
-                  />
-                  <span className="text-sm font-medium">YOPO Eligible</span>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  IT Code *
                 </label>
+                <Input
+                  value={formData.itCode}
+                  onChange={(e) => setFormData({ ...formData, itCode: e.target.value })}
+                  placeholder="e.g., D360ASV"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Name *
+                </label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g., Digi360 Advanced 1.56"
+                />
               </div>
             </div>
-          </Card>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Brand Line *
+                </label>
+                <Select
+                  value={formData.brandLine}
+                  onChange={(e) => setFormData({ ...formData, brandLine: e.target.value })}
+                  options={[
+                    { value: '', label: 'Select Brand Line' },
+                    ...BRAND_LINES.map((bl) => ({
+                      value: bl,
+                      label: bl.replace(/_/g, ' '),
+                    })),
+                  ]}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Vision Type *
+                </label>
+                <Select
+                  value={formData.visionType}
+                  onChange={(e) =>
+                    setFormData({ ...formData, visionType: e.target.value as any })
+                  }
+                  options={[
+                    { value: 'SINGLE_VISION', label: 'Single Vision' },
+                    { value: 'PROGRESSIVE', label: 'Progressive' },
+                    { value: 'BIFOCAL', label: 'Bifocal' },
+                    { value: 'ANTI_FATIGUE', label: 'Anti-Fatigue' },
+                    { value: 'MYOPIA_CONTROL', label: 'Myopia Control' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Index *
+                </label>
+                <Select
+                  value={formData.lensIndex}
+                  onChange={(e) =>
+                    setFormData({ ...formData, lensIndex: e.target.value as any })
+                  }
+                  options={[
+                    { value: 'INDEX_156', label: '1.56' },
+                    { value: 'INDEX_160', label: '1.60' },
+                    { value: 'INDEX_167', label: '1.67' },
+                    { value: 'INDEX_174', label: '1.74' },
+                  ]}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Tint Option *
+                </label>
+                <Select
+                  value={formData.tintOption}
+                  onChange={(e) =>
+                    setFormData({ ...formData, tintOption: e.target.value as any })
+                  }
+                  options={[
+                    { value: 'CLEAR', label: 'Clear' },
+                    { value: 'TINT', label: 'Tint' },
+                    { value: 'PHOTOCHROMIC', label: 'Photochromic' },
+                    { value: 'TRANSITION', label: 'Transition' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Base Offer Price (₹) *
+                </label>
+                <Input
+                  type="number"
+                  value={formData.baseOfferPrice}
+                  onChange={(e) =>
+                    setFormData({ ...formData, baseOfferPrice: parseFloat(e.target.value) || 0 })
+                  }
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Add-on Price (₹)
+                </label>
+                <Input
+                  type="number"
+                  value={formData.addOnPrice}
+                  onChange={(e) =>
+                    setFormData({ ...formData, addOnPrice: parseFloat(e.target.value) || 0 })
+                  }
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Category *
+                </label>
+                <Select
+                  value={formData.category}
+                  onChange={(e) =>
+                    setFormData({ ...formData, category: e.target.value as any })
+                  }
+                  options={[
+                    { value: 'ECONOMY', label: 'Economy' },
+                    { value: 'STANDARD', label: 'Standard' },
+                    { value: 'PREMIUM', label: 'Premium' },
+                    { value: 'ULTRA', label: 'Ultra' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Delivery Days
+                </label>
+                <Input
+                  type="number"
+                  value={formData.deliveryDays}
+                  onChange={(e) =>
+                    setFormData({ ...formData, deliveryDays: parseInt(e.target.value) || 4 })
+                  }
+                  placeholder="4"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.yopoEligible}
+                  onChange={(e) =>
+                    setFormData({ ...formData, yopoEligible: e.target.checked })
+                  }
+                  className="w-4 h-4 rounded border-slate-300"
+                />
+                <span className="text-sm font-medium text-slate-700">YOPO Eligible</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                  className="w-4 h-4 rounded border-slate-300"
+                />
+                <span className="text-sm font-medium text-slate-700">Active</span>
+              </label>
+            </div>
+          </div>
         )}
 
-        {/* Tab 2: SPECIFICATIONS */}
-        {activeTab === 'specifications' && (
-          <Card>
-            <h3 className="text-lg font-semibold mb-4">Specifications (Key/Value/Group)</h3>
-            <div className="space-y-4">
-              {/* Existing Specifications */}
-              {lens.specifications && lens.specifications.length > 0 && (
-                <div className="space-y-2">
-                  {lens.specifications.map((spec, index) => (
-                    <div key={index} className="grid grid-cols-4 gap-3 p-3 bg-slate-50 rounded-lg items-center">
-                      <div>
-                        <p className="text-xs text-slate-500">Key</p>
-                        <p className="font-medium">{spec.key}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500">Value</p>
-                        <p className="font-medium">{spec.value}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500">Group</p>
-                        <p className="font-medium">{spec.group}</p>
-                      </div>
+        {/* RX Ranges Tab */}
+        {activeTab === 'rxRanges' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">RX Ranges</h3>
+              <Button onClick={addRxRange} size="sm">
+                + Add RX Range
+              </Button>
+            </div>
+
+            {formData.rxRanges.length === 0 ? (
+              <p className="text-slate-500 text-center py-8">No RX ranges added yet</p>
+            ) : (
+              <div className="space-y-3">
+                {formData.rxRanges.map((range, index) => (
+                  <div
+                    key={index}
+                    className="grid grid-cols-6 gap-3 p-4 border border-slate-200 rounded-lg"
+                  >
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        SPH Min
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={range.sphMin}
+                        onChange={(e) =>
+                          updateRxRange(index, 'sphMin', parseFloat(e.target.value) || 0)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        SPH Max
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={range.sphMax}
+                        onChange={(e) =>
+                          updateRxRange(index, 'sphMax', parseFloat(e.target.value) || 0)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        CYL Min
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={range.cylMin}
+                        onChange={(e) =>
+                          updateRxRange(index, 'cylMin', parseFloat(e.target.value) || 0)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        CYL Max
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={range.cylMax}
+                        onChange={(e) =>
+                          updateRxRange(index, 'cylMax', parseFloat(e.target.value) || 0)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Add-on Price
+                      </label>
+                      <Input
+                        type="number"
+                        value={range.addOnPrice}
+                        onChange={(e) =>
+                          updateRxRange(index, 'addOnPrice', parseFloat(e.target.value) || 0)
+                        }
+                      />
+                    </div>
+                    <div className="flex items-end">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          setLens({
-                            ...lens,
-                            specifications: lens.specifications?.filter((_, i) => i !== index)
-                          });
-                        }}
+                        onClick={() => removeRxRange(index)}
                       >
                         Remove
                       </Button>
                     </div>
-                  ))}
-                </div>
-              )}
-              
-              {/* Add New Specification */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <Input
-                    label="Key"
-                    placeholder="e.g., Material"
-                    value={newSpec.key}
-                    onChange={(e) => setNewSpec({ ...newSpec, key: e.target.value })}
-                  />
-                  <Input
-                    label="Value"
-                    placeholder="e.g., Polycarbonate"
-                    value={newSpec.value}
-                    onChange={(e) => setNewSpec({ ...newSpec, value: e.target.value })}
-                  />
-                  <Input
-                    label="Group"
-                    placeholder="e.g., MATERIAL"
-                    value={newSpec.group}
-                    onChange={(e) => setNewSpec({ ...newSpec, group: e.target.value })}
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (newSpec.key && newSpec.value && newSpec.group) {
-                      setLens({
-                        ...lens,
-                        specifications: [...(lens.specifications || []), newSpec]
-                      });
-                      setNewSpec({ key: '', value: '', group: '' });
-                      showToast('success', 'Specification added');
-                    } else {
-                      showToast('error', 'Please fill all fields');
-                    }
-                  }}
-                >
-                  + Add Specification
-                </Button>
+                  </div>
+                ))}
               </div>
-              <p className="text-sm text-slate-500">
-                Groups: OPTICAL_DESIGN, MATERIAL, COATING, INDEX_USAGE, LIFESTYLE_TAG
-              </p>
-            </div>
-          </Card>
+            )}
+          </div>
         )}
 
-        {/* Tab 3: FEATURES */}
+        {/* Features Tab */}
         {activeTab === 'features' && (
-          <Card>
-            <h3 className="text-lg font-semibold mb-4">Features (F01–F11 Toggles)</h3>
-            <div className="space-y-3">
-              {availableFeatures.length > 0 ? (
-                availableFeatures.map((feature) => {
-                  const isEnabled = lens.features.some((f) => f.id === feature.id || f.key === feature.key);
-                  return (
-                    <label key={feature.id} className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
-                      <input
-                        type="checkbox"
-                        checked={isEnabled}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setLens({
-                              ...lens,
-                              features: [...lens.features, { id: feature.id, key: feature.key, name: feature.name, enabled: true }],
-                            });
-                          } else {
-                            setLens({
-                              ...lens,
-                              features: lens.features.filter((f) => f.id !== feature.id && f.key !== feature.key),
-                            });
-                          }
-                        }}
-                        className="w-5 h-5 rounded border-slate-300"
-                      />
-                      <span className="font-mono text-sm text-slate-500">{feature.key}</span>
-                      <span className="text-slate-700 flex-1">{feature.name}</span>
-                    </label>
-                  );
-                })
-              ) : (
-                <p className="text-slate-500 text-sm">Loading features...</p>
-              )}
-            </div>
-          </Card>
-        )}
-
-        {/* Tab 4: BENEFITS */}
-        {activeTab === 'benefits' && (
-          <Card>
-            <h3 className="text-lg font-semibold mb-4">Benefits (Tag-based Scoring)</h3>
-            <div className="space-y-6">
-              {/* Add New Benefit */}
-              <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
-                <p className="text-sm font-medium text-slate-700 mb-3">Add New Benefit</p>
-                <div className="flex gap-3">
-                  <Input
-                    placeholder="Type benefit name... (e.g., Blue Light Protection)"
-                    value={newBenefitName}
-                    onChange={(e) => setNewBenefitName(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && newBenefitName.trim()) {
-                        const newBenefit = {
-                          id: `B-${Date.now()}`,
-                          name: newBenefitName.trim(),
-                          score: 5
-                        };
-                        setLens({
-                          ...lens,
-                          benefits: [...(lens.benefits || []), newBenefit]
-                        });
-                        setNewBenefitName('');
-                        showToast('success', 'Benefit added');
-                      }
-                    }}
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (newBenefitName.trim()) {
-                        const newBenefit = {
-                          id: `B-${Date.now()}`,
-                          name: newBenefitName.trim(),
-                          score: 5
-                        };
-                        setLens({
-                          ...lens,
-                          benefits: [...(lens.benefits || []), newBenefit]
-                        });
-                        setNewBenefitName('');
-                        showToast('success', 'Benefit added');
-                      }
-                    }}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-slate-900">Features (F01-F11)</h3>
+            {features.length === 0 ? (
+              <p className="text-slate-500">Loading features...</p>
+            ) : (
+              <div className="space-y-2">
+                {features.map((feature) => (
+                  <label
+                    key={feature.id}
+                    className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50"
                   >
-                    + Add Tag
-                  </Button>
-                </div>
-                <p className="text-xs text-slate-500 mt-2">Press Enter or click Add Tag to create</p>
+                    <input
+                      type="checkbox"
+                      checked={formData.featureCodes.includes(feature.code)}
+                      onChange={() => toggleFeature(feature.code)}
+                      className="w-4 h-4 rounded border-slate-300"
+                    />
+                    <div>
+                      <span className="font-medium text-slate-900">
+                        {feature.code} - {feature.name}
+                      </span>
+                    </div>
+                  </label>
+                ))}
               </div>
-
-              {/* Benefit Tags Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                {lens.benefits && lens.benefits.length > 0 ? (
-                  lens.benefits.map((benefit) => {
-                    const score = benefit.score || 0;
-                    const isActive = score > 0;
-                    
-                    return (
-                      <div
-                        key={benefit.id}
-                        className={`p-4 rounded-lg border-2 transition-all ${
-                          isActive
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="font-medium text-slate-900">{benefit.name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-lg font-bold ${isActive ? 'text-blue-600' : 'text-slate-400'}`}>
-                              {score}/10
-                            </span>
-                            <button
-                              onClick={() => {
-                                setLens({
-                                  ...lens,
-                                  benefits: lens.benefits?.filter(b => b.id !== benefit.id)
-                                });
-                                showToast('success', 'Benefit removed');
-                              }}
-                              className="text-red-500 hover:text-red-700 text-xs"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <input
-                            type="range"
-                            min="0"
-                            max="10"
-                            step="1"
-                            value={score}
-                            onChange={(e) => {
-                              const newScore = parseFloat(e.target.value);
-                              const updatedBenefits = lens.benefits?.map(b =>
-                                b.id === benefit.id ? { ...b, score: newScore } : b
-                              ) || [];
-                              setLens({ ...lens, benefits: updatedBenefits });
-                            }}
-                            className={`w-full h-2 rounded-lg appearance-none cursor-pointer ${
-                              isActive ? 'bg-blue-200' : 'bg-slate-200'
-                            }`}
-                          />
-                          <div className="flex justify-between text-xs text-slate-500">
-                            <span>0</span>
-                            <span>5</span>
-                            <span>10</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-slate-500 text-sm col-span-2">No benefits added yet. Type above to add custom benefits.</p>
-                )}
-              </div>
-              <p className="text-sm text-slate-500">
-                Adjust scores (0-10) for each benefit to influence recommendation matching
-              </p>
-            </div>
-          </Card>
+            )}
+          </div>
         )}
 
-        {/* Tab 5: ANSWER BOOSTS */}
-        {activeTab === 'answerBoosts' && (
-          <Card>
-            <h3 className="text-lg font-semibold mb-4">Answer Boosts (Map Questionnaire Answers)</h3>
-            <div className="space-y-4">
-              {/* Existing Answer Boosts */}
-              {lens.answerBoosts && lens.answerBoosts.length > 0 && (
-                <div className="space-y-2">
-                  {lens.answerBoosts.map((boost, index) => {
-                    const question = questions.find(q => q.id === boost.questionId);
-                    const option = question?.options.find(o => o.key === boost.optionKey);
-                    
-                    return (
-                      <div key={index} className="grid grid-cols-4 gap-3 p-3 bg-slate-50 rounded-lg items-center">
-                        <div>
-                          <p className="text-xs text-slate-500">Question</p>
-                          <p className="font-medium text-sm">{question?.textEn || boost.questionId}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500">Answer Option</p>
-                          <p className="font-medium text-sm">{option?.textEn || boost.optionKey}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500">Boost Score</p>
-                          <p className="font-bold text-green-600 text-lg">+{boost.boost}</p>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setLens({
-                              ...lens,
-                              answerBoosts: lens.answerBoosts?.filter((_, i) => i !== index)
-                            });
-                          }}
-                        >
-                          Remove
-                        </Button>
+        {/* Benefits Tab */}
+        {activeTab === 'benefits' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-slate-900">Benefits (B01-B12)</h3>
+            {benefits.length === 0 ? (
+              <p className="text-slate-500">Loading benefits...</p>
+            ) : (
+              <div className="space-y-4">
+                {benefits.map((benefit) => (
+                  <div key={benefit.id} className="p-4 border border-slate-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <span className="font-medium text-slate-900">
+                          {benefit.code} - {benefit.name}
+                        </span>
+                        {benefit.description && (
+                          <p className="text-sm text-slate-500 mt-1">{benefit.description}</p>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-              
-              {/* Add New Answer Boost */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <Select
-                    label="Question"
-                    value={newBoost.questionId}
-                    onChange={(e) => {
-                      setNewBoost({ ...newBoost, questionId: e.target.value, optionKey: '' });
-                    }}
-                    options={[
-                      { value: '', label: 'Select question...' },
-                      ...questions.map(q => ({ value: q.id, label: `${q.key}: ${q.textEn}` }))
-                    ]}
-                  />
-                  <Select
-                    label="Answer Option"
-                    value={newBoost.optionKey}
-                    onChange={(e) => setNewBoost({ ...newBoost, optionKey: e.target.value })}
-                    disabled={!newBoost.questionId}
-                    options={[
-                      { 
-                        value: '', 
-                        label: !newBoost.questionId 
-                          ? 'Select question first...' 
-                          : (questions.find(q => q.id === newBoost.questionId)?.options?.length === 0
-                              ? 'No options available'
-                              : 'Select answer...')
-                      },
-                      ...(newBoost.questionId 
-                        ? (questions.find(q => q.id === newBoost.questionId)?.options || []).map((opt: any) => ({
-                            value: opt.key,
-                            label: opt.textEn || opt.key
-                          }))
-                        : [])
-                    ]}
-                  />
-                  <Input
-                    label="Boost Score"
-                    type="number"
-                    min="1"
-                    max="100"
-                    step="1"
-                    placeholder="e.g., 10"
-                    value={newBoost.boost > 0 ? newBoost.boost.toString() : ''}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value) || 0;
-                      setNewBoost({ ...newBoost, boost: val });
-                    }}
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (newBoost.questionId && newBoost.optionKey && newBoost.boost > 0) {
-                      setLens({
-                        ...lens,
-                        answerBoosts: [...(lens.answerBoosts || []), newBoost]
-                      });
-                      setNewBoost({ questionId: '', optionKey: '', boost: 0 });
-                      showToast('success', 'Answer boost added');
-                    } else {
-                      showToast('error', 'Please select question, answer, and enter boost score');
-                    }
-                  }}
-                >
-                  + Add Answer Boost
-                </Button>
+                      <span className="text-sm font-medium text-slate-600">
+                        {formData.benefitScores[benefit.code] || 0} / 3
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="3"
+                      step="0.1"
+                      value={formData.benefitScores[benefit.code] || 0}
+                      onChange={(e) =>
+                        updateBenefitScore(benefit.code, parseFloat(e.target.value))
+                      }
+                      className="w-full"
+                    />
+                  </div>
+                ))}
               </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-900 font-medium mb-2">💡 How Answer Boosts Work:</p>
-                <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Customer answers questionnaire questions</li>
-                  <li>• Selected answers give this lens bonus points</li>
-                  <li>• Higher boost = better recommendation match</li>
-                  <li>• Example: "8+ hours screen time" → +10 boost for blue light lenses</li>
-                </ul>
-              </div>
+            )}
+          </div>
+        )}
+
+        {/* Specifications Tab */}
+        {activeTab === 'specifications' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">Specifications</h3>
+              <Button onClick={addSpec} size="sm">
+                + Add Specification
+              </Button>
             </div>
-          </Card>
+
+            {formData.specs.length === 0 ? (
+              <p className="text-slate-500 text-center py-8">No specifications added yet</p>
+            ) : (
+              <div className="space-y-3">
+                {formData.specs.map((spec, index) => (
+                  <div
+                    key={index}
+                    className="grid grid-cols-4 gap-3 p-4 border border-slate-200 rounded-lg"
+                  >
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Group
+                      </label>
+                      <Select
+                        value={spec.group}
+                        onChange={(e) => updateSpec(index, 'group', e.target.value)}
+                        options={[
+                          { value: '', label: 'Select Group' },
+                          ...SPEC_GROUPS.map((g) => ({
+                            value: g,
+                            label: g.replace(/_/g, ' '),
+                          })),
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Key</label>
+                      <Input
+                        value={spec.key}
+                        onChange={(e) => updateSpec(index, 'key', e.target.value)}
+                        placeholder="e.g., Core Material"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Value
+                      </label>
+                      <Input
+                        value={spec.value}
+                        onChange={(e) => updateSpec(index, 'value', e.target.value)}
+                        placeholder="e.g., Polycarbonate"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeSpec(index)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
   );
 }
-

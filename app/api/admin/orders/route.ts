@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
-import { UserRole, OrderStatus } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
+import { OrderStatus } from '@/lib/constants';
 
 /**
  * GET /api/admin/orders
@@ -114,22 +115,6 @@ export async function GET(request: NextRequest) {
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
         where,
-        include: {
-          store: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-            },
-          },
-          staff: {
-            select: {
-              id: true,
-              name: true,
-              role: true,
-            },
-          },
-        },
         orderBy: {
           createdAt: 'desc',
         },
@@ -139,45 +124,102 @@ export async function GET(request: NextRequest) {
       prisma.order.count({ where }),
     ]);
 
-    const formattedOrders = orders
-      .filter((order) => {
-        // Filter out orders with missing store (shouldn't happen, but safety check)
-        if (!order.store) {
-          console.error('[admin/orders] Order missing store:', order.id);
-          return false;
+    // Fetch store and staff data separately (Order model doesn't have relations)
+    const storeIds = [...new Set(orders.map(o => o.storeId))];
+    const stores = await prisma.store.findMany({
+      where: { id: { in: storeIds } },
+      select: { id: true, name: true, code: true },
+    });
+    const storeMap = new Map(stores.map(s => [s.id, s]));
+
+    // Fetch staff data if assistedByStaffId exists
+    const staffIds = orders
+      .map(o => {
+        const staffId = o.assistedByStaffId;
+        if (staffId && typeof staffId === 'string') return staffId;
+        if (staffId && typeof staffId === 'object' && 'value' in staffId) {
+          return String(staffId.value);
         }
-        return true;
+        return null;
       })
-      .map((order) => ({
-        id: order.id,
-        orderId: order.id.length >= 8 ? order.id.substring(0, 8).toUpperCase() : order.id.toUpperCase(),
-        time: order.createdAt.toISOString(),
-        customerName: order.customerName || null,
-        customerPhone: order.customerPhone || null,
-        store: {
-          id: order.store.id,
-          name: order.store.name,
-          code: order.store.code,
-        },
-        status: order.status,
-        staff: order.staff
-          ? {
-              id: order.staff.id,
-              name: order.staff.name,
-              role: order.staff.role,
+      .filter((id): id is string => id !== null);
+    
+    const staffMap = new Map();
+    if (staffIds.length > 0) {
+      try {
+        const staff = await prisma.user.findMany({
+          where: { id: { in: staffIds } },
+          select: { id: true, name: true, role: true },
+        });
+        staff.forEach(s => staffMap.set(s.id, s));
+      } catch (staffError) {
+        console.warn('[admin/orders] Failed to fetch staff:', staffError);
+      }
+    }
+
+    const formattedOrders = orders
+      .map((order) => {
+        const store = storeMap.get(order.storeId);
+        if (!store) {
+          console.error('[admin/orders] Order missing store:', order.id);
+          return null;
+        }
+
+        // Handle staff data
+        let staff = null;
+        const staffId = order.assistedByStaffId;
+        if (staffId) {
+          const staffIdStr = typeof staffId === 'string' 
+            ? staffId 
+            : (typeof staffId === 'object' && 'value' in staffId) 
+              ? String(staffId.value) 
+              : null;
+          
+          if (staffIdStr && staffMap.has(staffIdStr)) {
+            const staffData = staffMap.get(staffIdStr);
+            staff = {
+              id: staffData.id,
+              name: staffData.name,
+              role: staffData.role,
+            };
+          } else if (order.assistedByName) {
+            // Fallback to assistedByName if staff not found
+            const assistedByName = typeof order.assistedByName === 'string'
+              ? order.assistedByName
+              : (typeof order.assistedByName === 'object' && 'value' in order.assistedByName)
+                ? String(order.assistedByName.value)
+                : null;
+            
+            if (assistedByName) {
+              staff = {
+                id: null,
+                name: assistedByName,
+                role: null,
+              };
             }
-          : order.assistedByName
-          ? {
-              id: null,
-              name: order.assistedByName,
-              role: null,
-            }
-          : null,
-        finalAmount: order.finalPrice,
-        salesMode: order.salesMode,
-        createdAt: order.createdAt.toISOString(),
-        updatedAt: order.updatedAt.toISOString(),
-      }));
+          }
+        }
+
+        return {
+          id: order.id,
+          orderId: order.id.length >= 8 ? order.id.substring(0, 8).toUpperCase() : order.id.toUpperCase(),
+          time: order.createdAt.toISOString(),
+          customerName: order.customerName || null,
+          customerPhone: order.customerPhone || null,
+          store: {
+            id: store.id,
+            name: store.name,
+            code: store.code,
+          },
+          status: order.status,
+          staff: staff,
+          finalAmount: order.finalPrice,
+          salesMode: order.salesMode,
+          createdAt: order.createdAt.toISOString(),
+          updatedAt: order.updatedAt.toISOString(),
+        };
+      })
+      .filter((order): order is NonNullable<typeof order> => order !== null);
 
     return Response.json({
       success: true,

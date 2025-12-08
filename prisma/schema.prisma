@@ -14,72 +14,99 @@ enum UserRole {
   SALES_EXECUTIVE
 }
 
-enum BrandLine {
-  DIGI360_ADVANCED
-  DIGI360_ESSENTIAL
-  DRIVEXPERT
-  DURASHIELD_NATURE
-  BLUEXPERT
-  BLUEXPERT_ADVANCED
-  CITYLIFE
-  VISIONX_ULTRA
-  VISIONX_NEO
-  PUREVIEW
-  HARDX
-  RELAX_PLUS
-  MYOCONTROL_INTRO
-  MYOCONTROL_ADVANCED
-  TINT_NEXT
-  TINT_PREMIUM
-  TINT_ESSENTIAL
-  IGNITE_BLUEBAN
-  IGNITE_NATURE
-  IGNITE_DRIVE
-  IGNITE_DIGITAL
-  IGNITE_GOLD
-  IGNITE_PLATINUM
-  PROGRESSIVE_PLUS
+enum RetailProductType {
+  FRAME
+  SUNGLASS
+  CONTACT_LENS
+  ACCESSORY
+}
+
+enum VisionType {
+  SINGLE_VISION
+  PROGRESSIVE
+  BIFOCAL
+  ANTI_FATIGUE
+  MYOPIA_CONTROL
+}
+
+enum LensIndex {
+  INDEX_156
+  INDEX_160
+  INDEX_167
+  INDEX_174
+}
+
+enum TintOption {
+  CLEAR
+  TINT
+  PHOTOCHROMIC
+  TRANSITION
+}
+
+enum LensCategory {
+  ECONOMY
   STANDARD
   PREMIUM
-  OTHER
+  ULTRA
 }
 
-enum OfferType {
-  YOPO
-  COMBO_PRICE
-  FREE_LENS
-  PERCENT_OFF
-  FLAT_OFF
-  BOG50
-  CATEGORY_DISCOUNT
-  BONUS_FREE_PRODUCT
+type OfferRuleConfig {
+  comboPrice        Int?
+  discountType      String?
+  discountValue     Int?
+  isSecondPairRule  Boolean?
+  secondPairPercent Int?
 }
 
-enum SalesMode {
-  SELF_SERVICE
-  STAFF_ASSISTED
+type OrderFrameData {
+  brand     String
+  frameType String?
+  mrp       Int
+  subBrand  String?
 }
 
-enum OrderStatus {
-  DRAFT
-  CUSTOMER_CONFIRMED
-  STORE_ACCEPTED
-  PRINTED
-  PUSHED_TO_LAB
+type OrderLensData {
+  brandLine String
+  id        String
+  index     String
+  name      String
+  price     Int
 }
 
-enum StaffRole {
-  STORE_MANAGER
-  NC
-  JR
-  OPTOMETRIST
-  SALES
+type OrderOfferData {
+  baseTotal          Int
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  categoryDiscount   Json?
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  couponDiscount     Json?
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  couponError        Json?
+  effectiveBase      Int
+  finalPayable       Int
+  frameMRP           Int
+  lensPrice          Int
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  offersApplied      Json?
+  priceComponents    OrderOfferDataPriceComponents[]
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  secondPairDiscount Json?
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  upsell             Json?
+}
+
+type OrderOfferDataPriceComponents {
+  amount Int
+  label  String
 }
 
 model AnswerBenefit {
   id        String @id @default(auto()) @map("_id") @db.ObjectId
   answerId  String @db.ObjectId
   benefitId String @db.ObjectId
+  points    Float  @default(0) // Benefit points (e.g. +1.5, +2.0, +3.0) - can be fractional
+
+  answer  AnswerOption @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  benefit Benefit      @relation(fields: [benefitId], references: [id], onDelete: Cascade)
 
   @@unique([answerId, benefitId])
   @@index([answerId])
@@ -87,60 +114,61 @@ model AnswerBenefit {
 }
 
 model AnswerOption {
-  id           String    @id @default(auto()) @map("_id") @db.ObjectId
-  icon         String?
-  key          String
-  order        Int
-  displayOrder Int?
-  questionId   String    @db.ObjectId
-  text         String?
-  textEn       String
-  textHi       String?
-  textHiEn     String?
-  createdAt    DateTime? @default(now()) // Made nullable to handle existing null records
-  updatedAt    DateTime  @updatedAt
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  icon                String?
+  key                 String
+  order               Int
+  displayOrder        Int?
+  questionId          String    @db.ObjectId
+  text                String?
+  textEn              String
+  textHi              String?
+  textHiEn            String?
+  triggersSubQuestion Boolean   @default(false) // If true, this answer triggers a sub-question
+  subQuestionId       String?   @db.ObjectId // ID of the sub-question to show after this answer
+  createdAt           DateTime? @default(now()) // Made nullable to handle existing null records
+  updatedAt           DateTime  @updatedAt
 
-  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  question        Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  subQuestion     Question?       @relation("AnswerSubQuestion", fields: [subQuestionId], references: [id], onDelete: SetNull)
+  benefitMappings AnswerBenefit[]
 
   @@unique([questionId, key])
   @@index([questionId])
+  @@index([subQuestionId])
+  @@index([triggersSubQuestion])
 }
 
 model Benefit {
-  id             String @id @default(auto()) @map("_id") @db.ObjectId
-  code           String
-  organizationId String @db.ObjectId
-  name           String?
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
+  code           String           @unique // B01..B12 (fixed codes, can extend)
+  name           String
   description    String?
-  isActive       Boolean @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  pointWeight    Float            @default(1.0) // Global importance weight
+  maxScore       Float            @default(3.0) // Usually 3
+  isActive       Boolean          @default(true)
+  organizationId String           @db.ObjectId
+  createdAt      DateTime         @default(now()) @db.Date
+  updatedAt      DateTime         @updatedAt @db.Date
+  AnswerBenefit  AnswerBenefit[]
+  ProductBenefit ProductBenefit[]
+  FeatureBenefit FeatureBenefit[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
-  @@index([code])
-}
-
-enum CustomerCategory {
-  STUDENT
-  DOCTOR
-  TEACHER
-  ARMED_FORCES
-  SENIOR_CITIZEN
-  CORPORATE
-  REGULAR
+  @@index([isActive])
 }
 
 model CategoryDiscount {
-  id               String           @id @default(auto()) @map("_id") @db.ObjectId
-  brandCode        String?          // "*" for all brands
-  customerCategory CustomerCategory
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  brandCode        String
+  createdAt        DateTime @db.Date
+  customerCategory String
   discountPercent  Float
-  maxDiscount      Float?
-  isActive         Boolean          @default(true)
-  organizationId   String           @db.ObjectId
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  isActive         Boolean
+  maxDiscount      Float
+  organizationId   String   @db.ObjectId
+  updatedAt        DateTime @db.Date
 
   @@unique([organizationId, customerCategory, brandCode])
   @@index([organizationId])
@@ -148,26 +176,21 @@ model CategoryDiscount {
   @@index([isActive])
 }
 
-enum DiscountType {
-  PERCENTAGE
-  FLAT_AMOUNT
-}
-
 model Coupon {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
   code           String
-  discountType   DiscountType
+  createdAt      DateTime  @default(now()) @db.Date
+  discountType   String
   discountValue  Float
-  minCartValue   Float?
+  isActive       Boolean   @default(true)
   maxDiscount    Float?
-  usageLimit     Int?         // Global usage limit
-  usedCount      Int          @default(0)
-  isActive       Boolean      @default(true)
-  validFrom      DateTime     @default(now())
-  validUntil     DateTime?
-  organizationId String       @db.ObjectId
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  minCartValue   Float?
+  organizationId String    @db.ObjectId
+  updatedAt      DateTime  @updatedAt @db.Date
+  usedCount      BigInt    @default(0)
+  usageLimit     Int?
+  validFrom      DateTime  @db.Date
+  validUntil     DateTime? @db.Date
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -176,25 +199,37 @@ model Coupon {
 }
 
 model Feature {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  category       String
-  createdAt      DateTime @default(now())
-  description    String?
-  isActive       Boolean  @default(true)
-  key            String
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
+  code           String           @unique // F01..F11 (fixed codes)
   name           String
-  organizationId String   @db.ObjectId
-  price          Float?
-  updatedAt      DateTime @updatedAt
+  description    String?
+  category       String // DURABILITY, COATING, PROTECTION, LIFESTYLE, VISION
+  displayOrder   Int // Order for display (1-11)
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now()) @db.Date
+  updatedAt      DateTime         @updatedAt @db.Date
+  ProductFeature ProductFeature[]
+  FeatureBenefit FeatureBenefit[]
+  // Note: Features are global (no organizationId) - F01-F11 are fixed master data
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  productFeatures ProductFeature[]
-  mappings      FeatureMapping[]
-
-  @@unique([organizationId, key, category])
-  @@index([organizationId])
   @@index([category])
   @@index([isActive])
+  @@index([displayOrder])
+}
+
+model FeatureBenefit {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  benefitId String   @db.ObjectId
+  featureId String   @db.ObjectId
+  weight    Float    @default(1.0)
+  createdAt DateTime @default(now()) @db.Date
+  updatedAt DateTime @updatedAt @db.Date
+  benefit   Benefit  @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+  feature   Feature  @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([featureId, benefitId])
+  @@index([featureId])
+  @@index([benefitId])
 }
 
 model FeatureMapping {
@@ -204,44 +239,12 @@ model FeatureMapping {
   questionId String @db.ObjectId
   weight     Float
 
-  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
-
   @@unique([questionId, optionKey, featureId])
   @@index([questionId])
   @@index([featureId])
 }
 
-model FrameBrand {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  organizationId String   @db.ObjectId
-  brandName      String   // e.g., "LensTrack", "RayBan"
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-  subBrands     FrameSubBrand[]
-
-  @@unique([organizationId, brandName])
-  @@index([organizationId])
-  @@index([isActive])
-}
-
-model FrameSubBrand {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  brandId        String   @db.ObjectId
-  subBrandName   String   // e.g., "ESSENTIAL", "ADVANCED", "PREMIUM"
-  offerRuleIds   String[] // Array of OfferRule IDs that apply to this sub-brand
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  brand FrameBrand @relation(fields: [brandId], references: [id], onDelete: Cascade)
-
-  @@unique([brandId, subBrandName])
-  @@index([brandId])
-  @@index([isActive])
-}
+// FrameBrand and FrameSubBrand removed - replaced by ProductBrand and ProductSubBrand
 
 model Offer {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -269,11 +272,13 @@ model Offer {
 }
 
 model OfferApplicationLog {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  orderId        String?  @db.ObjectId
-  organizationId String   @db.ObjectId
-  calculationData Json    // Store full calculation details
-  createdAt      DateTime @default(now())
+  id             String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Field referred in an index, but found no data to define the type.
+  createdAt      Json?
+  /// Field referred in an index, but found no data to define the type.
+  orderId        Json?
+  /// Field referred in an index, but found no data to define the type.
+  organizationId Json?
 
   @@index([organizationId])
   @@index([orderId])
@@ -281,37 +286,55 @@ model OfferApplicationLog {
 }
 
 model OfferRule {
-  id                String    @id @default(auto()) @map("_id") @db.ObjectId
-  code              String
-  offerType         OfferType // V2: Enum instead of String
-  priority          Int       @default(100)
-  isActive          Boolean   @default(true)
-  
-  // Conditions (V2: Arrays for multiple values)
-  frameBrands       String[]  // Array of frame brands
-  frameSubCategories String[] // Array of sub-categories
-  lensBrandLines    String[]  // Array of BrandLine strings
-  minFrameMRP       Float?
-  maxFrameMRP       Float?
-  
-  // Offer Config (V2: Full flexible rule config)
-  config            Json      // Complete rule configuration per offer type
-  
-  // Upsell Engine (V2: Dynamic Upsell Engine)
-  upsellEnabled     Boolean   @default(true)
-  upsellThreshold   Float?
-  upsellRewardText  String?
-  
-  // Metadata
-  organizationId    String    @db.ObjectId
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                 String          @id @default(auto()) @map("_id") @db.ObjectId
+  code               String
+  config             OfferRuleConfig
+  createdAt          DateTime        @db.Date
+  frameBrands        String[]
+  frameSubCategories String[]
+  isActive           Boolean
+  lensBrandLines     String[]
+  maxFrameMRP        Float?
+  minFrameMRP        Float?
+  offerType          String
+  organizationId     String          @db.ObjectId
+  priority           BigInt
+  updatedAt          DateTime        @db.Date
+  upsellEnabled      Boolean
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  upsellRewardText   Json?
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  upsellThreshold    Json?
 
   @@unique([organizationId, code])
   @@index([organizationId])
   @@index([isActive])
   @@index([priority])
   @@index([offerType])
+}
+
+model Order {
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  assistedByName    Json?
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  assistedByStaffId Json?
+  createdAt         DateTime       @db.Date
+  customerName      String?
+  customerPhone     String?
+  finalPrice        Float
+  frameData         OrderFrameData
+  lensData          OrderLensData
+  offerData         OrderOfferData
+  salesMode         String
+  status            String
+  storeId           String         @db.ObjectId
+  updatedAt         DateTime       @db.Date
+
+  @@index([storeId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([assistedByStaffId])
 }
 
 model Organization {
@@ -324,94 +347,115 @@ model Organization {
   /// Nested objects had no data in the sample dataset to introspect a nested type.
   settings      Json
   updatedAt     DateTime @db.Date
-
-  users       User[]
-  frameBrands FrameBrand[]
-  features    Feature[]
 }
 
 model Prescription {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  sessionId     String?  @db.ObjectId
-  customerPhone String?
-  rxData        Json     // Store prescription data
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id            String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Field referred in an index, but found no data to define the type.
+  createdAt     Json?
+  /// Field referred in an index, but found no data to define the type.
+  customerPhone Json?
+  /// Field referred in an index, but found no data to define the type.
+  sessionId     Json?
 
   @@index([sessionId])
   @@index([customerPhone])
   @@index([createdAt])
 }
 
-enum VisionType {
-  MYOPIA
-  HYPEROPIA
-  ASTIGMATISM
-  PRESBYOPIA
-  MULTIFOCAL
-  OTHER
+// Old Product model removed - replaced by LensProduct
+
+model LensBrand {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Date
+  updatedAt   DateTime @updatedAt @db.Date
+
+  @@index([isActive])
 }
 
-model Product {
-  id             String     @id @default(auto()) @map("_id") @db.ObjectId
-  basePrice      Float
-  brand          String
-  brandLine      BrandLine?
-  category       String
-  createdAt      DateTime @db.Date
-  description    String
-  imageUrl       String
-  isActive       Boolean
-  itCode         String?
-  lensIndex      String?    // e.g., "1.50", "1.60", "1.67"
+model LensProduct {
+  id             String                 @id @default(auto()) @map("_id") @db.ObjectId
+  itCode         String                 @unique
   name           String
-  organizationId String   @db.ObjectId
-  sku            String
-  updatedAt      DateTime @db.Date
-  visionType     VisionType?
-  yopoEligible   Boolean?  @default(false)
+  brandLine      String
+  visionType     VisionType
+  lensIndex      LensIndex
+  tintOption     TintOption
+  baseOfferPrice Float
+  addOnPrice     Float?
+  category       LensCategory
+  yopoEligible   Boolean                @default(true)
+  deliveryDays   Int                    @default(4)
+  isActive       Boolean                @default(true)
+  createdAt      DateTime               @default(now()) @db.Date
+  updatedAt      DateTime               @updatedAt @db.Date
+  rxRanges       LensRxRange[]
+  benefits       ProductBenefit[]
+  features       ProductFeature[]
+  specs          ProductSpecification[]
 
-  @@unique([organizationId, sku])
-  @@index([organizationId])
-  @@index([category])
-  @@index([brand])
-  @@index([isActive])
   @@index([brandLine])
-  @@index([yopoEligible])
   @@index([visionType])
   @@index([lensIndex])
-  @@index([itCode])
+  @@index([category])
+  @@index([isActive])
+  @@index([yopoEligible])
 }
 
-model ProductAnswerScore {
-  id        String @id @default(auto()) @map("_id") @db.ObjectId
-  answerId  String @db.ObjectId
-  productId String @db.ObjectId
-  score     Float  @default(0)
+model LensRxRange {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  lensId     String      @db.ObjectId
+  sphMin     Float
+  sphMax     Float
+  cylMin     Float
+  cylMax     Float
+  addOnPrice Float       @default(0)
+  createdAt  DateTime    @default(now()) @db.Date
+  updatedAt  DateTime    @updatedAt @db.Date
+  lens       LensProduct @relation(fields: [lensId], references: [id], onDelete: Cascade)
 
-  @@unique([productId, answerId])
-  @@index([productId])
-  @@index([answerId])
+  @@index([lensId])
 }
 
 model ProductBenefit {
-  id        String @id @default(auto()) @map("_id") @db.ObjectId
-  benefitId String @db.ObjectId
-  productId String @db.ObjectId
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  benefitId String      @db.ObjectId
+  productId String      @db.ObjectId
+  score     Float       @default(0)
+  createdAt DateTime    @default(now()) @db.Date
+  updatedAt DateTime    @updatedAt @db.Date
+  product   LensProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  benefit   Benefit     @relation(fields: [benefitId], references: [id], onDelete: Cascade)
 
   @@unique([productId, benefitId])
   @@index([productId])
   @@index([benefitId])
 }
 
-model ProductFeature {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  createdAt DateTime @default(now())
-  featureId String   @db.ObjectId
-  productId String   @db.ObjectId
-  strength  Float
+model ProductBrand {
+  id           String              @id @default(auto()) @map("_id") @db.ObjectId
+  name         String              @unique
+  isActive     Boolean             @default(true)
+  productTypes RetailProductType[]
+  createdAt    DateTime            @default(now()) @db.Date
+  updatedAt    DateTime            @updatedAt @db.Date
+  subBrands    ProductSubBrand[]
+  products     RetailProduct[]
 
-  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  @@index([isActive])
+}
+
+model ProductFeature {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime    @default(now()) @db.Date
+  updatedAt DateTime    @updatedAt @db.Date
+  featureId String      @db.ObjectId
+  productId String      @db.ObjectId
+  product   LensProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  feature   Feature     @relation(fields: [featureId], references: [id], onDelete: Cascade)
 
   @@unique([productId, featureId])
   @@index([productId])
@@ -419,15 +463,32 @@ model ProductFeature {
 }
 
 model ProductSpecification {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  productId String  @db.ObjectId
-  group     String? // e.g., "OPTICAL", "MATERIAL", "COATING"
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  productId String      @db.ObjectId
+  group     String?
   key       String
   value     String
-  createdAt DateTime @default(now())
+  createdAt DateTime    @default(now()) @db.Date
+  updatedAt DateTime    @updatedAt @db.Date
+  product   LensProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
   @@index([group])
+}
+
+model ProductSubBrand {
+  id        String          @id @default(auto()) @map("_id") @db.ObjectId
+  brandId   String          @db.ObjectId
+  name      String
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now()) @db.Date
+  updatedAt DateTime        @updatedAt @db.Date
+  brand     ProductBrand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  products  RetailProduct[]
+
+  @@unique([brandId, name])
+  @@index([brandId])
+  @@index([isActive])
 }
 
 model Question {
@@ -451,7 +512,8 @@ model Question {
   textHiEn         String?
   updatedAt        DateTime  @updatedAt
 
-  options AnswerOption[]
+  options       AnswerOption[]
+  subQuestionOf AnswerOption[] @relation("AnswerSubQuestion") // Questions that are sub-questions of answers
 
   @@unique([organizationId, key])
   @@index([organizationId])
@@ -463,6 +525,29 @@ model Question {
   @@index([parentAnswerId])
 }
 
+model RetailProduct {
+  id         String            @id @default(auto()) @map("_id") @db.ObjectId
+  type       RetailProductType
+  brandId    String            @db.ObjectId
+  subBrandId String?           @db.ObjectId
+  name       String?
+  mrp        Float
+  hsnCode    String?
+  sku        String?
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now()) @db.Date
+  updatedAt  DateTime          @updatedAt @db.Date
+  brand      ProductBrand      @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  subBrand   ProductSubBrand?  @relation(fields: [subBrandId], references: [id], onDelete: SetNull)
+
+  @@unique([brandId, subBrandId, name, type])
+  @@index([type])
+  @@index([brandId])
+  @@index([subBrandId])
+  @@index([isActive])
+  @@index([sku])
+}
+
 model Session {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
   category         String
@@ -470,9 +555,9 @@ model Session {
   customerCategory String?
   /// Could not determine type: the field only had null or empty values in the sample set.
   customerEmail    Json?
-  customerName     String?
-  customerPhone    String?
-  /// Field referred in an index, but found no data to define the type.
+  customerName     String
+  customerPhone    String
+  /// Could not determine type: the field only had null or empty values in the sample set.
   prescriptionId   Json?
   startedAt        DateTime @db.Date
   status           String
@@ -503,7 +588,7 @@ model SessionRecommendation {
   createdAt  DateTime @db.Date
   isSelected Boolean
   matchScore Float
-  productId  String   @db.ObjectId
+  productId  String   @db.ObjectId // Can be LensProduct or RetailProduct ID
   rank       BigInt
   sessionId  String   @db.ObjectId
 
@@ -511,6 +596,17 @@ model SessionRecommendation {
   @@index([sessionId])
   @@index([productId])
   @@index([matchScore])
+}
+
+model Staff {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Field referred in an index, but found no data to define the type.
+  status  Json?
+  /// Field referred in an index, but found no data to define the type.
+  storeId Json?
+
+  @@index([storeId])
+  @@index([status])
 }
 
 model Store {
@@ -528,11 +624,6 @@ model Store {
   pincode        String
   state          String
   updatedAt      DateTime @db.Date
-  qrCodeUrl     String?
-
-  users  User[]
-  staff  Staff[]
-  orders Order[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -567,58 +658,13 @@ model User {
   organizationId String    @db.ObjectId
   passwordHash   String
   phone          String?
-  role           UserRole
+  role           String
   storeId        String?   @db.ObjectId
   updatedAt      DateTime  @db.Date
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-  store         Store?       @relation(fields: [storeId], references: [id])
 
   @@unique([organizationId, email])
   @@index([organizationId])
   @@index([storeId])
   @@index([role])
   @@index([isActive])
-}
-
-model Staff {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  storeId   String   @db.ObjectId
-  name      String
-  phone     String?
-  role      StaffRole
-  status    String   @default("ACTIVE")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  store  Store   @relation(fields: [storeId], references: [id])
-  orders Order[]
-
-  @@index([storeId])
-  @@index([status])
-}
-
-model Order {
-  id                String      @id @default(auto()) @map("_id") @db.ObjectId
-  storeId           String      @db.ObjectId
-  salesMode         SalesMode
-  assistedByStaffId String?     @db.ObjectId
-  assistedByName    String?
-  customerName      String?
-  customerPhone     String?
-  frameData         Json
-  lensData          Json
-  offerData         Json
-  finalPrice        Float
-  status            OrderStatus @default(DRAFT)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-
-  store Store @relation(fields: [storeId], references: [id])
-  staff Staff? @relation(fields: [assistedByStaffId], references: [id])
-
-  @@index([storeId])
-  @@index([status])
-  @@index([createdAt])
-  @@index([assistedByStaffId])
 }

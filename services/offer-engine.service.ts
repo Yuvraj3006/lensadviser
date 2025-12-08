@@ -121,6 +121,7 @@ export class OfferEngineService {
 
     // 4. COUPON DISCOUNT
     let couponDiscount: OfferApplied | null = null;
+    let couponError: string | null = null;
     if (input.couponCode) {
       try {
         const now = new Date();
@@ -128,7 +129,7 @@ export class OfferEngineService {
         const coupon = await prisma.coupon.findFirst({
           where: {
             organizationId,
-            code: input.couponCode.toUpperCase(),
+            code: input.couponCode.toUpperCase().trim(),
             isActive: true,
             validFrom: { lte: now },
             OR: [
@@ -139,13 +140,18 @@ export class OfferEngineService {
         });
 
         // Check usage limit and apply coupon
-        if (coupon) {
+        if (!coupon) {
+          couponError = `Coupon code "${input.couponCode.toUpperCase()}" not found or expired`;
+          console.warn(`[OfferEngine] ${couponError}`);
+        } else {
           // Check if usage limit reached
           if (coupon.usageLimit !== null && coupon.usedCount >= coupon.usageLimit) {
-            console.warn(`[OfferEngine] Coupon ${coupon.code} has reached usage limit`);
+            couponError = `Coupon "${coupon.code}" has reached its usage limit`;
+            console.warn(`[OfferEngine] ${couponError}`);
           } else if (coupon.minCartValue && effectiveBase < coupon.minCartValue) {
             // Check minimum cart value
-            console.warn(`[OfferEngine] Coupon ${coupon.code} requires minimum cart value of ${coupon.minCartValue}`);
+            couponError = `Coupon "${coupon.code}" requires minimum cart value of ₹${coupon.minCartValue}. Current cart value is ₹${Math.round(effectiveBase)}`;
+            console.warn(`[OfferEngine] ${couponError}`);
           } else {
             let discountAmount = 0;
             
@@ -155,7 +161,7 @@ export class OfferEngineService {
                 discountAmount = Math.min(discountAmount, coupon.maxDiscount);
               }
             } else {
-              discountAmount = coupon.discountValue;
+              discountAmount = Math.min(coupon.discountValue, effectiveBase);
             }
 
             if (discountAmount > 0) {
@@ -169,12 +175,16 @@ export class OfferEngineService {
                 label: couponDiscount.description,
                 amount: -discountAmount,
               });
+              console.log(`[OfferEngine] Coupon "${coupon.code}" applied successfully. Discount: ₹${discountAmount}`);
+            } else {
+              couponError = `Coupon "${coupon.code}" discount could not be calculated`;
             }
           }
         }
-      } catch (couponError: any) {
+      } catch (couponErrorException: any) {
         // If coupon query fails, log but don't break the offer calculation
-        console.warn('[OfferEngine] Coupon query failed:', couponError?.message);
+        couponError = `Failed to validate coupon: ${couponErrorException?.message || 'Unknown error'}`;
+        console.error('[OfferEngine] Coupon query failed:', couponErrorException);
       }
     }
 
@@ -198,6 +208,7 @@ export class OfferEngineService {
       priceComponents,
       categoryDiscount,
       couponDiscount,
+      couponError: couponError || null,
       secondPairDiscount,
       finalPayable,
       upsell, // V3: Dynamic Upsell Engine result

@@ -18,17 +18,24 @@ export async function GET(request: NextRequest) {
     // Get user from database
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      include: {
-        store: {
-          select: {
-            name: true,
-          },
-        },
-      },
     });
 
     if (!user || !user.isActive) {
       throw new AuthError('User not found or inactive');
+    }
+
+    // Fetch store name separately
+    let storeName: string | null = null;
+    if (user.storeId) {
+      try {
+        const store = await prisma.store.findUnique({
+          where: { id: user.storeId },
+          select: { name: true },
+        });
+        storeName = store?.name || null;
+      } catch (storeError) {
+        console.warn(`Failed to fetch store for user ${user.id}:`, storeError);
+      }
     }
 
     return Response.json({
@@ -40,7 +47,7 @@ export async function GET(request: NextRequest) {
           name: user.name,
           role: user.role,
           storeId: user.storeId,
-          storeName: user.store?.name || null,
+          storeName: storeName,
         },
         organizationId: user.organizationId,
       },

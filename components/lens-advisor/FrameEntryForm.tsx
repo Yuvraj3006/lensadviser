@@ -272,7 +272,20 @@ export function FrameEntryForm({ hideNextButton = false }: FrameEntryFormProps =
         <Select
           label="Frame Type *"
           value={formData.frameType || ''}
-          onChange={(e) => handleChange('frameType', e.target.value || undefined)}
+          onChange={(e) => {
+            const selectedValue = e.target.value;
+            console.log('[FrameEntryForm] Frame type selected:', selectedValue);
+            handleChange('frameType', selectedValue || undefined);
+            // Immediately sync to store
+            const updatedFrame: FrameInput = {
+              brand: formData.brand || '',
+              subCategory: formData.subCategory || null,
+              mrp: formData.mrp || 0,
+              frameType: selectedValue || undefined,
+            };
+            console.log('[FrameEntryForm] Immediately syncing frame to store:', updatedFrame);
+            setFrame(updatedFrame);
+          }}
           options={[
             { value: '', label: 'Select Frame Type...' },
             ...frameTypes,

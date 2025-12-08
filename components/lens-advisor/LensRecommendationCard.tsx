@@ -13,6 +13,7 @@ interface RecommendedLens {
   brandLine?: string;
   visionType?: string;
   index?: string;
+  lensIndex?: string; // INDEX_156, INDEX_160, etc.
   mrp?: number;
   offerPrice?: number;
   yopoEligible?: boolean;
@@ -22,13 +23,28 @@ interface RecommendedLens {
   itCode?: string;
   price?: number;
   roleTag?: 'BEST_MATCH' | 'RECOMMENDED_INDEX' | 'PREMIUM' | 'BUDGET' | 'OTHER';
+  indexRecommendation?: {
+    recommendedIndex: string; // INDEX_156, INDEX_160, etc.
+    indexDelta: number; // >0 thinner, 0 ideal, <0 thicker
+  };
+  thicknessWarning?: boolean;
 }
 
 interface LensRecommendationCardProps {
   lens: RecommendedLens;
   isSelected: boolean;
   onSelect: () => void;
+  recommendedIndex?: string; // INDEX_156, INDEX_160, etc. (from parent)
 }
+
+// Helper to convert INDEX_156 to "1.56" for display
+const formatIndexDisplay = (index: string | undefined): string => {
+  if (!index) return '';
+  if (index.startsWith('INDEX_')) {
+    return index.replace('INDEX_', '1.');
+  }
+  return index;
+};
 
 const roleTagConfig = {
   BEST_MATCH: { label: 'Best Match', color: 'bg-blue-600 text-white' },
@@ -38,10 +54,34 @@ const roleTagConfig = {
   OTHER: { label: '', color: '' },
 };
 
-export function LensRecommendationCard({ lens, isSelected, onSelect }: LensRecommendationCardProps) {
+export function LensRecommendationCard({ lens, isSelected, onSelect, recommendedIndex }: LensRecommendationCardProps) {
   const roleTag = lens.roleTag || 'OTHER';
   const tagConfig = roleTagConfig[roleTag];
   const matchPercent = lens.matchPercent || lens.matchScore || 0;
+  
+  // Get lens index for comparison
+  const lensIndex = lens.lensIndex || lens.index || '';
+  const displayIndex = formatIndexDisplay(lensIndex);
+  const displayRecommendedIndex = formatIndexDisplay(recommendedIndex || lens.indexRecommendation?.recommendedIndex);
+  
+  // Determine index badge
+  const indexDelta = lens.indexRecommendation?.indexDelta ?? 
+    (recommendedIndex && lensIndex ? 
+      (() => {
+        const indexRank: Record<string, number> = {
+          'INDEX_156': 1,
+          'INDEX_160': 2,
+          'INDEX_167': 3,
+          'INDEX_174': 4,
+        };
+        const recRank = indexRank[recommendedIndex] || 0;
+        const lensRank = indexRank[lensIndex] || 0;
+        return lensRank - recRank;
+      })() : 0);
+  
+  const isBestIndex = indexDelta === 0 && recommendedIndex && lensIndex === recommendedIndex;
+  const isExtraThin = indexDelta > 0;
+  const showThicknessWarning = (lens.thicknessWarning || indexDelta < 0) && recommendedIndex;
 
   return (
     <div
@@ -64,11 +104,35 @@ export function LensRecommendationCard({ lens, isSelected, onSelect }: LensRecom
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
           <h3 className="font-semibold text-slate-900 mb-1">{lens.name}</h3>
-          <div className="flex items-center gap-2 text-sm text-slate-600">
+          <div className="flex items-center gap-2 text-sm text-slate-600 mb-2">
             {lens.brandLine && <span>{lens.brandLine}</span>}
             {lens.visionType && <span>• {lens.visionType}</span>}
-            {lens.index && <span>• Index {lens.index}</span>}
+            {displayIndex && <span>• Index {displayIndex}</span>}
           </div>
+          
+          {/* Index Recommendation Badges */}
+          {displayIndex && recommendedIndex && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {isBestIndex && (
+                <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs font-medium rounded">
+                  ✓ Best Index for your power
+                </span>
+              )}
+              {isExtraThin && !isBestIndex && (
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                  Extra Thin
+                </span>
+              )}
+            </div>
+          )}
+          
+          {/* Thickness Warning */}
+          {showThicknessWarning && (
+            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+              ⚠️ This lens will be thicker than the ideal index for your power. 
+              {displayRecommendedIndex && ` Recommended: ${displayRecommendedIndex} for a slimmer look.`}
+            </div>
+          )}
         </div>
         {lens.yopoEligible && (
           <div className="flex flex-col items-end gap-1">

@@ -72,6 +72,7 @@ export interface OfferCalculationResult {
   priceComponents: PriceComponent[];
   categoryDiscount?: OfferApplied | null;
   couponDiscount?: OfferApplied | null;
+  couponError?: string | null; // Error message if coupon validation failed
   secondPairDiscount?: OfferApplied | null;
   finalPayable: number;
   upsell?: UpsellSuggestion | null; // V2: Dynamic Upsell Engine

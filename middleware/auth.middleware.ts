@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { verifyToken, extractTokenFromHeader, TokenPayload } from '@/lib/auth';
 import { AuthError, ForbiddenError } from '@/lib/errors';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 
 export async function authenticate(request: NextRequest): Promise<TokenPayload> {
   const authHeader = request.headers.get('Authorization');

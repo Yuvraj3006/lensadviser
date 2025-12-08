@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/Badge';
 import { DataTable, Column } from '@/components/data-display/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Plus, Search, Edit2, Trash2, Users as UsersIcon } from 'lucide-react';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 
 interface User {
   id: string;

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { handleApiError, ValidationError, NotFoundError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
 // Partial schema for updates - very lenient to accept any data from frontend

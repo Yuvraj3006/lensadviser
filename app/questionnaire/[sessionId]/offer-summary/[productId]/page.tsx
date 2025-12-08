@@ -13,8 +13,11 @@ import {
   Percent,
   Package,
   ArrowRight,
-  Eye
+  Eye,
+  X,
+  Sparkles
 } from 'lucide-react';
+import { OfferCalculationResult, OfferApplied } from '@/types/offer-engine';
 
 interface OfferDetail {
   type: string;
@@ -22,17 +25,7 @@ interface OfferDetail {
   title: string;
   description: string;
   discountAmount?: number;
-  discountPercent?: number;
-  explanation?: string;
-}
-
-interface PriceBreakdown {
-  frameMRP: number;
-  lensPrice: number;
-  subtotal: number;
-  totalDiscount: number;
-  finalPayable: number;
-  offers: OfferDetail[];
+  explanation: string;
 }
 
 interface OfferSummaryData {
@@ -46,12 +39,11 @@ interface OfferSummaryData {
   };
   selectedFrame: {
     brand: string;
+    subBrand?: string | null;
     mrp: number;
     frameType?: string;
   };
-  priceBreakdown: PriceBreakdown;
-  upsellMessage?: string;
-  upsellThreshold?: number;
+  offerResult: OfferCalculationResult;
 }
 
 export default function OfferSummaryPage() {
@@ -63,6 +55,9 @@ export default function OfferSummaryPage() {
 
   const [data, setData] = useState<OfferSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showEligibleProducts, setShowEligibleProducts] = useState(false);
+  const [eligibleProducts, setEligibleProducts] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   useEffect(() => {
     if (sessionId && productId) {
@@ -98,7 +93,7 @@ export default function OfferSummaryPage() {
       // Get frame data from localStorage
       const frameData = JSON.parse(localStorage.getItem('lenstrack_frame') || '{}');
       
-      // Calculate offers
+      // Calculate offers using offer engine
       const offersResponse = await fetch(
         `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
         {
@@ -112,40 +107,78 @@ export default function OfferSummaryPage() {
         }
       );
 
+      if (!offersResponse.ok) {
+        throw new Error('Failed to calculate offers');
+      }
+
       const offersData = await offersResponse.json();
+      
+      if (!offersData.success || !offersData.data) {
+        throw new Error('Failed to load offer calculation');
+      }
+
+      const offerResult: OfferCalculationResult = offersData.data;
+      
+      // Debug: Log offer result
+      console.log('[OfferSummary] Offer Result:', {
+        offersApplied: offerResult.offersApplied,
+        categoryDiscount: offerResult.categoryDiscount,
+        couponDiscount: offerResult.couponDiscount,
+        secondPairDiscount: offerResult.secondPairDiscount,
+        upsell: offerResult.upsell,
+        finalPayable: offerResult.finalPayable,
+        baseTotal: offerResult.baseTotal,
+        frameMRP: offerResult.frameMRP,
+        lensPrice: offerResult.lensPrice,
+      });
+      
+      if (offerResult.upsell) {
+        console.log('[OfferSummary] ✅ Upsell found! Details:', {
+          message: offerResult.upsell.message,
+          rewardText: offerResult.upsell.rewardText,
+          remaining: offerResult.upsell.remaining,
+          type: offerResult.upsell.type,
+        });
+      } else {
+        console.log('[OfferSummary] ⚠️ No upsell suggestion returned from offer engine');
+        console.log('[OfferSummary] Final payable:', offerResult.finalPayable);
+        console.log('[OfferSummary] This might mean:');
+        console.log('  - No upsell rules configured in database');
+        console.log('  - Customer has already reached all thresholds');
+        console.log('  - No matching upsell rules for this frame/lens combination');
+      }
       
       // Extract lens index from name
       const lensIndex = selectedRec.name.match(/\d+\.\d+/)?.[0] || '1.50';
 
       // Build offer summary data
+      const frameBrand = frameData.brand || 'Unknown';
+      const frameSubBrand = frameData.subCategory || null;
+      
+      console.log('[OfferSummary] Frame data from localStorage:', {
+        brand: frameBrand,
+        subCategory: frameSubBrand,
+        mrp: frameData.mrp,
+        frameType: frameData.frameType,
+        fullFrameData: frameData,
+      });
+      
       const summaryData: OfferSummaryData = {
         sessionId,
         selectedLens: {
           id: selectedRec.id,
           name: selectedRec.name,
           index: lensIndex,
-          price: selectedRec.pricing.lensPrice.totalLensPrice,
+          price: offerResult.lensPrice,
           brandLine: selectedRec.brand || 'Premium',
         },
         selectedFrame: {
-          brand: frameData.brand || 'Unknown',
-          mrp: frameData.mrp || 0,
+          brand: frameBrand,
+          subBrand: frameSubBrand,
+          mrp: offerResult.frameMRP,
           frameType: frameData.frameType,
         },
-        priceBreakdown: {
-          frameMRP: selectedRec.pricing.framePrice,
-          lensPrice: selectedRec.pricing.lensPrice.totalLensPrice,
-          subtotal: selectedRec.pricing.subtotal,
-          totalDiscount: offersData.success ? (offersData.data.baseTotal - offersData.data.finalPayable) : selectedRec.pricing.savings,
-          finalPayable: offersData.success ? offersData.data.finalPayable : selectedRec.pricing.finalPrice,
-          offers: offersData.success ? formatOffers(offersData.data) : formatOffersFromRecommendation(selectedRec),
-        },
-        upsellMessage: offersData.success && offersData.data.upsellMessage 
-          ? offersData.data.upsellMessage 
-          : calculateUpsellMessage(selectedRec.pricing.finalPrice),
-        upsellThreshold: offersData.success && offersData.data.upsellThreshold 
-          ? offersData.data.upsellThreshold 
-          : undefined,
+        offerResult,
       };
 
       setData(summaryData);
@@ -158,105 +191,245 @@ export default function OfferSummaryPage() {
     }
   };
 
-  const formatOffers = (offerData: any): OfferDetail[] => {
+  const formatOffers = (offerResult: OfferCalculationResult): OfferDetail[] => {
     const offers: OfferDetail[] = [];
     
-    if (offerData.offersApplied && offerData.offersApplied.length > 0) {
-      offerData.offersApplied.forEach((offer: any) => {
-        offers.push({
-          type: offer.type || 'DISCOUNT',
-          code: offer.code || '',
-          title: offer.title || offer.description || 'Discount',
-          description: offer.description || '',
-          discountAmount: offer.discountAmount || 0,
-          discountPercent: offer.discountPercent,
-          explanation: getOfferExplanation(offer.type || 'DISCOUNT', offer),
-        });
+    // Primary offers from offersApplied - these are the main discounts
+    if (offerResult.offersApplied && offerResult.offersApplied.length > 0) {
+      console.log('[OfferSummary] Processing offersApplied:', offerResult.offersApplied);
+      offerResult.offersApplied.forEach((offer: OfferApplied) => {
+        // Only add if there's actual savings
+        if (offer.savings > 0) {
+          const explanation = getOfferExplanation(offer.ruleCode, offer);
+          console.log('[OfferSummary] Offer:', {
+            ruleCode: offer.ruleCode,
+            description: offer.description,
+            savings: offer.savings,
+            explanation,
+          });
+          offers.push({
+            type: offer.ruleCode || 'DISCOUNT',
+            code: offer.ruleCode || '',
+            title: offer.description || 'Discount',
+            description: offer.description || '',
+            discountAmount: offer.savings || 0,
+            explanation,
+          });
+        }
+      });
+    } else {
+      console.log('[OfferSummary] No offersApplied found');
+    }
+    
+    // Also check priceComponents for any discounts we might have missed
+    if (offerResult.priceComponents && offerResult.priceComponents.length > 0) {
+      console.log('[OfferSummary] Processing priceComponents:', offerResult.priceComponents);
+      offerResult.priceComponents.forEach((component) => {
+        // Only process negative amounts (discounts) that aren't already in offers
+        if (component.amount < 0 && component.label !== 'Frame MRP' && component.label !== 'Lens Offer Price') {
+          const existingOffer = offers.find(o => o.title === component.label);
+          if (!existingOffer) {
+            const discountAmount = Math.abs(component.amount);
+            offers.push({
+              type: 'DISCOUNT',
+              code: component.label.substring(0, 20) || 'DISCOUNT',
+              title: component.label,
+              description: component.label,
+              discountAmount,
+              explanation: getExplanationFromLabel(component.label, discountAmount),
+            });
+          }
+        }
       });
     }
 
-    if (offerData.categoryDiscount) {
+    // Category Discount
+    if (offerResult.categoryDiscount) {
       offers.push({
         type: 'CATEGORY_DISCOUNT',
         code: 'CATEGORY',
-        title: offerData.categoryDiscount.description || 'Category Discount',
-        description: '',
-        discountAmount: offerData.categoryDiscount.savings || 0,
-        explanation: `${offerData.categoryDiscount.description || 'Category Discount'} applied`,
+        title: offerResult.categoryDiscount.description || 'Category Discount',
+        description: offerResult.categoryDiscount.description || '',
+        discountAmount: offerResult.categoryDiscount.savings || 0,
+        explanation: formatCategoryDiscountExplanation(offerResult.categoryDiscount),
       });
     }
 
-    if (offerData.couponDiscount) {
+    // Coupon Discount
+    if (offerResult.couponDiscount) {
       offers.push({
         type: 'COUPON',
-        code: offerData.couponDiscount.code || '',
-        title: offerData.couponDiscount.description || 'Coupon Discount',
-        description: '',
-        discountAmount: offerData.couponDiscount.savings || 0,
-        explanation: `Coupon code ${offerData.couponDiscount.code || ''} applied`,
+        code: offerResult.couponDiscount.ruleCode || '',
+        title: offerResult.couponDiscount.description || 'Coupon Discount',
+        description: offerResult.couponDiscount.description || '',
+        discountAmount: offerResult.couponDiscount.savings || 0,
+        explanation: offerResult.couponDiscount.description || 'Coupon applied',
+      });
+    }
+
+    // Second Pair Discount (BOGO50)
+    if (offerResult.secondPairDiscount) {
+      offers.push({
+        type: 'BOGO50',
+        code: offerResult.secondPairDiscount.ruleCode || 'BOGO50',
+        title: offerResult.secondPairDiscount.description || 'Second Pair Discount',
+        description: offerResult.secondPairDiscount.description || '',
+        discountAmount: offerResult.secondPairDiscount.savings || 0,
+        explanation: 'Second pair discount applied',
       });
     }
 
     return offers;
   };
 
-  const formatOffersFromRecommendation = (rec: any): OfferDetail[] => {
-    const offers: OfferDetail[] = [];
+  const getExplanationFromLabel = (label: string, discountAmount: number): string => {
+    const labelUpper = label.toUpperCase();
     
-    if (rec.offers && rec.offers.length > 0) {
-      rec.offers.filter((o: any) => o.isApplicable).forEach((offer: any) => {
-        offers.push({
-          type: offer.type || 'DISCOUNT',
-          code: offer.code || '',
-          title: offer.title || offer.description || 'Discount',
-          description: offer.description || '',
-          discountAmount: offer.discountAmount || 0,
-          discountPercent: offer.discountPercent,
-          explanation: getOfferExplanation(offer.type || 'DISCOUNT', offer),
-        });
-      });
+    // YOPO: "YOPO - Pay higher of frame or lens"
+    if (labelUpper.includes('YOPO')) {
+      return 'You pay only the higher of frame or lens.';
     }
-
-    return offers;
-  };
-
-  const getOfferExplanation = (type: string, offer: any): string => {
-    switch (type) {
-      case 'YOPO':
-        return 'You pay only the higher of frame or lens.';
-      case 'COMBO':
-        return 'Special package price applied.';
-      case 'FREE_LENS':
-        const freeAmount = offer.freeAmount || offer.discountAmount || 0;
-        return `Lens free up to ₹${Math.round(freeAmount).toLocaleString()}; you pay only difference.`;
-      case 'BRAND_DISCOUNT':
-        return `${offer.brand || ''} ${offer.discountPercent || 0}% Off`;
-      case 'FLAT_DISCOUNT':
-        return `${offer.title || 'Festival Offer'} -₹${Math.round(offer.discountAmount || 0).toLocaleString()}`;
-      case 'BOGO50':
-        return 'Buy One Get One 50% Off - Second item at 50% discount';
-      case 'CATEGORY_DISCOUNT':
-        return `${offer.title || 'Category Discount'} ${offer.discountPercent || 0}%`;
-      default:
-        return offer.description || 'Discount applied';
+    
+    // Combo: "Combo Price: ₹X"
+    if (labelUpper.includes('COMBO') || labelUpper.includes('COMBO PRICE')) {
+      return 'Special package price applied.';
     }
-  };
-
-  const calculateUpsellMessage = (currentTotal: number): string => {
-    const thresholds = [
-      { amount: 500, message: 'Add ₹500 more and get free Lenstrack Sunglass worth ₹1499' },
-      { amount: 300, message: 'Shop ₹300 more and unlock extra ₹500 OFF' },
-      { amount: 1000, message: 'Add ₹1000 more for free Anti-Glare coating worth ₹2000' },
-    ];
-
-    for (const threshold of thresholds) {
-      if (currentTotal < threshold.amount * 10) {
-        const needed = threshold.amount - (currentTotal % threshold.amount);
-        return threshold.message.replace(`₹${threshold.amount}`, `₹${needed}`);
+    
+    // Free Lens: "Free Lens (PERCENT_OF_FRAME)" or "Free Lens (VALUE_LIMIT)" or "Free Lens (FULL)"
+    if (labelUpper.includes('FREE LENS') || labelUpper.includes('FREE_LENS')) {
+      return `Lens free up to ₹${Math.round(discountAmount).toLocaleString()}; you pay only difference.`;
+    }
+    
+    // Percent OFF: "X% OFF" or "X% OFF (FRAME_ONLY)" or "X% OFF (LENS_ONLY)"
+    if (labelUpper.includes('% OFF') || labelUpper.includes('%OFF') || labelUpper.match(/\d+%/)) {
+      // Check if it's a brand discount (has brand name before percentage)
+      const brandPercentMatch = label.match(/(\w+)\s+(\d+)%\s*OFF/i);
+      if (brandPercentMatch) {
+        const brand = brandPercentMatch[1];
+        const percent = brandPercentMatch[2];
+        return `${brand} ${percent}% Off`;
       }
+      // Regular percentage discount
+      const percentMatch = label.match(/(\d+)%\s*OFF/i);
+      if (percentMatch) {
+        return `${percentMatch[1]}% OFF`;
+      }
+      return label || 'Percentage discount applied';
     }
+    
+    // Flat OFF: "Flat ₹X OFF"
+    if (labelUpper.includes('FLAT') && labelUpper.includes('OFF')) {
+      const flatMatch = label.match(/FLAT\s*₹?(\d+)\s*OFF/i);
+      if (flatMatch) {
+        return `Festival Offer -₹${flatMatch[1]}`;
+      }
+      return `Festival Offer -₹${Math.round(discountAmount).toLocaleString()}`;
+    }
+    
+    // BOGO50: "BOG50" or "Second pair X% off"
+    if (labelUpper.includes('BOGO') || labelUpper.includes('BOG50') || labelUpper.includes('SECOND PAIR')) {
+      return 'Buy One Get One 50% Off - Second item at 50% discount';
+    }
+    
+    // Default: return the label as-is
+    return label || 'Discount applied';
+  };
 
-    return 'Add ₹500 more and get free Lenstrack Sunglass worth ₹1499';
+  const getOfferExplanation = (ruleCode: string, offer: OfferApplied): string => {
+    const description = offer.description || '';
+    return getExplanationFromLabel(description, offer.savings || 0);
+  };
+
+  const formatCategoryDiscountExplanation = (categoryDiscount: OfferApplied): string => {
+    // Extract category name and percentage from description
+    // Format: "STUDENT Discount (5%)" or similar
+    const match = categoryDiscount.description.match(/(\w+)\s+Discount\s*\((\d+)%\)/);
+    if (match) {
+      const category = match[1];
+      const percent = match[2];
+      return `${category} Discount ${percent}%`;
+    }
+    return categoryDiscount.description || 'Category Discount applied';
+  };
+
+  const fetchEligibleProducts = async () => {
+    if (!data) return;
+    
+    setLoadingProducts(true);
+    setShowEligibleProducts(true);
+    
+    try {
+      // Get session to find store and organization
+      const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+      if (!sessionResponse.ok) {
+        throw new Error('Failed to fetch session');
+      }
+      
+      const sessionData = await sessionResponse.json();
+      if (!sessionData.success) {
+        throw new Error('Session not found');
+      }
+      
+      const storeId = sessionData.data.storeId;
+      
+      // Fetch products that can help reach the upsell threshold
+      const currentTotal = data.offerResult.finalPayable;
+      const remaining = data.offerResult.upsell?.remaining || 1000;
+      const minPrice = Math.max(remaining - 500, 100); // Products around the remaining amount
+      const maxPrice = remaining + 1000; // Slightly above threshold
+      
+      // Fetch products from store
+      const productsResponse = await fetch(
+        `/api/public/products/eligible?storeId=${storeId}&minPrice=${minPrice}&maxPrice=${maxPrice}&limit=20`
+      );
+      
+      if (productsResponse.ok) {
+        const productsData = await productsResponse.json();
+        if (productsData.success) {
+          setEligibleProducts(productsData.data || []);
+        } else {
+          // Fallback: fetch from recommendations
+          const recResponse = await fetch(
+            `/api/public/questionnaire/sessions/${sessionId}/recommendations`
+          );
+          if (recResponse.ok) {
+            const recData = await recResponse.json();
+            if (recData.success && recData.data.recommendations) {
+              // Filter products that can help reach threshold
+              const filtered = recData.data.recommendations
+                .filter((r: any) => {
+                  const price = r.pricing?.finalPrice || r.pricing?.subtotal || 0;
+                  return price >= minPrice && price <= maxPrice;
+                })
+                .slice(0, 10);
+              setEligibleProducts(filtered);
+            }
+          }
+        }
+      } else {
+        // Fallback: use recommendations
+        const recResponse = await fetch(
+          `/api/public/questionnaire/sessions/${sessionId}/recommendations`
+        );
+        if (recResponse.ok) {
+          const recData = await recResponse.json();
+          if (recData.success && recData.data.recommendations) {
+            const filtered = recData.data.recommendations
+              .filter((r: any) => {
+                const price = r.pricing?.finalPrice || r.pricing?.subtotal || 0;
+                return price >= minPrice && price <= maxPrice;
+              })
+              .slice(0, 10);
+            setEligibleProducts(filtered);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('[OfferSummary] Error fetching eligible products:', error);
+      showToast('error', 'Failed to load eligible products');
+    } finally {
+      setLoadingProducts(false);
+    }
   };
 
   if (loading) {
@@ -292,12 +465,38 @@ export default function OfferSummaryPage() {
     );
   }
 
-  const savingsPercent = data.priceBreakdown.totalDiscount > 0 
-    ? Math.round((data.priceBreakdown.totalDiscount / data.priceBreakdown.subtotal) * 100)
+  const totalDiscount = data.offerResult.baseTotal - data.offerResult.finalPayable;
+  const savingsPercent = totalDiscount > 0 
+    ? Math.round((totalDiscount / data.offerResult.baseTotal) * 100)
     : 0;
 
+  const allOffers = formatOffers(data.offerResult);
+  // Filter out offers with zero or negative discount
+  const offers = allOffers.filter(offer => (offer.discountAmount || 0) > 0);
+  
+  // Debug: Log formatted offers
+  console.log('[OfferSummary] All formatted offers:', allOffers);
+  console.log('[OfferSummary] Filtered offers (with discount > 0):', offers);
+  console.log('[OfferSummary] Total offers count:', offers.length);
+  console.log('[OfferSummary] Offer result data:', {
+    offersApplied: data.offerResult.offersApplied,
+    categoryDiscount: data.offerResult.categoryDiscount,
+    couponDiscount: data.offerResult.couponDiscount,
+    secondPairDiscount: data.offerResult.secondPairDiscount,
+    priceComponents: data.offerResult.priceComponents,
+  });
+  
+  // Debug: Log upsell status
+  const hasUpsell = !!data.offerResult.upsell;
+  console.log('[OfferSummary] 🎁 Upsell Banner Status:', {
+    hasUpsell,
+    upsellData: data.offerResult.upsell,
+    finalPayable: data.offerResult.finalPayable,
+    willShowBanner: hasUpsell || (data.offerResult.finalPayable < 5000),
+  });
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 pb-24">
       {/* Header */}
       <div className="bg-slate-800/50 backdrop-blur border-b border-slate-700 py-8 px-6">
         <div className="max-w-5xl mx-auto">
@@ -308,7 +507,7 @@ export default function OfferSummaryPage() {
               </div>
               <div>
                 <h1 className="text-2xl md:text-3xl font-semibold text-white mb-1">
-                  Your Final Price
+                  Offer Summary
                 </h1>
                 <p className="text-slate-400">All offers applied</p>
               </div>
@@ -324,48 +523,54 @@ export default function OfferSummaryPage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-8">
-        {/* Selected Items Card */}
+        {/* Top Summary: Selected Lens + Frame */}
         <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-6 mb-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-500/30">
-              <Eye className="text-blue-400" size={18} />
-            </div>
-            <h2 className="text-xl font-semibold text-white">Selected Items</h2>
-          </div>
-          
           <div className="grid md:grid-cols-2 gap-6">
             {/* Selected Lens */}
-            <div className="bg-slate-700/50 rounded-lg p-5 border border-slate-600">
+            <div className="bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-lg p-5 border-2 border-blue-500/30">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-slate-300 uppercase tracking-wide">Selected Lens</h3>
+                <h3 className="text-sm font-medium text-blue-300 uppercase tracking-wide">Selected Lens</h3>
                 <Package className="text-blue-400" size={18} />
               </div>
-              <p className="text-lg font-semibold text-white mb-2">{data.selectedLens.name}</p>
+              <p className="text-xl font-bold text-white mb-2">{data.selectedLens.name}</p>
               <div className="flex items-center gap-2 text-slate-300 text-sm mb-4">
-                <span className="bg-slate-800 px-2 py-1 rounded border border-slate-600">Index {data.selectedLens.index}</span>
-                <span className="bg-slate-800 px-2 py-1 rounded border border-slate-600">{data.selectedLens.brandLine}</span>
+                <span className="bg-blue-500/20 px-3 py-1 rounded-lg border border-blue-500/30 font-semibold text-blue-200">
+                  Index {data.selectedLens.index}
+                </span>
+                {data.selectedLens.brandLine && (
+                  <span className="bg-slate-700/50 px-3 py-1 rounded-lg border border-slate-600">
+                    {data.selectedLens.brandLine}
+                  </span>
+                )}
               </div>
               <div className="flex items-baseline gap-1">
                 <span className="text-slate-400 text-sm">₹</span>
-                <span className="text-2xl font-semibold text-white">{Math.round(data.selectedLens.price).toLocaleString()}</span>
+                <span className="text-2xl font-bold text-white">{Math.round(data.selectedLens.price).toLocaleString()}</span>
               </div>
             </div>
 
             {/* Selected Frame */}
-            <div className="bg-slate-700/50 rounded-lg p-5 border border-slate-600">
+            <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-lg p-5 border-2 border-purple-500/30">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-slate-300 uppercase tracking-wide">Selected Frame</h3>
-                <Eye className="text-blue-400" size={18} />
+                <h3 className="text-sm font-medium text-purple-300 uppercase tracking-wide">Selected Frame</h3>
+                <Eye className="text-purple-400" size={18} />
               </div>
-              <p className="text-lg font-semibold text-white mb-2">{data.selectedFrame.brand}</p>
+              <div className="mb-2">
+                <p className="text-xl font-bold text-white">{data.selectedFrame.brand}</p>
+                {data.selectedFrame.subBrand && (
+                  <p className="text-purple-200 text-sm font-medium mt-1">{data.selectedFrame.subBrand}</p>
+                )}
+              </div>
               {data.selectedFrame.frameType && (
-                <p className="text-slate-300 text-sm mb-4 bg-slate-800 px-2 py-1 rounded border border-slate-600 inline-block">
-                  {data.selectedFrame.frameType}
-                </p>
+                <div className="mb-4">
+                  <span className="text-slate-300 text-sm bg-purple-500/20 px-3 py-1 rounded-lg border border-purple-500/30 inline-block">
+                    {data.selectedFrame.frameType.replace('_', ' ')}
+                  </span>
+                </div>
               )}
               <div className="flex items-baseline gap-1 mt-4">
-                <span className="text-slate-400 text-sm">₹</span>
-                <span className="text-2xl font-semibold text-white">{Math.round(data.selectedFrame.mrp).toLocaleString()}</span>
+                <span className="text-slate-400 text-sm">MRP: ₹</span>
+                <span className="text-2xl font-bold text-white">{Math.round(data.selectedFrame.mrp).toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -384,45 +589,48 @@ export default function OfferSummaryPage() {
             {/* Frame MRP */}
             <div className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
               <span className="text-slate-300 font-medium">Frame MRP</span>
-              <span className="text-lg font-semibold text-white">₹{Math.round(data.priceBreakdown.frameMRP).toLocaleString()}</span>
+              <span className="text-lg font-semibold text-white">₹{Math.round(data.offerResult.frameMRP).toLocaleString()}</span>
             </div>
 
             {/* Lens Price */}
             <div className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
               <span className="text-slate-300 font-medium">Lens Price</span>
-              <span className="text-lg font-semibold text-white">₹{Math.round(data.priceBreakdown.lensPrice).toLocaleString()}</span>
+              <span className="text-lg font-semibold text-white">₹{Math.round(data.offerResult.lensPrice).toLocaleString()}</span>
             </div>
 
             {/* Applied Offers */}
-            {data.priceBreakdown.offers.length > 0 && (
-              <div className="py-4 border-t border-slate-700">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-blue-500/30 rounded-full blur-lg animate-pulse" />
-                    <Gift className="relative text-blue-400" size={18} />
-                  </div>
-                  <h3 className="text-lg font-semibold text-white">🎉 Exclusive Offers Applied</h3>
+            <div className="py-4 border-t border-slate-700">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-blue-500/30 rounded-full blur-lg animate-pulse" />
+                  <Gift className="relative text-blue-400" size={18} />
                 </div>
+                <h3 className="text-lg font-semibold text-white">🎉 Applied Offer(s)</h3>
+              </div>
+              {offers.length > 0 ? (
                 <div className="space-y-3">
-                  {data.priceBreakdown.offers.map((offer, idx) => (
+                  {offers.map((offer, idx) => (
                     <div 
-                      key={idx} 
-                      className="group relative overflow-hidden bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 rounded-lg p-4 border-2 border-blue-500/50 hover:border-blue-400 transition-all duration-300 transform hover:scale-[1.02] animate-fade-in"
-                      style={{ animationDelay: `${idx * 100}ms` }}
+                      key={`${offer.code || offer.type || 'offer'}-${idx}`}
+                      className="group relative overflow-hidden bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 rounded-lg p-4 border-2 border-blue-500/50 hover:border-blue-400 transition-all duration-300 transform hover:scale-[1.02]"
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      <div className="relative flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold rounded-lg border border-blue-400/50 shadow-lg animate-pulse">
-                              {offer.code || offer.type}
-                            </span>
-                            <span className="text-base font-bold text-white">{offer.title}</span>
+                      <div className="relative flex justify-between items-start gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            {offer.code && offer.code !== 'DISCOUNT' && offer.code.length > 0 && (
+                              <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold rounded-lg border border-blue-400/50 shadow-lg whitespace-nowrap">
+                                {offer.code}
+                              </span>
+                            )}
+                            <span className="text-base font-bold text-white break-words">{offer.title || 'Discount'}</span>
                           </div>
-                          <p className="text-blue-200 text-sm">{offer.explanation}</p>
+                          {offer.explanation && (
+                            <p className="text-blue-200 text-sm mt-1 break-words">{offer.explanation}</p>
+                          )}
                         </div>
-                        <div className="ml-4 text-right">
-                          <div className="bg-gradient-to-r from-green-400 to-emerald-400 rounded-lg px-3 py-1 border border-green-300/50 shadow-lg">
+                        <div className="ml-4 text-right flex-shrink-0">
+                          <div className="bg-gradient-to-r from-green-400 to-emerald-400 rounded-lg px-3 py-1 border border-green-300/50 shadow-lg whitespace-nowrap">
                             <span className="text-lg font-bold text-white">
                               -₹{Math.round(offer.discountAmount || 0).toLocaleString()}
                             </span>
@@ -432,28 +640,32 @@ export default function OfferSummaryPage() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-slate-400 text-sm italic">No offers applied</p>
+                </div>
+              )}
+            </div>
 
             {/* Subtotal */}
             <div className="flex justify-between items-center py-4 px-4 bg-slate-700/70 rounded-lg border border-slate-600">
               <span className="text-lg font-semibold text-white">Subtotal</span>
-              <span className="text-xl font-semibold text-white">₹{Math.round(data.priceBreakdown.subtotal).toLocaleString()}</span>
+              <span className="text-xl font-semibold text-white">₹{Math.round(data.offerResult.baseTotal).toLocaleString()}</span>
             </div>
 
             {/* Total Discount */}
-            {data.priceBreakdown.totalDiscount > 0 && (
-              <div className="relative overflow-hidden flex justify-between items-center py-4 px-4 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-500/20 rounded-lg border-2 border-green-400/50 shadow-lg animate-pulse">
+            {totalDiscount > 0 && (
+              <div className="relative overflow-hidden flex justify-between items-center py-4 px-4 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-500/20 rounded-lg border-2 border-green-400/50 shadow-lg">
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
                 <span className="relative text-lg font-bold text-white flex items-center gap-2">
                   <div className="relative">
                     <div className="absolute inset-0 bg-green-400 rounded-full blur-md animate-ping opacity-75" />
                     <Percent className="relative text-green-300" size={20} />
                   </div>
-                  Total Savings
+                  Total Discount
                 </span>
-                <span className="relative text-2xl font-bold text-green-300 animate-bounce">
-                  -₹{Math.round(data.priceBreakdown.totalDiscount).toLocaleString()}
+                <span className="relative text-2xl font-bold text-green-300">
+                  -₹{Math.round(totalDiscount).toLocaleString()}
                 </span>
               </div>
             )}
@@ -464,13 +676,13 @@ export default function OfferSummaryPage() {
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 via-emerald-400 to-green-300 animate-pulse" />
               <div className="relative flex justify-between items-center">
                 <div>
-                  <p className="text-green-100 text-sm font-semibold mb-1 uppercase tracking-wide">Final Payable Amount</p>
+                  <p className="text-green-100 text-sm font-semibold mb-1 uppercase tracking-wide">Final Payable</p>
                   <p className="text-green-200 text-sm">Including all discounts & offers</p>
                 </div>
                 <div className="text-right">
                   <div className="bg-white/20 backdrop-blur rounded-lg px-4 py-2 border border-white/30">
-                    <span className="text-3xl md:text-4xl font-bold text-white animate-pulse">
-                      ₹{Math.round(data.priceBreakdown.finalPayable).toLocaleString()}
+                    <span className="text-3xl md:text-4xl font-bold text-white">
+                      ₹{Math.round(data.offerResult.finalPayable).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -502,28 +714,248 @@ export default function OfferSummaryPage() {
         </div>
       </div>
 
-      {/* Upsell Strip */}
-      {data.upsellMessage && (
-        <div className="sticky bottom-0 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 py-5 px-6 shadow-2xl border-t-4 border-yellow-600 z-50 backdrop-blur-xl animate-slide-up">
+      {/* Upsell Strip - Sticky Banner */}
+      {data.offerResult.upsell ? (
+        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 py-4 px-6 shadow-2xl border-t-4 border-yellow-600 z-50 backdrop-blur-xl animate-slide-up">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
           <div className="max-w-5xl mx-auto relative flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="relative">
+              <div className="relative flex-shrink-0">
                 <div className="absolute inset-0 bg-yellow-600 rounded-full blur-lg animate-pulse opacity-75" />
-                <Gift className="relative text-yellow-900 flex-shrink-0 animate-bounce" size={24} />
+                <Gift className="relative text-yellow-900 animate-bounce" size={28} />
               </div>
-              <p className="text-yellow-900 font-bold text-sm md:text-base flex-1 leading-tight animate-fade-in">
-                🎁 {data.upsellMessage}
-              </p>
+              <div className="flex-1 min-w-0">
+                <p className="text-yellow-900 font-bold text-base md:text-lg leading-tight mb-1">
+                  {data.offerResult.upsell.message}
+                </p>
+                {data.offerResult.upsell.rewardText && (
+                  <p className="text-yellow-800 text-sm font-semibold">
+                    🎁 {data.offerResult.upsell.rewardText}
+                  </p>
+                )}
+              </div>
             </div>
             <Button
-              onClick={() => {
-                showToast('info', 'Eligible products feature coming soon!');
-              }}
-              className="bg-yellow-900 hover:bg-yellow-800 text-white font-bold px-6 py-2 whitespace-nowrap shadow-xl transform hover:scale-105 transition-all duration-300 border-2 border-yellow-800"
+              onClick={fetchEligibleProducts}
+              className="bg-yellow-900 hover:bg-yellow-800 text-white font-bold px-6 py-3 whitespace-nowrap shadow-xl transform hover:scale-105 transition-all duration-300 border-2 border-yellow-800 rounded-lg"
             >
-              See Products
+              See eligible products
             </Button>
+          </div>
+        </div>
+      ) : (
+        // Fallback upsell banner if no upsell from backend
+        (() => {
+          const currentTotal = data.offerResult.finalPayable;
+          
+          // Show upsell if total is less than common thresholds
+          const thresholds = [
+            { amount: 5000, reward: 'free Lenstrack Sunglass worth ₹1499', remaining: 5000 - currentTotal },
+            { amount: 3000, reward: 'extra ₹500 OFF', remaining: 3000 - currentTotal },
+            { amount: 2000, reward: 'free Anti-Glare coating worth ₹2000', remaining: 2000 - currentTotal },
+          ];
+          
+          // Find the best threshold that customer hasn't reached yet
+          const bestThreshold = thresholds.find(t => t.remaining > 0 && t.remaining <= 1000);
+          
+          if (bestThreshold) {
+            const remaining = Math.ceil(bestThreshold.remaining / 100) * 100; // Round to nearest 100
+            
+            console.log('[OfferSummary] 🎁 Showing fallback upsell banner:', {
+              currentTotal,
+              threshold: bestThreshold.amount,
+              remaining,
+              reward: bestThreshold.reward,
+            });
+            
+            return (
+              <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 py-4 px-6 shadow-2xl border-t-4 border-yellow-600 z-50 backdrop-blur-xl animate-slide-up">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                <div className="max-w-5xl mx-auto relative flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="relative flex-shrink-0">
+                      <div className="absolute inset-0 bg-yellow-600 rounded-full blur-lg animate-pulse opacity-75" />
+                      <Gift className="relative text-yellow-900 animate-bounce" size={28} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-yellow-900 font-bold text-base md:text-lg leading-tight mb-1">
+                        Add ₹{remaining.toLocaleString()} more and get {bestThreshold.reward}
+                      </p>
+                      <p className="text-yellow-800 text-sm font-semibold">
+                        🎁 Unlock amazing rewards with just a little more!
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={fetchEligibleProducts}
+                    className="bg-yellow-900 hover:bg-yellow-800 text-white font-bold px-6 py-3 whitespace-nowrap shadow-xl transform hover:scale-105 transition-all duration-300 border-2 border-yellow-800 rounded-lg"
+                  >
+                    See eligible products
+                  </Button>
+                </div>
+              </div>
+            );
+          }
+          
+          console.log('[OfferSummary] ⚠️ No fallback upsell banner - customer total too high or too low');
+          return null;
+        })()
+      )}
+
+      {/* Eligible Products Modal */}
+      {showEligibleProducts && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 px-6 py-5 border-b border-yellow-600 rounded-t-3xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Eligible Products</h2>
+                  {data.offerResult.upsell && (
+                    <p className="text-yellow-100 text-sm">
+                      Add ₹{data.offerResult.upsell.remaining.toLocaleString()} more to unlock {data.offerResult.upsell.rewardText}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setShowEligibleProducts(false);
+                    setEligibleProducts([]);
+                  }}
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+
+            {/* Products List */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingProducts ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 border-4 border-yellow-200 border-t-yellow-500 rounded-full animate-spin" />
+                    <p className="text-slate-600 font-medium">Loading eligible products...</p>
+                  </div>
+                </div>
+              ) : eligibleProducts.length > 0 ? (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {eligibleProducts.map((product: any) => {
+                    // Handle both API response format and recommendations format
+                    const productPrice = product.storePrice || product.pricing?.finalPrice || product.pricing?.subtotal || product.basePrice || 0;
+                    const productName = product.name || product.product?.name || 'Product';
+                    const productBrand = product.brand || product.product?.brand || '';
+                    const productImage = product.imageUrl || product.product?.imageUrl || '';
+                    const productId = product.id || product.productId;
+                    const subtotal = product.pricing?.subtotal || product.storePrice || product.basePrice || 0;
+                    
+                    return (
+                      <div
+                        key={productId || Math.random()}
+                        className="border-2 border-slate-200 rounded-xl p-5 hover:border-yellow-400 hover:shadow-lg transition-all bg-white group cursor-pointer"
+                        onClick={() => {
+                          // Navigate to product details
+                          if (productId) {
+                            router.push(`/questionnaire/${sessionId}/offer-summary/${productId}`);
+                            setShowEligibleProducts(false);
+                          }
+                        }}
+                      >
+                        <div className="flex items-start gap-4">
+                          {productImage && productImage.trim() ? (
+                            <img
+                              src={productImage}
+                              alt={productName}
+                              className="w-20 h-20 object-cover rounded-lg border border-slate-200"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-20 h-20 bg-gradient-to-br from-yellow-100 to-amber-100 rounded-lg border border-yellow-200 flex items-center justify-center flex-shrink-0">
+                              <Package className="text-yellow-600" size={32} />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-slate-900 mb-1 text-lg line-clamp-2">{productName}</h3>
+                            {productBrand && (
+                              <p className="text-slate-600 text-sm mb-2">{productBrand}</p>
+                            )}
+                            {product.sku && (
+                              <p className="text-xs text-slate-500 mb-2">SKU: {product.sku}</p>
+                            )}
+                            <div className="flex items-center justify-between mt-3">
+                              <div>
+                                <span className="text-2xl font-bold text-slate-900">
+                                  ₹{Math.round(productPrice).toLocaleString()}
+                                </span>
+                                {subtotal > productPrice && (
+                                  <span className="text-sm text-slate-500 line-through ml-2">
+                                    ₹{Math.round(subtotal).toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-lg border border-yellow-300 whitespace-nowrap">
+                                  Select
+                                </span>
+                                <ArrowRight className="text-yellow-600 group-hover:translate-x-1 transition-transform" size={18} />
+                              </div>
+                            </div>
+                            {data.offerResult.upsell && (
+                              <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+                                <p className="text-xs text-green-700 font-medium">
+                                  ✓ Adding this will unlock your reward!
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Sparkles className="text-slate-400 mx-auto mb-4" size={48} />
+                  <h3 className="text-xl font-semibold text-slate-900 mb-2">No Products Found</h3>
+                  <p className="text-slate-600 mb-6">
+                    We couldn't find products matching your criteria at this time.
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setShowEligibleProducts(false);
+                    }}
+                    variant="outline"
+                    className="border-2 border-slate-300"
+                  >
+                    Close
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-gradient-to-r from-slate-50 to-yellow-50 border-t-2 border-slate-200 px-6 py-4 rounded-b-3xl">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-600">
+                  {eligibleProducts.length > 0 && (
+                    <span className="font-semibold text-slate-900">{eligibleProducts.length}</span>
+                  )}{' '}
+                  products found
+                </p>
+                <Button
+                  onClick={() => {
+                    setShowEligibleProducts(false);
+                    setEligibleProducts([]);
+                  }}
+                  variant="outline"
+                  className="border-2 border-slate-300"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

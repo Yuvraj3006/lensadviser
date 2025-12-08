@@ -2,8 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError, NotFoundError } from '@/lib/errors';
-import { UpdateFeatureSchema } from '@/lib/validation';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
 // PUT /api/admin/features/[id] - Update feature
@@ -33,12 +32,22 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const validatedData = UpdateFeatureSchema.parse(body);
+    
+    // Update schema for Feature (name, description, category only - code cannot be changed)
+    const updateFeatureSchema = z.object({
+      name: z.string().min(1).optional(),
+      description: z.string().optional().nullable(),
+      category: z.enum(['DURABILITY', 'COATING', 'PROTECTION', 'LIFESTYLE', 'VISION']).optional(),
+      displayOrder: z.number().int().min(1).optional(),
+      isActive: z.boolean().optional(),
+    });
+    
+    const validatedData = updateFeatureSchema.parse(body);
 
+    // Features are global (no organizationId)
     const feature = await prisma.feature.update({
       where: {
         id,
-        organizationId: user.organizationId,
       },
       data: validatedData,
     });
@@ -92,10 +101,10 @@ export async function DELETE(
     }
 
     // Soft delete (set isActive to false)
+    // Features are global (no organizationId)
     const feature = await prisma.feature.update({
       where: {
         id,
-        organizationId: user.organizationId,
       },
       data: {
         isActive: false,

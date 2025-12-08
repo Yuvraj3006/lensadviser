@@ -47,34 +47,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get brands and sub-brands from FrameBrand table (same as admin/products page uses)
-    const brands = await prisma.frameBrand.findMany({
+    // Get brands and sub-brands from ProductBrand table (new unified brand system)
+    const brands = await prisma.productBrand.findMany({
       where: {
-        organizationId: store.organizationId,
         isActive: true,
+        productTypes: { has: 'FRAME' }, // Only frame brands
       },
       include: {
         subBrands: {
           where: {
-            isActive: true,
+            // SubBrand doesn't have isActive, so we get all
           },
           orderBy: {
-            subBrandName: 'asc',
+            name: 'asc',
           },
         },
       },
       orderBy: {
-        brandName: 'asc',
+        name: 'asc',
       },
     });
 
-    // Map to response format and add Lenstrack sub-categories
+    // Map to response format (ProductBrand -> FrameBrand format for backward compatibility)
     const brandsData = brands.map((brand) => {
       // For Lenstrack brand, use hardcoded sub-categories
-      if (brand.brandName.toLowerCase() === 'lenstrack') {
+      if (brand.name.toLowerCase() === 'lenstrack') {
         return {
           id: brand.id,
-          brandName: brand.brandName,
+          brandName: brand.name, // Map name -> brandName for backward compatibility
           subBrands: [
             { id: 'lenstrack-essentials', subBrandName: 'Essentials' },
             { id: 'lenstrack-alfa', subBrandName: 'Alfa' },
@@ -86,10 +86,10 @@ export async function GET(request: NextRequest) {
 
       return {
         id: brand.id,
-        brandName: brand.brandName,
+        brandName: brand.name, // Map name -> brandName for backward compatibility
         subBrands: brand.subBrands.map((sub) => ({
           id: sub.id,
-          subBrandName: sub.subBrandName,
+          subBrandName: sub.name, // Map name -> subBrandName for backward compatibility
         })),
       };
     });

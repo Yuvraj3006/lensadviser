@@ -15,8 +15,12 @@ import {
   Eye,
   Package,
   Sparkles,
-  ChevronDown
+  ChevronDown,
+  Gift,
+  Tag,
+  Percent
 } from 'lucide-react';
+import { OfferCalculationResult, OfferApplied } from '@/types/offer-engine';
 
 interface Staff {
   id: string;
@@ -38,11 +42,11 @@ interface CheckoutData {
   };
   selectedFrame: {
     brand: string;
+    subBrand?: string | null;
     mrp: number;
     frameType?: string;
   };
-  finalPayable: number;
-  offerData: any;
+  offerResult: OfferCalculationResult;
 }
 
 export default function CheckoutPage() {
@@ -137,7 +141,7 @@ export default function CheckoutPage() {
       // Get frame data from localStorage
       const frameData = JSON.parse(localStorage.getItem('lenstrack_frame') || '{}');
       
-      // Calculate offers
+      // Calculate offers using offer engine
       const offersResponse = await fetch(
         `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
         {
@@ -151,8 +155,27 @@ export default function CheckoutPage() {
         }
       );
 
+      if (!offersResponse.ok) {
+        throw new Error('Failed to calculate offers');
+      }
+
       const offersData = await offersResponse.json();
+      
+      if (!offersData.success || !offersData.data) {
+        throw new Error('Failed to load offer calculation');
+      }
+
+      const offerResult: OfferCalculationResult = offersData.data;
       const lensIndex = selectedRec.name.match(/\d+\.\d+/)?.[0] || '1.50';
+
+      console.log('[Checkout] Offer Result:', {
+        offersApplied: offerResult.offersApplied,
+        categoryDiscount: offerResult.categoryDiscount,
+        couponDiscount: offerResult.couponDiscount,
+        finalPayable: offerResult.finalPayable,
+        frameMRP: offerResult.frameMRP,
+        lensPrice: offerResult.lensPrice,
+      });
 
       setCheckoutData({
         sessionId,
@@ -161,16 +184,16 @@ export default function CheckoutPage() {
           id: selectedRec.id,
           name: selectedRec.name,
           index: lensIndex,
-          price: selectedRec.pricing.lensPrice.totalLensPrice,
+          price: offerResult.lensPrice,
           brandLine: selectedRec.brand || 'Premium',
         },
         selectedFrame: {
           brand: frameData.brand || 'Unknown',
-          mrp: frameData.mrp || 0,
+          subBrand: frameData.subCategory || null,
+          mrp: offerResult.frameMRP,
           frameType: frameData.frameType,
         },
-        finalPayable: offersData.success ? offersData.data.finalPayable : selectedRec.pricing.finalPrice,
-        offerData: offersData.success ? offersData.data : selectedRec.pricing,
+        offerResult,
       });
     } catch (error: any) {
       console.error('[Checkout] Error:', error);
@@ -232,8 +255,8 @@ export default function CheckoutPage() {
           customerPhone: customerPhone || null,
           frameData: checkoutData.selectedFrame,
           lensData: checkoutData.selectedLens,
-          offerData: checkoutData.offerData,
-          finalPrice: checkoutData.finalPayable,
+          offerData: checkoutData.offerResult,
+          finalPrice: checkoutData.offerResult.finalPayable,
         }),
       });
 
@@ -250,6 +273,7 @@ export default function CheckoutPage() {
           createdAt: data.data.createdAt,
           frameData: checkoutData.selectedFrame,
           lensData: checkoutData.selectedLens,
+          offerData: checkoutData.offerResult, // Save complete offer data
           customerName: customerName || null,
           customerPhone: customerPhone || null,
         }));
@@ -338,8 +362,11 @@ export default function CheckoutPage() {
               <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
                 <h3 className="text-sm font-medium text-slate-300 mb-2">Frame</h3>
                 <p className="text-lg font-semibold text-white mb-1">{checkoutData.selectedFrame.brand}</p>
+                {checkoutData.selectedFrame.subBrand && (
+                  <p className="text-sm text-purple-300 font-medium mb-1">{checkoutData.selectedFrame.subBrand}</p>
+                )}
                 {checkoutData.selectedFrame.frameType && (
-                  <p className="text-sm text-slate-400 mb-2">{checkoutData.selectedFrame.frameType}</p>
+                  <p className="text-sm text-slate-400 mb-2">{checkoutData.selectedFrame.frameType.replace('_', ' ')}</p>
                 )}
                 <p className="text-xl font-semibold text-blue-400">₹{Math.round(checkoutData.selectedFrame.mrp).toLocaleString()}</p>
               </div>
@@ -356,6 +383,75 @@ export default function CheckoutPage() {
               </div>
             </div>
 
+            {/* Price Breakdown */}
+            <div className="py-4 border-t border-slate-700">
+              <h3 className="text-sm font-medium text-slate-300 mb-3 flex items-center gap-2">
+                <Tag className="text-blue-400" size={16} />
+                Price Breakdown
+              </h3>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Frame MRP</span>
+                  <span className="text-white font-medium">₹{Math.round(checkoutData.offerResult.frameMRP).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Lens Price</span>
+                  <span className="text-white font-medium">₹{Math.round(checkoutData.offerResult.lensPrice).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Subtotal</span>
+                  <span className="text-white font-medium">₹{Math.round(checkoutData.offerResult.baseTotal).toLocaleString()}</span>
+                </div>
+                
+                {/* Applied Offers */}
+                {checkoutData.offerResult.offersApplied && checkoutData.offerResult.offersApplied.length > 0 && (
+                  <>
+                    {checkoutData.offerResult.offersApplied.map((offer: OfferApplied, idx: number) => (
+                      <div key={idx} className="flex justify-between text-sm text-green-300">
+                        <span className="flex items-center gap-1">
+                          <Gift size={14} />
+                          {offer.description}
+                        </span>
+                        <span className="font-medium">-₹{Math.round(offer.savings || 0).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+                
+                {/* Category Discount */}
+                {checkoutData.offerResult.categoryDiscount && (
+                  <div className="flex justify-between text-sm text-blue-300">
+                    <span className="flex items-center gap-1">
+                      <Percent size={14} />
+                      {checkoutData.offerResult.categoryDiscount.description}
+                    </span>
+                    <span className="font-medium">-₹{Math.round(checkoutData.offerResult.categoryDiscount.savings || 0).toLocaleString()}</span>
+                  </div>
+                )}
+                
+                {/* Coupon Discount */}
+                {checkoutData.offerResult.couponDiscount && (
+                  <div className="flex justify-between text-sm text-yellow-300">
+                    <span className="flex items-center gap-1">
+                      <Tag size={14} />
+                      {checkoutData.offerResult.couponDiscount.description}
+                    </span>
+                    <span className="font-medium">-₹{Math.round(checkoutData.offerResult.couponDiscount.savings || 0).toLocaleString()}</span>
+                  </div>
+                )}
+                
+                {/* Total Discount */}
+                {checkoutData.offerResult.baseTotal > checkoutData.offerResult.finalPayable && (
+                  <div className="flex justify-between text-sm pt-2 border-t border-slate-600">
+                    <span className="text-slate-300 font-medium">Total Discount</span>
+                    <span className="text-green-400 font-bold">
+                      -₹{Math.round(checkoutData.offerResult.baseTotal - checkoutData.offerResult.finalPayable).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Final Payable */}
             <div className="relative overflow-hidden flex justify-between items-center py-6 bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 rounded-lg px-6 border-2 border-green-400/50 shadow-2xl transform hover:scale-[1.01] transition-transform duration-300">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
@@ -367,8 +463,8 @@ export default function CheckoutPage() {
                 </div>
                 <div className="text-right">
                   <div className="bg-white/20 backdrop-blur rounded-lg px-4 py-2 border border-white/30">
-                    <span className="text-3xl md:text-4xl font-bold text-white animate-pulse">
-                      ₹{Math.round(checkoutData.finalPayable).toLocaleString()}
+                    <span className="text-3xl md:text-4xl font-bold text-white">
+                      ₹{Math.round(checkoutData.offerResult.finalPayable).toLocaleString()}
                     </span>
                   </div>
                 </div>

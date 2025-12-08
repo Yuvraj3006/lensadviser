@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError, NotFoundError, BusinessRuleError } from '@/lib/errors';
 import { UpdateStoreSchema } from '@/lib/validation';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
 // GET /api/admin/stores/[id] - Get store details
@@ -22,35 +22,44 @@ export async function GET(
         id,
         organizationId: user.organizationId,
       },
-      include: {
-        users: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-        _count: {
-          select: {
-            users: true,
-            staff: true,
-            orders: true,
-          },
-        },
-      },
     });
 
     if (!store) {
       throw new NotFoundError('Store');
     }
 
+    // Fetch related data separately (Store model doesn't have relations)
+    const [users, userCount, staffCount, orderCount] = await Promise.all([
+      prisma.user.findMany({
+        where: { storeId: id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      }),
+      prisma.user.count({ where: { storeId: id } }),
+      prisma.user.count({ 
+        where: { 
+          storeId: id,
+          role: { in: ['STORE_MANAGER', 'SALES_EXECUTIVE'] }
+        } 
+      }),
+      prisma.order.count({ where: { storeId: id } }),
+    ]);
+
     // Serialize Date objects
     const serialized = {
       ...store,
       createdAt: store.createdAt.toISOString(),
       updatedAt: store.updatedAt.toISOString(),
-      users: store.users,
+      users: users,
+      _count: {
+        users: userCount,
+        staff: staffCount,
+        orders: orderCount,
+      },
     };
 
     return Response.json({

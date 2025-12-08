@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { PerformanceFix } from "@/components/PerformanceFix";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -23,6 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
+        <PerformanceFix />
         <QueryProvider>
           <AuthProvider>
             <ToastProvider>

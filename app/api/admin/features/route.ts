@@ -3,10 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
 import { CreateFeatureSchema } from '@/lib/validation';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
-// GET /api/admin/features - List all features
+// GET /api/admin/features - List all features (F01-F11 master list)
 export async function GET(request: NextRequest) {
   try {
     const user = await authenticate(request);
@@ -15,9 +15,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
     const isActive = searchParams.get('isActive');
 
-    const where: any = {
-      organizationId: user.organizationId,
-    };
+    const where: any = {}; // Features are global (no organizationId)
 
     if (category) {
       where.category = category;
@@ -29,28 +27,30 @@ export async function GET(request: NextRequest) {
 
     const features = await prisma.feature.findMany({
       where,
-      include: {
-        _count: {
-          select: {
-            productFeatures: true,
-            mappings: true,
-          },
-        },
-      },
       orderBy: {
-        name: 'asc',
+        displayOrder: 'asc', // Order by displayOrder (F01, F02, ...)
       },
     });
 
+    // Get product counts
+    const featureIds = features.map(f => f.id);
+    const productFeatureCounts = await prisma.productFeature.groupBy({
+      by: ['featureId'],
+      where: { featureId: { in: featureIds } },
+      _count: true,
+    });
+
+    const productCountMap = new Map(productFeatureCounts.map(pf => [pf.featureId, pf._count]));
+
     const formattedFeatures = features.map((feature) => ({
       id: feature.id,
-      key: feature.key,
+      code: feature.code, // Use code instead of key
       name: feature.name,
       description: feature.description || null,
       category: feature.category,
+      displayOrder: feature.displayOrder,
       isActive: feature.isActive,
-      productCount: feature._count.productFeatures || 0,
-      mappingCount: feature._count.mappings || 0,
+      productCount: productCountMap.get(feature.id) || 0,
       createdAt: feature.createdAt?.toISOString() || new Date().toISOString(),
     }));
 
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/admin/features - Create new feature
+// POST /api/admin/features - Create new feature (F12+ only, F01-F11 are fixed)
 export async function POST(request: NextRequest) {
   let body: any = null;
   try {
@@ -76,30 +76,69 @@ export async function POST(request: NextRequest) {
     authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
 
     body = await request.json();
-    const validatedData = CreateFeatureSchema.parse(body);
-
-    console.log('[POST /api/admin/features] Creating feature with data:', {
-      ...validatedData,
-      organizationId: user.organizationId,
+    
+    // New schema for Feature creation
+    const createFeatureSchema = z.object({
+      code: z.string().regex(/^F\d{2,}$/, 'Feature code must be F followed by 2+ digits (e.g., F12)'),
+      name: z.string().min(1, 'Feature name is required'),
+      description: z.string().optional(),
+      category: z.enum(['DURABILITY', 'COATING', 'PROTECTION', 'LIFESTYLE', 'VISION']),
+      displayOrder: z.number().int().min(1).optional(),
     });
+
+    const validatedData = createFeatureSchema.parse(body);
+
+    // Check if code already exists
+    const existing = await prisma.feature.findUnique({
+      where: { code: validatedData.code.toUpperCase() },
+    });
+
+    if (existing) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'DUPLICATE_CODE',
+            message: `Feature code "${validatedData.code.toUpperCase()}" already exists`,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    // Get max displayOrder if not provided
+    let displayOrder = validatedData.displayOrder;
+    if (!displayOrder) {
+      const maxOrder = await prisma.feature.findFirst({
+        orderBy: { displayOrder: 'desc' },
+        select: { displayOrder: true },
+      });
+      displayOrder = (maxOrder?.displayOrder || 0) + 1;
+    }
 
     const feature = await prisma.feature.create({
       data: {
-        key: validatedData.key,
+        code: validatedData.code.toUpperCase(),
         name: validatedData.name,
         description: validatedData.description || null,
         category: validatedData.category,
+        displayOrder,
         isActive: true,
-        organizationId: user.organizationId,
-        // createdAt and updatedAt will be set automatically by Prisma defaults
       },
     });
 
-    console.log('[POST /api/admin/features] Feature created successfully:', feature.id);
     return Response.json({
       success: true,
-      data: feature,
-    });
+      data: {
+        id: feature.id,
+        code: feature.code,
+        name: feature.name,
+        description: feature.description,
+        category: feature.category,
+        displayOrder: feature.displayOrder,
+        isActive: feature.isActive,
+      },
+    }, { status: 201 });
   } catch (error: any) {
     console.error('[POST /api/admin/features] Error:', {
       message: error?.message,
