@@ -1,0 +1,197 @@
+import { NextRequest } from 'next/server';
+import { handleApiError, ValidationError, NotFoundError } from '@/lib/errors';
+import { prisma } from '@/lib/prisma';
+import { authenticate, authorize } from '@/middleware/auth.middleware';
+import { UserRole } from '@prisma/client';
+import { z } from 'zod';
+
+// Validation schema for creating offer rules - matches Prisma OfferRule model
+// Using passthrough to allow legacy fields from frontend
+const offerRuleSchema = z.object({
+  code: z.string().min(1),
+  offerType: z.enum(['YOPO', 'COMBO_PRICE', 'FREE_LENS', 'PERCENT_OFF', 'FLAT_OFF']), // Match OfferType enum
+  frameBrands: z.array(z.string()).default([]), // Array, not single string
+  frameSubCategories: z.array(z.string()).default([]), // Array, not single string
+  minFrameMRP: z.number().nullable().optional(),
+  maxFrameMRP: z.number().nullable().optional(),
+  lensBrandLines: z.array(z.string()).default([]),
+  config: z.any().optional(), // JSON field for flexible configuration
+  upsellEnabled: z.boolean().default(true),
+  upsellThreshold: z.number().nullable().optional(),
+  upsellRewardText: z.string().nullable().optional(),
+  priority: z.number().int().default(100),
+  isActive: z.boolean().default(true),
+  organizationId: z.string(),
+  // Legacy fields from frontend - accept but don't validate strictly
+  discountType: z.string().optional(),
+  discountValue: z.union([z.number(), z.string()]).optional(),
+  comboPrice: z.union([z.number(), z.string(), z.null()]).optional(),
+  freeProductId: z.string().nullable().optional(),
+  isSecondPairRule: z.boolean().optional(),
+  secondPairPercent: z.union([z.number(), z.string(), z.null()]).optional(),
+  lensItCodes: z.array(z.string()).optional(),
+  frameBrand: z.string().optional(),
+  frameSubCategory: z.string().optional(),
+}).passthrough();
+
+/**
+ * GET /api/admin/offers/rules
+ * List all offer rules with optional filters
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const user = await authenticate(request);
+    authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
+
+    const { searchParams } = new URL(request.url);
+    const organizationId = searchParams.get('organizationId') || user.organizationId;
+    const frameBrand = searchParams.get('frameBrand');
+    const offerType = searchParams.get('offerType');
+    const isActive = searchParams.get('isActive');
+
+    if (!organizationId) {
+      throw new ValidationError('organizationId is required');
+    }
+
+    const where: any = {
+      organizationId,
+    };
+
+    if (frameBrand) {
+      where.frameBrands = { has: frameBrand }; // frameBrands is an array, use 'has' operator
+    }
+
+    if (offerType) {
+      where.offerType = offerType;
+    }
+
+    if (isActive !== null && isActive !== undefined) {
+      where.isActive = isActive === 'true';
+    }
+
+    const rules = await prisma.offerRule.findMany({
+      where,
+      orderBy: [
+        { priority: 'asc' },
+        { createdAt: 'desc' },
+      ],
+    });
+
+    // Transform rules to include discount fields from config for frontend compatibility
+    const transformedRules = rules.map((rule) => {
+      const config = rule.config as any || {};
+      return {
+        ...rule,
+        // Extract discount fields from config for frontend
+        discountType: config.discountType || null,
+        discountValue: config.discountValue || 0,
+        comboPrice: config.comboPrice || null,
+        freeProductId: config.freeProductId || null,
+        isSecondPairRule: config.isSecondPairRule || false,
+        secondPairPercent: config.secondPairPercent || null,
+        lensItCodes: config.lensItCodes || [],
+        // Legacy field mappings
+        frameBrand: rule.frameBrands && rule.frameBrands.length > 0 ? rule.frameBrands[0] : null,
+        frameSubCategory: rule.frameSubCategories && rule.frameSubCategories.length > 0 ? rule.frameSubCategories[0] : null,
+        // Keep config for backward compatibility
+        config,
+      };
+    });
+
+    return Response.json({
+      success: true,
+      data: transformedRules,
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+/**
+ * POST /api/admin/offers/rules
+ * Create a new offer rule
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const user = await authenticate(request);
+    authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
+
+    const body = await request.json();
+
+    const validationResult = offerRuleSchema.safeParse(body);
+    if (!validationResult.success) {
+      throw new ValidationError('Invalid input', validationResult.error.issues);
+    }
+
+    const data = validationResult.data;
+
+    // Build config from legacy fields if provided
+    const ruleConfigData: any = data.config || {};
+    if (data.discountType !== undefined) ruleConfigData.discountType = data.discountType;
+    if (data.discountValue !== undefined) ruleConfigData.discountValue = typeof data.discountValue === 'string' ? parseFloat(data.discountValue) : data.discountValue;
+    if (data.comboPrice !== undefined) ruleConfigData.comboPrice = typeof data.comboPrice === 'string' ? parseFloat(data.comboPrice) : data.comboPrice;
+    if (data.freeProductId !== undefined) ruleConfigData.freeProductId = data.freeProductId;
+    if (data.isSecondPairRule !== undefined) ruleConfigData.isSecondPairRule = data.isSecondPairRule;
+    if (data.secondPairPercent !== undefined) ruleConfigData.secondPairPercent = typeof data.secondPairPercent === 'string' ? parseFloat(data.secondPairPercent) : data.secondPairPercent;
+    if (data.lensItCodes !== undefined) ruleConfigData.lensItCodes = Array.isArray(data.lensItCodes) ? data.lensItCodes : [];
+
+    // Build rule data - only include fields that exist in the model
+    const ruleData: any = {
+      code: data.code,
+      offerType: data.offerType,
+      frameBrands: data.frameBrands || (data.frameBrand ? [data.frameBrand] : []),
+      frameSubCategories: data.frameSubCategories || (data.frameSubCategory ? [data.frameSubCategory] : []),
+      lensBrandLines: data.lensBrandLines || [],
+      config: ruleConfigData,
+      upsellEnabled: data.upsellEnabled ?? true,
+      priority: typeof data.priority === 'string' ? parseInt(data.priority, 10) : (data.priority ?? 100),
+      isActive: data.isActive ?? true,
+      organizationId: data.organizationId,
+    };
+
+    // Optional fields
+    if (data.minFrameMRP !== undefined) ruleData.minFrameMRP = typeof data.minFrameMRP === 'string' ? parseFloat(data.minFrameMRP) : data.minFrameMRP;
+    if (data.maxFrameMRP !== undefined) ruleData.maxFrameMRP = typeof data.maxFrameMRP === 'string' ? parseFloat(data.maxFrameMRP) : data.maxFrameMRP;
+    if (data.upsellThreshold !== undefined) ruleData.upsellThreshold = typeof data.upsellThreshold === 'string' ? parseFloat(data.upsellThreshold) : data.upsellThreshold;
+    if (data.upsellRewardText !== undefined) ruleData.upsellRewardText = data.upsellRewardText;
+
+    // Use user's organizationId if not provided
+    if (!ruleData.organizationId) {
+      ruleData.organizationId = user.organizationId;
+    }
+
+    const rule = await prisma.offerRule.create({
+      data: ruleData,
+    });
+
+    // Transform rule to include discount fields from config for frontend compatibility
+    const ruleConfig = rule.config as any || {};
+    const transformedRule = {
+      ...rule,
+      // Extract discount fields from config for frontend
+      discountType: ruleConfig.discountType || null,
+      discountValue: ruleConfig.discountValue || 0,
+      comboPrice: ruleConfig.comboPrice || null,
+      freeProductId: ruleConfig.freeProductId || null,
+      isSecondPairRule: ruleConfig.isSecondPairRule || false,
+      secondPairPercent: ruleConfig.secondPairPercent || null,
+      lensItCodes: ruleConfig.lensItCodes || [],
+      // Legacy field mappings
+      frameBrand: rule.frameBrands && rule.frameBrands.length > 0 ? rule.frameBrands[0] : null,
+      frameSubCategory: rule.frameSubCategories && rule.frameSubCategories.length > 0 ? rule.frameSubCategories[0] : null,
+      // Keep config for backward compatibility
+      config: ruleConfig,
+    };
+
+    return Response.json(
+      {
+        success: true,
+        data: transformedRule,
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+

@@ -1,36 +1,270 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LensTrack - Optical Store Management System
 
-## Getting Started
+An intelligent optical store management system with AI-powered product recommendations built with Next.js, TypeScript, Prisma, and PostgreSQL.
 
-First, run the development server:
+## 🚀 Features
 
+### Core Features
+- **Multi-Store Management** - Manage multiple stores with hierarchical organization
+- **Role-Based Access Control** - 4 roles: Super Admin, Admin, Store Manager, Sales Executive
+- **AI-Powered Recommendations** - Intelligent product matching based on customer needs
+- **Dynamic Questionnaire** - Conditional questions with multi-language support
+- **Comprehensive Analytics** - Reports, conversion tracking, and performance metrics
+
+### Customer Journey
+- **5-Minute Assessment** - Quick questionnaire flow
+- **Smart Product Matching** - Match score calculation with feature weighting
+- **Multi-Language Support** - English, Hindi, Hinglish
+- **Session Tracking** - Complete customer journey analytics
+
+### Admin Panel
+- Store Management
+- User Management with role hierarchy
+- Product Catalog with feature assignments
+- Question Builder with conditional logic
+- Feature Management
+- Reports & Analytics
+- Session History
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 14 with App Router
+- **Language**: TypeScript
+- **Database**: PostgreSQL
+- **ORM**: Prisma
+- **Styling**: Tailwind CSS
+- **Authentication**: JWT + bcrypt
+- **Validation**: Zod
+- **Icons**: Lucide React
+- **Charts**: Recharts (ready to integrate)
+
+## 📦 Installation
+
+### Prerequisites
+- Node.js 20+
+- PostgreSQL 15+
+- npm or yarn
+
+### Setup
+
+1. **Clone and install dependencies**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd lenstrack
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Set up environment variables**
+Create a `.env` file in the root directory:
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/lenstrack?schema=public"
+JWT_SECRET="your-super-secret-jwt-key-change-this-in-production-min-32-characters"
+JWT_EXPIRY="7d"
+NODE_ENV="development"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. **Set up the database**
+```bash
+# Generate Prisma Client
+npm run db:generate
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Push schema to database (for development)
+npm run db:push
 
-## Learn More
+# OR run migrations (for production)
+npm run db:migrate
 
-To learn more about Next.js, take a look at the following resources:
+# Seed the database with test data
+npm run db:seed
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+4. **Run the development server**
+```bash
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open [http://localhost:3000](http://localhost:3000) to see the application.
 
-## Deploy on Vercel
+## 🔑 Demo Credentials
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+After seeding the database, use these credentials to log in:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Super Admin**: `superadmin@lenstrack.com` / `admin123`
+- **Admin**: `admin@lenstrack.com` / `admin123`
+- **Store Manager**: `manager@lenstrack.com` / `admin123`
+- **Sales Executive**: `sales@lenstrack.com` / `admin123`
+
+## 📁 Project Structure
+
+```
+lenstrack/
+├── app/
+│   ├── (auth)/login/          # Login page
+│   ├── admin/                 # Admin panel pages
+│   │   ├── layout.tsx         # Admin layout with sidebar
+│   │   ├── page.tsx           # Dashboard
+│   │   ├── stores/            # Store management
+│   │   ├── users/             # User management
+│   │   ├── products/          # Product management
+│   │   ├── questions/         # Question builder
+│   │   ├── features/          # Feature management
+│   │   ├── reports/           # Analytics
+│   │   └── sessions/          # Session history
+│   ├── api/
+│   │   ├── auth/              # Authentication endpoints
+│   │   ├── admin/             # Admin API routes
+│   │   └── questionnaire/     # Customer-facing API
+│   └── layout.tsx             # Root layout with providers
+├── components/
+│   ├── ui/                    # Base UI components
+│   ├── layout/                # Layout components
+│   ├── forms/                 # Form components
+│   ├── data-display/          # Data display components
+│   └── questionnaire/         # Questionnaire components
+├── contexts/
+│   ├── AuthContext.tsx        # Authentication state
+│   └── ToastContext.tsx       # Toast notifications
+├── lib/
+│   ├── prisma.ts              # Prisma client
+│   ├── auth.ts                # JWT utilities
+│   ├── errors.ts              # Error handling
+│   └── validation.ts          # Zod schemas
+├── middleware/
+│   └── auth.middleware.ts     # Auth middleware
+├── services/
+│   └── recommendation.service.ts  # Recommendation engine
+├── prisma/
+│   ├── schema.prisma          # Database schema (13 models)
+│   └── seed.ts                # Seed data
+└── types/
+    └── index.ts               # TypeScript types
+```
+
+## 🗄️ Database Schema
+
+### 13 Core Models:
+1. **Organization** - Multi-tenant root
+2. **Store** - Individual store locations
+3. **User** - Staff members with roles
+4. **Product** - Product catalog
+5. **Feature** - Product features (e.g., Blue Light Filter)
+6. **ProductFeature** - Junction table with strength values
+7. **StoreProduct** - Store-specific inventory and pricing
+8. **Question** - Questionnaire questions
+9. **AnswerOption** - Question options
+10. **FeatureMapping** - Maps answers to feature weights
+11. **Session** - Customer sessions
+12. **SessionAnswer** - Session answers
+13. **SessionRecommendation** - Product recommendations
+
+## 🤖 Recommendation Engine
+
+The recommendation engine uses a **weighted feature matching algorithm**:
+
+1. **Collect Answers** - Get all customer responses
+2. **Build Preference Vector** - Aggregate feature weights from mappings
+3. **Calculate Match Scores** - Dot product of product features and preferences
+4. **Apply Diversity Bonus** - Ensure brand variety in results
+5. **Normalize Scores** - 0-100 scale with ranking
+
+### Example:
+```
+Customer: "8+ hours screen time"
+→ Mapping: blue_light_filter +1.8 weight
+
+Product A: blue_light_filter strength 2.0 → 95% match
+Product B: blue_light_filter strength 0.6 → 67% match
+```
+
+## 🔐 Security
+
+- **Password Hashing**: bcrypt with cost factor 10
+- **JWT Tokens**: 7-day expiry, secure secret
+- **Input Validation**: Zod schemas on all endpoints
+- **SQL Injection Prevention**: Prisma parameterized queries
+- **Role-Based Access**: Middleware enforcement
+- **XSS Protection**: React auto-escaping
+
+## 📊 Available Scripts
+
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run start        # Start production server
+npm run lint         # Run ESLint
+
+# Database
+npm run db:generate  # Generate Prisma Client
+npm run db:push      # Push schema to DB (dev)
+npm run db:migrate   # Run migrations (prod)
+npm run db:seed      # Seed test data
+npm run db:studio    # Open Prisma Studio
+```
+
+## 🚧 Current Status
+
+### ✅ Completed
+- [x] Database schema with 13 models
+- [x] Prisma setup with seed data
+- [x] Authentication system (JWT + bcrypt)
+- [x] UI component library (Button, Input, Modal, etc.)
+- [x] Context providers (Auth, Toast)
+- [x] Admin layout with sidebar
+- [x] Recommendation engine algorithm
+- [x] Login page
+- [x] Dashboard page
+
+### 🔨 In Progress
+- [ ] Admin CRUD pages (Stores, Users, Products, Questions)
+- [ ] API routes for all endpoints
+- [ ] Customer questionnaire flow
+- [ ] Reports and analytics
+- [ ] Session management
+
+### 📋 TODO
+- [ ] Complete all admin pages
+- [ ] Build questionnaire UI
+- [ ] Implement all API endpoints
+- [ ] Add charts to reports
+- [ ] Add unit tests
+- [ ] Add E2E tests
+- [ ] Deployment configuration
+
+## 🎯 Next Steps
+
+1. **Complete Admin Pages**
+   - Store management CRUD
+   - User management with role validation
+   - Product catalog with feature assignment
+   - Question builder with conditional logic
+
+2. **Build Questionnaire Flow**
+   - Category selection
+   - Dynamic question rendering
+   - Progress tracking
+   - Results display
+
+3. **API Implementation**
+   - Complete all CRUD endpoints
+   - Add pagination and filtering
+   - Implement report generation
+   - Session lifecycle management
+
+4. **Testing & Deployment**
+   - Unit tests for services
+   - Integration tests for API
+   - E2E tests for critical flows
+   - Docker deployment
+
+## 📝 License
+
+This project is proprietary and confidential.
+
+## 👥 Contributors
+
+Built for optical store management and customer service excellence.
+
+---
+
+**Version**: 1.0.0  
+**Last Updated**: December 2025
