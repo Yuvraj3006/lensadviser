@@ -35,13 +35,9 @@ export async function POST(request: NextRequest) {
     const validated = createLensSchema.parse(body);
 
     // Check if itCode already exists
-    const existing = await prisma.product.findFirst({
+    const existing = await prisma.lensProduct.findUnique({
       where: {
-        organizationId: user.organizationId,
-        OR: [
-          { itCode: validated.itCode },
-          { sku: validated.itCode },
-        ],
+        itCode: validated.itCode,
       },
     });
 
@@ -58,37 +54,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create lens product (only use fields that exist in Product model)
-    const product = await prisma.product.create({
-      data: {
-        organizationId: user.organizationId,
-        sku: validated.itCode, // Use itCode as SKU
-        itCode: validated.itCode,
-        name: validated.name,
-        category: 'EYEGLASSES', // Lenses are in EYEGLASSES category
-        brandLine: validated.brandLine,
-        visionType: validated.visionType ?? null,
-        lensIndex: validated.lensIndex ?? null,
-        basePrice: validated.offerPrice, // Set basePrice to offerPrice
-        yopoEligible: validated.yopoEligible ?? false,
-        isActive: true,
-        description: '', // Required field
-        imageUrl: '', // Required field
-        brand: '', // Required field
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
-
+    // This endpoint is deprecated - use /api/admin/lenses instead
     return Response.json(
       {
-        success: true,
-        data: {
-          id: product.id,
-          itCode: product.itCode,
+        success: false,
+        error: {
+          code: 'DEPRECATED_ENDPOINT',
+          message: 'This endpoint is deprecated. Use /api/admin/lenses instead.',
         },
       },
-      { status: 201 }
+      { status: 410 }
     );
   } catch (error) {
     if (error instanceof z.ZodError) {

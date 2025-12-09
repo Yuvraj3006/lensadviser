@@ -60,9 +60,26 @@ export async function POST(
     }
 
     // Get product details
-    const product = await prisma.product.findUnique({
+    // Try lens product first, then retail product
+    let product = await prisma.lensProduct.findUnique({
       where: { id: productId },
     });
+    
+    if (!product) {
+      const retailProduct = await prisma.retailProduct.findUnique({
+        where: { id: productId },
+      });
+      if (retailProduct) {
+        // Convert retail product to expected format
+        product = {
+          id: retailProduct.id,
+          itCode: retailProduct.sku || retailProduct.id,
+          name: retailProduct.name || '',
+          baseOfferPrice: retailProduct.mrp,
+          brandLine: '',
+        } as any;
+      }
+    }
 
     if (!product) {
       throw new NotFoundError('Product not found');
@@ -126,39 +143,6 @@ export async function POST(
       yopoEligible: product.yopoEligible || false,
     };
 
-    // Validate inputs before calling offer engine
-    if (framePrice <= 0) {
-      throw new ValidationError('Frame price must be greater than 0');
-    }
-    if (totalLensPrice <= 0) {
-      throw new ValidationError('Lens price must be greater than 0');
-    }
-    if (!organizationId) {
-      throw new ValidationError('Organization ID is required');
-    }
-
-    // Calculate offers with coupon
-    let offerResult;
-    try {
-      offerResult = await offerEngineService.calculateOffers({
-        frame: frameInput,
-        lens: lensInput,
-        customerCategory: (session.customerCategory as any) || null,
-        couponCode: couponCode || null,
-        secondPair: secondPair || null,
-        organizationId,
-      });
-    } catch (offerError: any) {
-      console.error('[recalculate-offers] Offer engine error:', offerError);
-      throw new ValidationError(
-        `Failed to calculate offers: ${offerError?.message || 'Unknown error'}`
-      );
-    }
-
-    return Response.json({
-      success: true,
-      data: offerResult,
-    });
   } catch (error: any) {
     console.error('[recalculate-offers] Error:', error);
     console.error('[recalculate-offers] Error type:', typeof error);

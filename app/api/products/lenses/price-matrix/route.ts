@@ -23,10 +23,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all lens products
-    const products = await prisma.product.findMany({
+    const products = await prisma.lensProduct.findMany({
       where: {
-        organizationId,
-        category: 'EYEGLASSES',
         isActive: true,
       },
     });
@@ -34,26 +32,36 @@ export async function GET(request: NextRequest) {
     // Filter and format for price matrix
     const priceMatrix = products
       .filter((p) => {
-        // Add filtering logic based on prescription if needed
-        // For now, return all active lenses
+        // Filter by visionType if provided
+        if (visionType) {
+          return p.visionType === visionType;
+        }
         return true;
       })
       .map((p) => {
-        // Determine category based on features or other criteria
+        // Determine category based on visionType
         let category = 'SV'; // Single Vision
-        if (add && parseFloat(add) > 0) {
-          category = visionType === 'BIFOCAL' ? 'BF' : 'PAL';
+        if (p.visionType === 'PROGRESSIVE') {
+          category = 'PAL';
+        } else if (p.visionType === 'BIFOCAL') {
+          category = 'BF';
         }
 
-        // Extract index from lensIndex
-        const index = p.lensIndex || '1.56';
+        // Extract index from lensIndex enum
+        const indexMap: Record<string, string> = {
+          'INDEX_156': '1.56',
+          'INDEX_160': '1.60',
+          'INDEX_167': '1.67',
+          'INDEX_174': '1.74',
+        };
+        const index = indexMap[p.lensIndex] || '1.56';
 
         return {
-          itCode: p.itCode || p.sku,
+          itCode: p.itCode,
           name: p.name,
           index,
           category,
-          price: p.basePrice,
+          price: p.baseOfferPrice,
         };
       });
 

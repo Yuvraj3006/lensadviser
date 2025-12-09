@@ -22,12 +22,9 @@ export async function PUT(
     const body = await request.json();
     const validated = updateFeaturesSchema.parse(body);
 
-    // Verify product exists
-    const product = await prisma.product.findFirst({
-      where: {
-        id,
-        organizationId: user.organizationId,
-      },
+    // Verify lens product exists
+    const product = await prisma.lensProduct.findUnique({
+      where: { id },
     });
 
     if (!product) {
@@ -36,19 +33,17 @@ export async function PUT(
           success: false,
           error: {
             code: 'NOT_FOUND',
-            message: 'Product not found',
+            message: 'Lens product not found',
           },
         },
         { status: 404 }
       );
     }
 
-    // Get features by keys (codes)
+    // Get features by codes (features are global)
     const features = await prisma.feature.findMany({
       where: {
-        organizationId: user.organizationId,
-        key: { in: validated.featureCodes },
-        category: product.category,
+        code: { in: validated.featureCodes },
       },
     });
 
@@ -70,14 +65,13 @@ export async function PUT(
       where: { productId: id },
     });
 
-    // Create new product features
+    // Create new product features (no strength field)
     const productFeatures = await Promise.all(
       features.map((feature) =>
         prisma.productFeature.create({
           data: {
             productId: id,
             featureId: feature.id,
-            strength: 1.0, // Default strength
           },
         })
       )

@@ -27,12 +27,9 @@ export async function PUT(
     const body = await request.json();
     const validated = updateBenefitsSchema.parse(body);
 
-    // Verify product exists
-    const product = await prisma.product.findFirst({
-      where: {
-        id,
-        organizationId: user.organizationId,
-      },
+    // Verify lens product exists
+    const product = await prisma.lensProduct.findUnique({
+      where: { id },
     });
 
     if (!product) {
@@ -41,14 +38,14 @@ export async function PUT(
           success: false,
           error: {
             code: 'NOT_FOUND',
-            message: 'Product not found',
+            message: 'Lens product not found',
           },
         },
         { status: 404 }
       );
     }
 
-    // Get benefits by codes
+    // Get benefits by codes (benefits are organization-specific)
     const benefitCodes = validated.benefits.map((b) => b.benefitCode);
     const benefits = await prisma.benefit.findMany({
       where: {
@@ -65,7 +62,7 @@ export async function PUT(
       where: { productId: id },
     });
 
-    // Create new product benefits with strength
+    // Create new product benefits with score (0-3 scale)
     const productBenefits = await Promise.all(
       validated.benefits
         .filter((benefitInput) => benefitInput.strength > 0) // Only create if strength > 0
@@ -79,7 +76,7 @@ export async function PUT(
             data: {
               productId: id,
               benefitId: benefit.id,
-              strength: Math.max(0, Math.min(3, benefitInput.strength)), // Clamp 0-3
+              score: Math.max(0, Math.min(3, benefitInput.strength)), // Clamp 0-3 (using score, not strength)
             },
           });
         })

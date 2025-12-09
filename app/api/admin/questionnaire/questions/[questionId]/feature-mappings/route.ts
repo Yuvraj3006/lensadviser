@@ -47,36 +47,12 @@ export async function GET(
       );
     }
 
-    // Get all feature mappings for this question
-    const mappings = await prisma.featureMapping.findMany({
-      where: {
-        questionId,
-      },
-      include: {
-        feature: {
-          select: {
-            id: true,
-            key: true,
-            name: true,
-            category: true,
-          },
-        },
-      },
-    });
-
-    // Format response
-    const formattedMappings = mappings.map((m) => ({
-      id: m.id,
-      optionKey: m.optionKey,
-      featureKey: m.feature.key,
-      featureName: m.feature.name,
-      featureCategory: m.feature.category,
-      weight: m.weight,
-    }));
-
+    // FeatureMapping model has been removed - use AnswerBenefit instead
+    // Return empty array for backward compatibility
     return Response.json({
       success: true,
-      data: formattedMappings,
+      data: [],
+      message: 'Feature mappings have been removed. Use AnswerBenefit mappings instead.',
     });
   } catch (error) {
     return handleApiError(error);
@@ -117,98 +93,15 @@ export async function PUT(
       );
     }
 
-    // Get all feature keys
-    const featureKeys = [...new Set(validated.mappings.map((m) => m.featureKey))];
-    
-    // Get features by keys
-    const features = await prisma.feature.findMany({
-      where: {
-        organizationId: user.organizationId,
-        key: { in: featureKeys },
-        category: question.category, // Features must match question category
-      },
-    });
 
-    const featureMap = new Map(features.map((f) => [f.key, f]));
-
-    // Verify all features exist
-    const missingFeatures = featureKeys.filter((key) => !featureMap.has(key));
-    if (missingFeatures.length > 0) {
-      return Response.json(
-        {
-          success: false,
-          error: {
-            code: 'INVALID_FEATURES',
-            message: `Features not found: ${missingFeatures.join(', ')}`,
-            details: missingFeatures,
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    // Verify all option keys exist for this question
-    const optionKeys = [...new Set(validated.mappings.map((m) => m.optionKey))];
-    const options = await prisma.answerOption.findMany({
-      where: {
-        questionId,
-        key: { in: optionKeys },
-      },
-    });
-
-    const optionMap = new Map(options.map((o) => [o.key, o]));
-    const missingOptions = optionKeys.filter((key) => !optionMap.has(key));
-    if (missingOptions.length > 0) {
-      return Response.json(
-        {
-          success: false,
-          error: {
-            code: 'INVALID_OPTIONS',
-            message: `Option keys not found for this question: ${missingOptions.join(', ')}`,
-            details: missingOptions,
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    // Delete existing mappings for this question
-    await prisma.featureMapping.deleteMany({
-      where: { questionId },
-    });
-
-    // Create new mappings
-    const newMappings = await Promise.all(
-      validated.mappings.map((mapping) => {
-        const feature = featureMap.get(mapping.featureKey);
-        if (!feature) {
-          throw new Error(`Feature not found: ${mapping.featureKey}`);
-        }
-
-        return prisma.featureMapping.create({
-          data: {
-            questionId,
-            optionKey: mapping.optionKey,
-            featureId: feature.id,
-            weight: mapping.weight,
-          },
-        });
-      })
-    );
-
+    // FeatureMapping model has been removed - use AnswerBenefit instead
     return Response.json({
-      success: true,
-      data: {
-        questionId,
-        mappings: newMappings.map((m) => ({
-          id: m.id,
-          optionKey: m.optionKey,
-          featureId: m.featureId,
-          weight: m.weight,
-        })),
-        message: `Created ${newMappings.length} feature mappings`,
+      success: false,
+      error: {
+        code: 'DEPRECATED_ENDPOINT',
+        message: 'Feature mappings have been removed. Use AnswerBenefit mappings instead.',
       },
-    });
+    }, { status: 410 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return Response.json(

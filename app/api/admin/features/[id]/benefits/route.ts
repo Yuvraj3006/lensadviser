@@ -26,11 +26,10 @@ export async function GET(
     const user = await authenticate(request);
     const { id } = await params;
 
-    // Verify feature exists
-    const feature = await prisma.feature.findFirst({
+    // Verify feature exists (features are global, no organizationId)
+    const feature = await prisma.feature.findUnique({
       where: {
         id,
-        organizationId: user.organizationId,
       },
     });
 
@@ -83,11 +82,10 @@ export async function PUT(
     const body = await request.json();
     const validated = updateFeatureBenefitsSchema.parse(body);
 
-    // Verify feature exists
-    const feature = await prisma.feature.findFirst({
+    // Verify feature exists (features are global, no organizationId)
+    const feature = await prisma.feature.findUnique({
       where: {
         id,
-        organizationId: user.organizationId,
       },
     });
 

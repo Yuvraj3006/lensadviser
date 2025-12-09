@@ -117,11 +117,13 @@ export async function POST(request: NextRequest) {
       notes: data.notes || null,
     };
 
+    // Prescription model only has id, createdAt, customerPhone, sessionId as JSON fields
+    // Store all prescription data in sessionId JSON field
     const prescription = await prisma.prescription.create({
       data: {
-        sessionId: data.sessionId || null,
-        customerPhone: data.customerPhone || null,
-        rxData: rxData,
+        sessionId: data.sessionId ? { id: data.sessionId, rxData } : { rxData },
+        customerPhone: data.customerPhone ? { phone: data.customerPhone } : null,
+        createdAt: { date: new Date().toISOString() },
       },
     });
 

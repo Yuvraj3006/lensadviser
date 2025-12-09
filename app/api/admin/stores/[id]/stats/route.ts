@@ -66,11 +66,26 @@ export async function GET(
         })
       : [];
 
-    // Get product details
+    // Get lens product details (recommendations are for lenses)
     const productIds = topProducts.map((p) => p.productId);
-    const products = await prisma.product.findMany({
+    const lensProducts = await prisma.lensProduct.findMany({
       where: { id: { in: productIds } },
+      select: {
+        id: true,
+        name: true,
+        itCode: true,
+        brandLine: true,
+        baseOfferPrice: true,
+      },
     });
+    
+    const products = lensProducts.map(p => ({
+      id: p.id,
+      name: p.name,
+      sku: p.itCode,
+      brand: p.brandLine,
+      basePrice: p.baseOfferPrice,
+    }));
 
     const topProductsWithDetails = topProducts.map((tp) => {
       const product = products.find((p) => p.id === tp.productId);

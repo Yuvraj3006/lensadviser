@@ -36,7 +36,7 @@ export async function POST(
     }
 
     // Validate status transition - can only push printed orders
-    if (order.status !== OrderStatus.PRINTED) {
+    if (order.status !== 'PRINTED') {
       throw new ValidationError(
         `Order cannot be pushed to lab from status: ${order.status}. Must be PRINTED.`
       );
@@ -44,7 +44,7 @@ export async function POST(
 
     const updated = await prisma.order.update({
       where: { id },
-      data: { status: OrderStatus.PUSHED_TO_LAB },
+      data: { status: 'PUSHED_TO_LAB' },
     });
 
     return Response.json({

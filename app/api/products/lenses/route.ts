@@ -19,10 +19,8 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const products = await prisma.product.findMany({
+    const products = await prisma.lensProduct.findMany({
       where: {
-        organizationId,
-        category: category as any,
         isActive: true,
       },
       orderBy: {
@@ -34,11 +32,11 @@ export async function GET(request: NextRequest) {
       success: true,
       data: products.map((p) => ({
         id: p.id,
-        itCode: p.itCode || p.sku,
+        itCode: p.itCode,
         name: p.name,
         brandLine: p.brandLine,
-        index: p.lensIndex || null,
-        price: p.basePrice,
+        index: p.lensIndex,
+        price: p.baseOfferPrice,
         yopoEligible: p.yopoEligible,
       })),
     });

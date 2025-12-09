@@ -27,58 +27,44 @@ export async function GET(request: NextRequest) {
       throw new ValidationError('Store not found');
     }
 
-    // Fetch products with store products
-    const products = await prisma.product.findMany({
+    // Fetch retail products (frames) for upsell
+    const products = await prisma.retailProduct.findMany({
       where: {
-        organizationId: store.organizationId,
+        type: 'FRAME',
         isActive: true,
       },
-      take: limit * 2, // Fetch more to filter by price
-    });
-
-    // Get store products for price filtering
-    const productIds = products.map(p => p.id);
-    const storeProducts = await prisma.storeProduct.findMany({
-      where: {
-        productId: { in: productIds },
-        storeId,
-        isAvailable: true,
+      include: {
+        brand: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
-    });
-
-    // Create a map of product prices
-    const productPriceMap = new Map<string, number>();
-    storeProducts.forEach(sp => {
-      const price = sp.priceOverride ?? products.find(p => p.id === sp.productId)?.basePrice ?? 0;
-      productPriceMap.set(sp.productId, price);
+      take: limit * 2, // Fetch more to filter by price
     });
 
     // Filter products by price range and map to include pricing
     const eligibleProducts = products
       .map(product => {
-        const price = productPriceMap.get(product.id) ?? product.basePrice;
+        const price = product.mrp;
         return {
-          ...product,
-          storePrice: price,
-          inStock: storeProducts.some(sp => sp.productId === product.id && sp.isAvailable),
+          id: product.id,
+          name: product.name || `${product.brand.name} Frame`,
+          brand: product.brand.name,
+          imageUrl: null,
+          basePrice: product.mrp,
+          storePrice: product.mrp,
+          inStock: true,
+          sku: product.sku || product.id,
+          category: 'FRAME',
         };
       })
       .filter(product => {
         const price = product.storePrice;
         return price >= minPrice && price <= maxPrice;
       })
-      .slice(0, limit)
-      .map(product => ({
-        id: product.id,
-        name: product.name,
-        brand: product.brand,
-        imageUrl: product.imageUrl,
-        basePrice: product.basePrice,
-        storePrice: product.storePrice,
-        inStock: product.inStock,
-        sku: product.sku,
-        category: product.category,
-      }));
+      .slice(0, limit);
 
     return Response.json({
       success: true,

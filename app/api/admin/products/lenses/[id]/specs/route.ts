@@ -28,12 +28,9 @@ export async function PUT(
     const body = await request.json();
     const validated = updateSpecsSchema.parse(body);
 
-    // Verify product exists and belongs to organization
-    const product = await prisma.product.findFirst({
-      where: {
-        id,
-        organizationId: user.organizationId,
-      },
+    // Verify lens product exists
+    const product = await prisma.lensProduct.findUnique({
+      where: { id },
     });
 
     if (!product) {
@@ -42,7 +39,7 @@ export async function PUT(
           success: false,
           error: {
             code: 'NOT_FOUND',
-            message: 'Product not found',
+            message: 'Lens product not found',
           },
         },
         { status: 404 }

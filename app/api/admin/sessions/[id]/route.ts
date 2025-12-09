@@ -88,18 +88,44 @@ export async function GET(
     // Get product IDs
     const productIds = sessionRecommendations.map((rec) => rec.productId);
 
-    // Get products
-    const products = await prisma.product.findMany({
+    // Get lens products and retail products separately
+    const lensProducts = await prisma.lensProduct.findMany({
       where: { id: { in: productIds } },
       select: {
         id: true,
         name: true,
-        sku: true,
-        brand: true,
-        basePrice: true,
-        imageUrl: true,
+        itCode: true,
+        brandLine: true,
+        baseOfferPrice: true,
       },
     });
+    
+    const retailProducts = await prisma.retailProduct.findMany({
+      where: { id: { in: productIds } },
+      include: {
+        brand: true,
+      },
+    });
+    
+    // Combine both types into common format
+    const products = [
+      ...lensProducts.map(p => ({
+        id: p.id,
+        name: p.name,
+        sku: p.itCode,
+        brand: p.brandLine,
+        basePrice: p.baseOfferPrice,
+        imageUrl: null,
+      })),
+      ...retailProducts.map(p => ({
+        id: p.id,
+        name: p.name || '',
+        sku: p.sku || p.id,
+        brand: p.brand.name,
+        basePrice: p.mrp,
+        imageUrl: null,
+      })),
+    ];
 
     // Create product map
     const productMap = new Map(products.map((p) => [p.id, p]));

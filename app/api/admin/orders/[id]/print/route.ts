@@ -36,7 +36,7 @@ export async function POST(
     }
 
     // Validate status transition
-    if (order.status !== OrderStatus.STORE_ACCEPTED && order.status !== OrderStatus.CUSTOMER_CONFIRMED) {
+    if (order.status !== 'STORE_ACCEPTED' && order.status !== 'CUSTOMER_CONFIRMED') {
       throw new ValidationError(
         `Order cannot be printed from status: ${order.status}. Must be STORE_ACCEPTED or CUSTOMER_CONFIRMED.`
       );
@@ -44,7 +44,7 @@ export async function POST(
 
     const updated = await prisma.order.update({
       where: { id },
-      data: { status: OrderStatus.PRINTED },
+      data: { status: 'PRINTED' },
     });
 
     return Response.json({

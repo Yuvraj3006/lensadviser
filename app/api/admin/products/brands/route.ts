@@ -11,40 +11,51 @@ export async function GET(request: NextRequest) {
   try {
     const user = await authenticate(request);
 
-    // Get all active frames (EYEGLASSES)
-    const products = await prisma.product.findMany({
+    // Get all active frames from RetailProduct
+    const products = await prisma.retailProduct.findMany({
       where: {
-        organizationId: user.organizationId,
-        category: 'EYEGLASSES',
+        type: 'FRAME',
         isActive: true,
       },
-      select: {
-        brand: true,
-        brandLine: true,
+      include: {
+        brand: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        subBrand: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
-    // Extract unique brands
+    // Extract unique brands from ProductBrand
     const brands = Array.from(
-      new Set(products.map((p) => p.brand).filter((b): b is string => !!b))
+      new Set(products.map((p) => p.brand.name).filter((b): b is string => !!b))
     ).sort();
 
-    // Extract unique brand lines (as sub-brands)
-    const brandLines = Array.from(
+    // Extract unique sub-brands
+    const subBrands = Array.from(
       new Set(
-        products.map((p) => p.brandLine).filter((b): b is NonNullable<typeof b> => !!b)
+        products
+          .map((p) => p.subBrand?.name)
+          .filter((b): b is string => !!b)
       )
     ).sort();
 
-    // Get brand-brandLine combinations
+    // Get brand-subBrand combinations
     const brandSubBrandMap: Record<string, string[]> = {};
     products.forEach((p) => {
-      if (p.brand && p.brandLine) {
-        if (!brandSubBrandMap[p.brand]) {
-          brandSubBrandMap[p.brand] = [];
+      if (p.brand.name && p.subBrand?.name) {
+        if (!brandSubBrandMap[p.brand.name]) {
+          brandSubBrandMap[p.brand.name] = [];
         }
-        if (!brandSubBrandMap[p.brand].includes(p.brandLine)) {
-          brandSubBrandMap[p.brand].push(p.brandLine);
+        if (!brandSubBrandMap[p.brand.name].includes(p.subBrand.name)) {
+          brandSubBrandMap[p.brand.name].push(p.subBrand.name);
         }
       }
     });
@@ -58,7 +69,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         brands,
-        subBrands: brandLines,
+        subBrands,
         brandSubBrandMap,
       },
     });

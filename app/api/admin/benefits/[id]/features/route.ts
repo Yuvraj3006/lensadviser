@@ -35,7 +35,7 @@ export async function GET(
         feature: {
           select: {
             id: true,
-            key: true,
+            code: true,
             name: true,
             category: true,
           },
@@ -47,7 +47,7 @@ export async function GET(
       success: true,
       data: featureBenefits.map((fb) => ({
         featureId: fb.feature.id,
-        featureKey: fb.feature.key,
+        featureKey: fb.feature.code,
         featureName: fb.feature.name,
         featureCategory: fb.feature.category,
         weight: fb.weight,

@@ -78,9 +78,11 @@ export async function POST(request: NextRequest) {
         customerCategory: data.customerCategory,
         brandCode: data.brandCode,
         discountPercent: data.discountPercent,
-        maxDiscount: data.maxDiscount ?? null,
+        maxDiscount: data.maxDiscount ?? 0,
         isActive: data.isActive ?? true,
         organizationId: data.organizationId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
 

@@ -38,76 +38,17 @@ export async function PUT(
     const body = await request.json();
     const validated = updateLensSchema.parse(body);
 
-    // Verify product exists and belongs to organization
-    const product = await prisma.product.findFirst({
-      where: {
-        id,
-        organizationId: user.organizationId,
+    // This endpoint is deprecated - use /api/admin/lenses/[id] instead
+    return Response.json(
+      {
+        success: false,
+        error: {
+          code: 'DEPRECATED_ENDPOINT',
+          message: 'This endpoint is deprecated. Use /api/admin/lenses/[id] instead.',
+        },
       },
-    });
-
-    if (!product) {
-      return Response.json(
-        {
-          success: false,
-          error: {
-            code: 'NOT_FOUND',
-            message: 'Product not found',
-          },
-        },
-        { status: 404 }
-      );
-    }
-
-    // Check itCode uniqueness if being updated
-    if (validated.itCode && validated.itCode !== product.itCode) {
-      const existing = await prisma.product.findFirst({
-        where: {
-          organizationId: user.organizationId,
-          OR: [
-            { itCode: validated.itCode },
-            { sku: validated.itCode },
-          ],
-          id: { not: id },
-        },
-      });
-
-      if (existing) {
-        return Response.json(
-          {
-            success: false,
-            error: {
-              code: 'DUPLICATE_IT_CODE',
-              message: 'IT Code already exists',
-            },
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Update product
-    const updateData: any = { ...validated };
-    if (validated.offerPrice) {
-      updateData.basePrice = validated.offerPrice; // Sync basePrice with offerPrice
-    }
-
-    const updated = await prisma.product.update({
-      where: { id },
-      data: updateData,
-    });
-
-    // Serialize Date objects
-    const serialized = {
-      ...updated,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
-    };
-
-    return Response.json({
-      success: true,
-      data: serialized,
-    });
+      { status: 410 }
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return Response.json(
