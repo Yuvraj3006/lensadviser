@@ -42,14 +42,6 @@ export async function GET(request: NextRequest) {
     // Fetch users first, then filter by search in memory for case-insensitive search
     let users = await prisma.user.findMany({
       where: baseWhere,
-      include: {
-        store: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -66,6 +58,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Fetch store names separately
+    const storeIds = users.filter(u => u.storeId).map(u => u.storeId!);
+    const stores = storeIds.length > 0 ? await prisma.store.findMany({
+      where: {
+        id: { in: storeIds },
+        organizationId: user.organizationId,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    }) : [];
+    const storeMap = new Map(stores.map(s => [s.id, s.name]));
+
     const formattedUsers = users.map((u) => ({
       id: u.id,
       email: u.email,
@@ -74,7 +80,7 @@ export async function GET(request: NextRequest) {
       employeeId: u.employeeId,
       phone: u.phone,
       storeId: u.storeId,
-      storeName: u.store?.name || null,
+      storeName: u.storeId ? storeMap.get(u.storeId) || null : null,
       isActive: u.isActive,
       lastLoginAt: u.lastLoginAt,
       createdAt: u.createdAt,
@@ -99,7 +105,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateUserSchema.parse(body);
 
     // Role hierarchy validation
-    if (!canManageRole(currentUser.role, validatedData.role)) {
+    if (!canManageRole(currentUser.role, validatedData.role as UserRole)) {
       throw new ForbiddenError('You cannot create users with this role');
     }
 

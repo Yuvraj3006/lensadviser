@@ -11,7 +11,24 @@ import {
   PriceComponent,
   UpsellSuggestion,
 } from '@/types/offer-engine';
-import { DiscountType, OfferType, CustomerCategory } from '@prisma/client';
+// DiscountType and OfferType are string fields, not enums in Prisma
+const DiscountType = {
+  PERCENTAGE: 'PERCENTAGE',
+  FLAT_AMOUNT: 'FLAT_AMOUNT',
+} as const;
+
+const OfferType = {
+  PERCENT_OFF: 'PERCENT_OFF',
+  FLAT_OFF: 'FLAT_OFF',
+  FREE_LENS: 'FREE_LENS',
+  BONUS_FREE_PRODUCT: 'BONUS_FREE_PRODUCT',
+  COMBO_PRICE: 'COMBO_PRICE',
+  YOPO: 'YOPO',
+  BOG50: 'BOG50',
+} as const;
+
+// CustomerCategory is a string field, not an enum in Prisma
+type CustomerCategory = 'REGULAR' | 'SENIOR_CITIZEN' | 'STUDENT' | 'CORPORATE';
 
 export class OfferEngineService {
   /**
@@ -226,7 +243,7 @@ export class OfferEngineService {
 
     // V2: Fetch all active rules, ordered by priority (lower = higher priority)
     // Filter by offer types in priority order: COMBO_PRICE, YOPO, FREE_LENS, PERCENT_OFF, FLAT_OFF
-    const priorityOrder: OfferType[] = [OfferType.COMBO_PRICE, OfferType.YOPO, OfferType.FREE_LENS, OfferType.PERCENT_OFF, OfferType.FLAT_OFF];
+    const priorityOrder: string[] = [OfferType.COMBO_PRICE, OfferType.YOPO, OfferType.FREE_LENS, OfferType.PERCENT_OFF, OfferType.FLAT_OFF];
     
     const allRules = await prisma.offerRule.findMany({
       where: {
@@ -244,7 +261,7 @@ export class OfferEngineService {
       const aIndex = priorityOrder.indexOf(a.offerType);
       const bIndex = priorityOrder.indexOf(b.offerType);
       if (aIndex !== bIndex) return aIndex - bIndex;
-      return a.priority - b.priority;
+      return Number(a.priority) - Number(b.priority);
     });
 
     // Filter by conditions and find first applicable
@@ -540,22 +557,24 @@ export class OfferEngineService {
       } | null = null;
 
       for (const rule of upsellRules) {
-        const threshold = rule.upsellThreshold || 0;
+        const threshold = typeof rule.upsellThreshold === 'number' ? rule.upsellThreshold : (typeof rule.upsellThreshold === 'object' && rule.upsellThreshold !== null && 'value' in rule.upsellThreshold ? Number((rule.upsellThreshold as any).value) : 0);
         const remaining = threshold - currentTotal;
 
         // Only suggest if customer hasn't reached threshold yet
         if (remaining > 0) {
           // Calculate reward value (could be from config or rewardText parsing)
-          const rewardValue = this.extractRewardValue(rule.upsellRewardText || '');
+          const rewardText = typeof rule.upsellRewardText === 'string' ? rule.upsellRewardText : (typeof rule.upsellRewardText === 'object' && rule.upsellRewardText !== null && 'text' in rule.upsellRewardText ? String((rule.upsellRewardText as any).text) : '');
+          const rewardValue = this.extractRewardValue(rewardText);
           
           // Best upsell = highest reward value / remaining amount ratio
           const valueRatio = rewardValue / remaining;
 
           if (!bestUpsell || valueRatio > this.extractRewardValue(bestUpsell.rewardText) / bestUpsell.remaining) {
+            const rewardTextStr = typeof rule.upsellRewardText === 'string' ? rule.upsellRewardText : (typeof rule.upsellRewardText === 'object' && rule.upsellRewardText !== null && 'text' in rule.upsellRewardText ? String((rule.upsellRewardText as any).text) : 'Free Product');
             bestUpsell = {
               remaining: Math.round(remaining),
-              rewardText: rule.upsellRewardText || 'Free Product',
-              message: `Add ₹${Math.round(remaining)} more to unlock ${rule.upsellRewardText || 'this reward'}`,
+              rewardText: rewardTextStr,
+              message: `Add ₹${Math.round(remaining)} more to unlock ${rewardTextStr || 'this reward'}`,
               type: this.determineUpsellType(rule.offerType),
             };
           }

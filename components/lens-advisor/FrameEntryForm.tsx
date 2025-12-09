@@ -281,7 +281,7 @@ export function FrameEntryForm({ hideNextButton = false }: FrameEntryFormProps =
               brand: formData.brand || '',
               subCategory: formData.subCategory || null,
               mrp: formData.mrp || 0,
-              frameType: selectedValue || undefined,
+              frameType: (selectedValue as 'FULL_RIM' | 'HALF_RIM' | 'RIMLESS') || undefined,
             };
             console.log('[FrameEntryForm] Immediately syncing frame to store:', updatedFrame);
             setFrame(updatedFrame);

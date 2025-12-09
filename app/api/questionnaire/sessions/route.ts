@@ -42,9 +42,9 @@ export async function POST(request: NextRequest) {
         storeId,
         userId: user.userId,
         category: validatedData.category,
-        customerName: validatedData.customerName,
-        customerPhone: validatedData.customerPhone,
-        customerEmail: validatedData.customerEmail,
+        customerName: validatedData.customerName || '',
+        customerPhone: validatedData.customerPhone || '',
+        customerEmail: validatedData.customerEmail ? { email: validatedData.customerEmail } : null,
         status: 'IN_PROGRESS',
         startedAt: now,
         completedAt: now, // Set to current date, will be updated when session completes

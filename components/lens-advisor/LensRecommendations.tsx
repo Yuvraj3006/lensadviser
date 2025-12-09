@@ -219,7 +219,7 @@ export function LensRecommendations() {
             }}
             isSelected={selectedLens?.id === rec.id}
             onSelect={() => handleSelectLens(rec)}
-            recommendedIndex={recommendedIndex}
+            recommendedIndex={recommendedIndex ?? undefined}
           />
         ))}
       </div>

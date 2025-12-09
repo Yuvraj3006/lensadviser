@@ -35,9 +35,10 @@ async function migrateFeatures() {
     }
 
     // Verify all remaining features have codes
+    // Note: This check is skipped if code is nullable in schema
     const remainingFeatures = await prisma.feature.findMany({
       where: {
-        code: null,
+        code: null as any,
       },
     });
 

@@ -6,7 +6,14 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { OfferType } from '@prisma/client';
+
+// OfferType is a string field, not an enum in Prisma
+const OfferType = {
+  PERCENT_OFF: 'PERCENT_OFF',
+  FLAT_OFF: 'FLAT_OFF',
+  FREE_LENS: 'FREE_LENS',
+  BONUS_FREE_PRODUCT: 'BONUS_FREE_PRODUCT',
+} as const;
 
 type ProductCategory = 'EYEGLASSES' | 'SUNGLASSES' | 'CONTACT_LENSES' | 'ACCESSORIES';
 type OfferCondition = 'MIN_PURCHASE' | 'MATCH_SCORE' | 'FIRST_PURCHASE' | 'BRAND_SPECIFIC' | 'CATEGORY' | 'NO_CONDITION';
@@ -93,7 +100,7 @@ interface RecommendationResult {
  * Calculate lens pricing from database feature prices
  */
 function calculateLensPricing(
-  features: { id: string; name: string; key: string; price: number }[],
+  features: { id: string; name: string; code: string; price: number }[],
   baseLensPrice: number
 ): LensPricing {
   const featureAddons = features.map((feature) => ({
@@ -345,21 +352,26 @@ export async function generateRecommendations(
         optionKey: opt.optionKey,
       })),
     },
-    include: {
-      feature: true, // Include feature with price!
-    },
   });
 
   // 4. Calculate feature weights (aggregate by feature)
+  // Fetch features separately
+  const featureIds = [...new Set(featureMappings.map(m => m.featureId))];
+  const features = await prisma.feature.findMany({
+    where: { id: { in: featureIds } },
+  });
+  const featureMap = new Map(features.map(f => [f.id, f]));
+
   const featureWeights: Map<string, { feature: any; totalWeight: number }> = new Map();
 
   featureMappings.forEach((mapping) => {
     const existing = featureWeights.get(mapping.featureId);
+    const feature = featureMap.get(mapping.featureId);
     if (existing) {
       existing.totalWeight += mapping.weight;
     } else {
       featureWeights.set(mapping.featureId, {
-        feature: mapping.feature,
+        feature: feature || null,
         totalWeight: mapping.weight,
       });
     }
@@ -441,12 +453,12 @@ export async function generateRecommendations(
   });
 
     // 6. Get feature-benefit mappings for interconnected scoring
-    const featureIds = Array.from(featureWeights.keys());
+    const featureIdsForBenefitMapping = Array.from(featureWeights.keys());
     // FeatureBenefit model - use type assertion if needed
-    const featureBenefitMappings = featureIds.length > 0
+    const featureBenefitMappings = featureIdsForBenefitMapping.length > 0
       ? await (prisma as any).featureBenefit?.findMany({
           where: {
-            featureId: { in: featureIds },
+            featureId: { in: featureIdsForBenefitMapping },
           },
           include: {
             benefit: true,
@@ -607,8 +619,8 @@ export async function generateRecommendations(
     const productFeatures = productFeatureList.map((pf) => ({
       id: pf.feature.id,
       name: pf.feature.name,
-      key: pf.feature.key,
-      price: pf.feature.price || 0, // Price from database! (no strength multiplier)
+      code: (pf.feature as any).code || (pf.feature as any).key || '',
+      price: 0, // Features no longer have prices - pricing is handled via lens product baseOfferPrice
     }));
     
     const lensPrice = calculateLensPricing(productFeatures, baseLensPrice);
@@ -964,8 +976,8 @@ export async function getSessionRecommendations(
     const productFeatures = productFeatureList.map((pf) => ({
       id: pf.feature.id,
       name: pf.feature.name,
-      key: pf.feature.key,
-      price: pf.feature.price || 0, // No strength multiplier (ProductFeature is just a join table)
+      code: (pf.feature as any).code || (pf.feature as any).key || '',
+      price: 0, // Features no longer have prices - pricing is handled via lens product baseOfferPrice
     }));
     
     const lensPrice = calculateLensPricing(productFeatures, baseLensPrice);
@@ -1159,19 +1171,24 @@ export async function getSessionRecommendations(
         optionKey: opt.optionKey,
       })),
     },
-    include: {
-      feature: true,
-    },
   });
+
+  // Fetch features separately
+  const featureIdsForMapping = [...new Set(featureMappings.map(m => m.featureId))];
+  const featuresForMapping = await prisma.feature.findMany({
+    where: { id: { in: featureIdsForMapping } },
+  });
+  const featureMapForMapping = new Map(featuresForMapping.map(f => [f.id, f]));
 
   const featureWeights: Map<string, { feature: any; totalWeight: number }> = new Map();
   featureMappings.forEach((mapping) => {
     const existing = featureWeights.get(mapping.featureId);
+    const feature = featureMapForMapping.get(mapping.featureId);
     if (existing) {
       existing.totalWeight += mapping.weight;
     } else {
       featureWeights.set(mapping.featureId, {
-        feature: mapping.feature,
+        feature: feature || null,
         totalWeight: mapping.weight,
       });
     }
@@ -1191,7 +1208,7 @@ export async function getSessionRecommendations(
     sessionId,
     category: session.category as ProductCategory,
     customerName: session.customerName || null,
-    recommendations: validRecommendations,
+    recommendations: validRecommendations as any,
     answeredFeatures: answeredFeatures.sort((a, b) => b.weight - a.weight),
     generatedAt: sessionRecommendations[0]?.createdAt || new Date(),
   };

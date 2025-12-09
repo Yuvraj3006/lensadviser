@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       prescription: validated.prescription,
       frame: validated.frame || null,
       answers: validated.answers,
-      visionTypeOverride: validated.visionTypeOverride || null,
+      visionTypeOverride: (validated.visionTypeOverride as any) || null,
       budgetFilter: validated.budgetFilter || null,
       organizationId: validated.organizationId,
     });

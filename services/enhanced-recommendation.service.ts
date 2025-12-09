@@ -68,9 +68,17 @@ export class EnhancedRecommendationService {
     const benefitScores = await this.buildBenefitScores(answersWithRelations);
 
     // Step 3: Get products
-    const products = await prisma.product.findMany({
+    // Map category to RetailProductType
+    const categoryMap: Record<string, 'FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY'> = {
+      'EYEGLASSES': 'FRAME',
+      'SUNGLASSES': 'SUNGLASS',
+      'CONTACT_LENSES': 'CONTACT_LENS',
+      'ACCESSORIES': 'ACCESSORY',
+    };
+    const productType = categoryMap[category] || 'FRAME';
+    const products = await (prisma as any).retailProduct.findMany({
       where: {
-        category,
+        type: productType,
         isActive: true,
       },
     });
@@ -79,7 +87,7 @@ export class EnhancedRecommendationService {
       return [];
     }
 
-    const productIds = products.map(p => p.id);
+    const productIds = products.map((p: any) => p.id);
 
     // Step 4: Fetch all related data
     const [
@@ -109,30 +117,30 @@ export class EnhancedRecommendationService {
       prisma.benefit.findMany({ where: { id: { in: benefitIds } } }),
     ]);
 
-    const featureMap = new Map(features.map(f => [f.id, f]));
-    const benefitMap = new Map(benefits.map(b => [b.id, b]));
-    const benefitCodeMap = new Map(benefits.map(b => [b.id, b.code]));
+    const featureMap = new Map(features.map((f: any) => [f.id, f]));
+    const benefitMap = new Map(benefits.map((b: any) => [b.id, b]));
+    const benefitCodeMap = new Map(benefits.map((b: any) => [b.id, b.code]));
 
     // Step 5: Attach relations to products
-    const productsWithRelations = products.map(p => ({
+    const productsWithRelations = products.map((p: any) => ({
       ...p,
       features: productFeatures
-        .filter(pf => pf.productId === p.id)
-        .map(pf => ({
+        .filter((pf: any) => pf.productId === p.id)
+        .map((pf: any) => ({
           ...pf,
           feature: featureMap.get(pf.featureId)!,
         })),
       benefits: productBenefits
-        .filter(pb => pb.productId === p.id)
-        .map(pb => ({
+        .filter((pb: any) => pb.productId === p.id)
+        .map((pb: any) => ({
           ...pb,
           benefit: benefitMap.get(pb.benefitId)!,
         })),
-      storeProducts: storeProducts.filter(sp => sp.productId === p.id),
+      storeProducts: storeProducts.filter((sp: any) => sp.productId === p.id),
     }));
 
     // Step 6: Calculate scores for each product
-    const scoredProducts = productsWithRelations.map((product) => {
+    const scoredProducts = productsWithRelations.map((product: any) => {
       const featureScore = this.calculateFeatureScore(product, featurePreferenceVector);
       const benefitScore = this.calculateBenefitScore(product, benefitScores, benefitCodeMap);
       const interconnectedScore = this.calculateInterconnectedScore(
@@ -168,13 +176,13 @@ export class EnhancedRecommendationService {
     });
 
     // Step 7: Sort by match score
-    let ranked = scoredProducts.sort((a, b) => b.matchScore - a.matchScore);
+    let ranked = scoredProducts.sort((a: any, b: any) => b.matchScore - a.matchScore);
 
     // Step 8: Apply diversity bonus
     ranked = this.applyDiversityBonus(ranked);
 
     // Step 9: Prioritize in-stock items
-    ranked = ranked.sort((a, b) => {
+    ranked = ranked.sort((a: any, b: any) => {
       if (a.inStock && !b.inStock) return -1;
       if (!a.inStock && b.inStock) return 1;
       return b.matchScore - a.matchScore;

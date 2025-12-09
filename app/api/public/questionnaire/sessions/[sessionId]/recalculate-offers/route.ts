@@ -101,31 +101,15 @@ export async function POST(
     const organizationId = store.organizationId;
     const baseLensPrice = organization.baseLensPrice || 0;
     const storeProduct = storeProducts[0];
-    const framePrice = storeProduct?.priceOverride ?? product.basePrice ?? 0;
+    const framePrice = storeProduct?.priceOverride ?? (product as any).baseOfferPrice ?? 0;
 
-    // Fetch features and calculate lens pricing
-    const featuresWithDetails = await Promise.all(
-      productFeatures.map(async (pf) => {
-        const feature = await prisma.feature.findUnique({
-          where: { id: pf.featureId },
-        });
-        return {
-          id: feature?.id || '',
-          name: feature?.name || '',
-          price: feature?.price ?? 0,
-          strength: pf.strength ?? 0,
-        };
-      })
-    );
-
-    const totalLensPrice = baseLensPrice + featuresWithDetails.reduce(
-      (sum, f) => sum + (f.price * f.strength),
-      0
-    );
+    // Calculate lens pricing - use baseOfferPrice from lens product
+    // Features no longer have pricing, so we use the product's baseOfferPrice
+    const totalLensPrice = (product as any).baseOfferPrice ?? baseLensPrice;
 
     // Prepare inputs for Offer Engine
     const frameInput: FrameInput = {
-      brand: product.brand || 'UNKNOWN',
+      brand: (product as any).brand || (product as any).brandLine || 'UNKNOWN',
       subCategory: null, // Product model doesn't have subCategory field
       mrp: framePrice,
       frameType: undefined,
@@ -134,10 +118,10 @@ export async function POST(
     // Handle itCode as Json? field - convert to string if needed
     const itCodeValue = product.itCode 
       ? (typeof product.itCode === 'string' ? product.itCode : String(product.itCode))
-      : product.sku;
+      : (product as any).sku;
 
     const lensInput: LensInput = {
-      itCode: itCodeValue || product.sku,
+      itCode: itCodeValue || (product as any).sku || '',
       price: totalLensPrice,
       brandLine: product.brandLine || 'STANDARD',
       yopoEligible: product.yopoEligible || false,

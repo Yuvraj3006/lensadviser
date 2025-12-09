@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
         offerData: validated.offerData,
         finalPrice: validated.finalPrice,
         status: 'DRAFT',
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
 

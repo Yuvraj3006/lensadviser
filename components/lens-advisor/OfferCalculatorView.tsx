@@ -12,8 +12,10 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Calculator, Tag, Percent, Ticket, Package, Printer, ShoppingCart } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { CustomerCategory } from '@prisma/client';
 import { OfferCalculationResult } from '@/types/offer-engine';
+
+// CustomerCategory is a string field, not an enum in Prisma
+const CustomerCategory = ['REGULAR', 'SENIOR_CITIZEN', 'STUDENT', 'CORPORATE'] as const;
 
 export function OfferCalculatorView() {
   const { showToast } = useToast();

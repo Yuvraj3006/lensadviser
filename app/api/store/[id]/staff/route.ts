@@ -34,18 +34,13 @@ export async function GET(
 
     const staff = await prisma.staff.findMany({
       where: {
-        storeId: id,
-        status: 'ACTIVE',
+        storeId: id as any,
+        status: 'ACTIVE' as any,
       },
       select: {
         id: true,
-        name: true,
-        phone: true,
-        role: true,
         status: true,
-      },
-      orderBy: {
-        name: 'asc',
+        storeId: true,
       },
     });
 

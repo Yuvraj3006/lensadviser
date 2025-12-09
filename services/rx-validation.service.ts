@@ -85,11 +85,11 @@ export class RxValidationService {
 
     // If addition is present and significant, it's likely progressive or bifocal
     if (rx.add !== null && rx.add !== undefined && rx.add > 0.75) {
-      return VisionType.MULTIFOCAL;
+      return VisionType.PROGRESSIVE;
     }
 
-    // Default to myopia (most common)
-    return VisionType.MYOPIA;
+    // Default to single vision (most common)
+    return VisionType.SINGLE_VISION;
   }
 
   /**

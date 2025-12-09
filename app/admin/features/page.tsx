@@ -452,7 +452,7 @@ export default function FeaturesPage() {
             value={formData.code}
             onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
             required
-            disabled={editingFeature?.code ? isCoreFeature(editingFeature.code) : false}
+            disabled={!!(editingFeature?.code && isCoreFeature(editingFeature.code))}
             hint={editingFeature?.code && isCoreFeature(editingFeature.code) 
               ? "Core features (F01-F11) cannot be modified" 
               : "Must be F followed by 2+ digits (e.g., F12, F13)"}
@@ -464,7 +464,7 @@ export default function FeaturesPage() {
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
-            disabled={editingFeature?.code ? isCoreFeature(editingFeature.code) : false}
+            disabled={!!(editingFeature?.code && isCoreFeature(editingFeature.code))}
           />
 
           <Input

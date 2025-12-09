@@ -15,7 +15,7 @@ export function PerformanceFix() {
     // Wrap performance.measure to catch negative timestamp errors
     const originalMeasure = window.performance.measure.bind(window.performance);
     
-    window.performance.measure = function(
+    (window.performance as any).measure = function(
       name: string,
       startMark?: string,
       endMark?: string

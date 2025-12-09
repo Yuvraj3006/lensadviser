@@ -33,7 +33,7 @@ export async function PUT(
     }
 
     // Role hierarchy validation
-    if (validatedData.role && !canManageRole(currentUser.role, validatedData.role)) {
+    if (validatedData.role && !canManageRole(currentUser.role, validatedData.role as UserRole)) {
       throw new ForbiddenError('You cannot update users to this role');
     }
 
@@ -115,7 +115,7 @@ export async function DELETE(
     }
 
     // Role hierarchy validation
-    if (!canManageRole(currentUser.role, existingUser.role)) {
+    if (!canManageRole(currentUser.role, existingUser.role as UserRole)) {
       throw new ForbiddenError('You cannot delete users with this role');
     }
 

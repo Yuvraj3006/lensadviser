@@ -53,15 +53,23 @@ export class RecommendationService {
     const preferenceVector = await this.buildPreferenceVector(answersWithRelations);
 
     // Step 3: Get available products for this category and store
-    const products = await prisma.product.findMany({
+    // Map category to RetailProductType
+    const categoryMap: Record<string, 'FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY'> = {
+      'EYEGLASSES': 'FRAME',
+      'SUNGLASSES': 'SUNGLASS',
+      'CONTACT_LENSES': 'CONTACT_LENS',
+      'ACCESSORIES': 'ACCESSORY',
+    };
+    const productType = categoryMap[category] || 'FRAME';
+    const products = await (prisma as any).retailProduct.findMany({
       where: {
-        category,
+        type: productType,
         isActive: true,
       },
     });
 
     // Manually fetch features and storeProducts
-    const productIds = products.map(p => p.id);
+    const productIds = products.map((p: any) => p.id);
     const [productFeatures, storeProducts] = await Promise.all([
       prisma.productFeature.findMany({ where: { productId: { in: productIds } } }),
       prisma.storeProduct.findMany({ where: { productId: { in: productIds }, storeId } }),
@@ -73,19 +81,19 @@ export class RecommendationService {
     const featureMap = new Map(features.map(f => [f.id, f]));
 
     // Attach features and storeProducts to products
-    const productsWithRelations = products.map(p => ({
+    const productsWithRelations = products.map((p: any) => ({
       ...p,
       features: productFeatures
-        .filter(pf => pf.productId === p.id)
-        .map(pf => ({
+        .filter((pf: any) => pf.productId === p.id)
+        .map((pf: any) => ({
           ...pf,
           feature: featureMap.get(pf.featureId)!,
         })),
-      storeProducts: storeProducts.filter(sp => sp.productId === p.id),
+      storeProducts: storeProducts.filter((sp: any) => sp.productId === p.id),
     }));
 
     // Step 4: Calculate match score for each product
-    const scoredProducts = productsWithRelations.map((product) => {
+    const scoredProducts = productsWithRelations.map((product: any) => {
       const matchScore = this.calculateMatchScore(product, preferenceVector);
       const storeProduct = product.storeProducts[0];
 
@@ -103,13 +111,13 @@ export class RecommendationService {
     });
 
     // Step 5: Sort by match score and apply diversity bonus
-    let ranked = scoredProducts.sort((a, b) => b.matchScore - a.matchScore);
+    let ranked = scoredProducts.sort((a: any, b: any) => b.matchScore - a.matchScore);
 
     // Step 6: Apply diversity bonus (ensure brand variety)
     ranked = this.applyDiversityBonus(ranked);
 
     // Step 7: Prioritize in-stock items
-    ranked = ranked.sort((a, b) => {
+    ranked = ranked.sort((a: any, b: any) => {
       if (a.inStock && !b.inStock) return -1;
       if (!a.inStock && b.inStock) return 1;
       return b.matchScore - a.matchScore;

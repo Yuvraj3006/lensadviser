@@ -202,7 +202,7 @@ export class BenefitRecommendationService {
     });
 
     // Manually fetch benefits and answer scores for all products
-    const productIds = products.map(p => p.id);
+    const productIds = products.map((p: any) => p.id);
     // Get product benefits (Answer Boosts removed - all scoring via Benefits only)
     const productBenefits = await prisma.productBenefit.findMany({
       where: { productId: { in: productIds } },
@@ -216,18 +216,18 @@ export class BenefitRecommendationService {
     const benefitMap = new Map(benefits.map(b => [b.id, b]));
 
     // Attach benefits to products
-    const productsWithRelations = products.map(p => ({
+    const productsWithRelations = products.map((p: any) => ({
       ...p,
       benefits: productBenefits
-        .filter(pb => pb.productId === p.id)
-        .map(pb => ({
+        .filter((pb: any) => pb.productId === p.id)
+        .map((pb: any) => ({
           ...pb,
           benefit: benefitMap.get(pb.benefitId)!,
         })),
     }));
 
     // Filter by RX range, frame type, and budget
-    return productsWithRelations.filter((p) => {
+    return productsWithRelations.filter((p: any) => {
       // Filter by frame type (safety rules)
       if (!this.isLensAllowedForFrameType(p, frameType || null)) {
         return false;
@@ -290,7 +290,7 @@ export class BenefitRecommendationService {
         itCode: p.itCode || p.sku,
         name: p.name,
         brandLine: p.brandLine || 'STANDARD',
-        visionType: p.visionType || VisionType.MYOPIA,
+        visionType: p.visionType || VisionType.SINGLE_VISION,
         lensIndex: p.lensIndex || 'INDEX_156',
         tintOption: p.tintOption || 'CLEAR',
         mrp: p.mrp || p.basePrice,

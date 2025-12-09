@@ -1,10 +1,37 @@
-import {
-  PrismaClient,
-  UserRole,
-  OfferType,
-  DiscountType,
-  CustomerCategory,
-} from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+
+// These are string fields, not enums in Prisma
+const UserRole = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
+  ADMIN: 'ADMIN',
+  STORE_MANAGER: 'STORE_MANAGER',
+  SALES_EXECUTIVE: 'SALES_EXECUTIVE',
+} as const;
+
+const OfferType = {
+  PERCENT_OFF: 'PERCENT_OFF',
+  FLAT_OFF: 'FLAT_OFF',
+  FREE_LENS: 'FREE_LENS',
+  BONUS_FREE_PRODUCT: 'BONUS_FREE_PRODUCT',
+  YOPO: 'YOPO',
+  COMBO_PRICE: 'COMBO_PRICE',
+  BOG50: 'BOG50',
+} as const;
+
+const DiscountType = {
+  PERCENTAGE: 'PERCENTAGE',
+  FLAT_AMOUNT: 'FLAT_AMOUNT',
+} as const;
+
+const CustomerCategory = {
+  REGULAR: 'REGULAR',
+  SENIOR_CITIZEN: 'SENIOR_CITIZEN',
+  STUDENT: 'STUDENT',
+  CORPORATE: 'CORPORATE',
+  DOCTOR: 'DOCTOR',
+  TEACHER: 'TEACHER',
+  ARMED_FORCES: 'ARMED_FORCES',
+} as const;
 
 type ProductCategory = 'EYEGLASSES' | 'SUNGLASSES' | 'CONTACT_LENSES' | 'ACCESSORIES';
 const ProductCategory = {
@@ -49,7 +76,7 @@ async function main() {
   await prisma.question.deleteMany();
   await prisma.storeProduct.deleteMany();
   await prisma.productFeature.deleteMany();
-  await prisma.product.deleteMany();
+  // await prisma.product.deleteMany(); // Product model removed - replaced by LensProduct and RetailProduct
   await prisma.feature.deleteMany();
   await prisma.offerApplicationLog.deleteMany();
   await prisma.coupon.deleteMany();
@@ -182,6 +209,9 @@ async function main() {
   // ============================================
   // CREATE FEATURES WITH PRICES (DYNAMIC!)
   // ============================================
+  // NOTE: Features are now global and have different structure (code instead of key, no organizationId, no price)
+  // Commenting out feature creation - features should be seeded separately using seed-features-benefits.ts
+  /*
   const blueLightFilter = await prisma.feature.create({
     data: {
       organizationId: org.id,
@@ -269,11 +299,8 @@ async function main() {
   console.log(`✅ Created features with prices:`);
   console.log(`   - Blue Light Filter: ₹${blueLightFilter.price}`);
   console.log(`   - Anti-Scratch: ₹${antiScratch.price}`);
-  console.log(`   - Anti-Glare: ₹${antiGlare.price}`);
-  console.log(`   - Progressive: ₹${progressive.price}`);
-  console.log(`   - UV Protection: ₹${uvProtection.price}`);
-  console.log(`   - Photochromic: ₹${photochromic.price}`);
-  console.log(`   - High Index: ₹${highIndex.price}`);
+  */
+  console.log(`⚠️  Feature seeding skipped - Features are now global and should be seeded using seed-features-benefits.ts`);
 
   // ============================================
   // CREATE OFFERS (DYNAMIC FROM DATABASE!)
@@ -448,6 +475,7 @@ async function main() {
         },
         priority: 10,
         isActive: true,
+        upsellEnabled: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -465,6 +493,7 @@ async function main() {
         },
         priority: 15,
         isActive: true,
+        upsellEnabled: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -483,6 +512,7 @@ async function main() {
         },
         priority: 5,
         isActive: true,
+        upsellEnabled: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -500,6 +530,7 @@ async function main() {
         },
         priority: 8,
         isActive: true,
+        upsellEnabled: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -516,6 +547,7 @@ async function main() {
         },
         priority: 20,
         isActive: true,
+        upsellEnabled: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -532,6 +564,7 @@ async function main() {
         },
         priority: 25,
         isActive: true,
+        upsellEnabled: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -549,6 +582,7 @@ async function main() {
         },
         priority: 3,
         isActive: true,
+        upsellEnabled: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -569,6 +603,8 @@ async function main() {
         discountPercent: 10,
         maxDiscount: 500,
         isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
       {
         organizationId: org.id,
@@ -577,6 +613,8 @@ async function main() {
         discountPercent: 15,
         maxDiscount: 1000,
         isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
       {
         organizationId: org.id,
@@ -585,6 +623,8 @@ async function main() {
         discountPercent: 12,
         maxDiscount: 600,
         isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
       {
         organizationId: org.id,
@@ -593,6 +633,8 @@ async function main() {
         discountPercent: 10,
         maxDiscount: 500,
         isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
       {
         organizationId: org.id,
@@ -601,6 +643,8 @@ async function main() {
         discountPercent: 20,
         maxDiscount: 1500,
         isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
       {
         organizationId: org.id,
@@ -609,6 +653,8 @@ async function main() {
         discountPercent: 15,
         maxDiscount: 750,
         isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     ],
   });
@@ -628,6 +674,7 @@ async function main() {
         maxDiscount: 500,
         minCartValue: 2000,
         isActive: true,
+        validFrom: new Date(),
       },
       {
         organizationId: org.id,
@@ -636,6 +683,7 @@ async function main() {
         discountValue: 500,
         minCartValue: 3000,
         isActive: true,
+        validFrom: new Date(),
       },
       {
         organizationId: org.id,
@@ -645,6 +693,7 @@ async function main() {
         maxDiscount: 1500,
         minCartValue: 5000,
         isActive: true,
+        validFrom: new Date(),
       },
       {
         organizationId: org.id,
@@ -653,6 +702,7 @@ async function main() {
         discountValue: 200,
         minCartValue: null,
         isActive: true,
+        validFrom: new Date(),
       },
     ],
   });
@@ -662,6 +712,9 @@ async function main() {
   // ============================================
   // CREATE PRODUCTS (Frame prices)
   // ============================================
+  // NOTE: Product model removed - replaced by LensProduct and RetailProduct
+  // Commenting out product creation for now
+  /*
   const product1 = await prisma.product.create({
     data: {
       organizationId: org.id,
@@ -776,6 +829,8 @@ async function main() {
     ],
   });
   console.log(`✅ Created store products with stock`);
+  */
+  console.log(`⚠️  Product seeding skipped - Product model replaced by LensProduct and RetailProduct`);
 
   // ============================================
   // CREATE QUESTIONS
@@ -805,6 +860,8 @@ async function main() {
     ],
   });
 
+  // Feature mapping commented out - features are now global and should be mapped via benefits
+  /*
   await prisma.featureMapping.createMany({
     data: [
       { questionId: q1.id, optionKey: '4-8hrs', featureId: blueLightFilter.id, weight: 1.2 },
@@ -814,6 +871,7 @@ async function main() {
       { questionId: q1.id, optionKey: '12hrs+', featureId: antiGlare.id, weight: 1.8 },
     ],
   });
+  */
 
   const q2 = await prisma.question.create({
     data: {
@@ -838,6 +896,8 @@ async function main() {
     ],
   });
 
+  // Feature mapping commented out - features are now global and should be mapped via benefits
+  /*
   await prisma.featureMapping.createMany({
     data: [
       { questionId: q2.id, optionKey: 'outdoor', featureId: uvProtection.id, weight: 2.0 },
@@ -847,6 +907,7 @@ async function main() {
       { questionId: q2.id, optionKey: 'indoor', featureId: blueLightFilter.id, weight: 1.3 },
     ],
   });
+  */
 
   const q3 = await prisma.question.create({
     data: {
@@ -872,6 +933,8 @@ async function main() {
     ],
   });
 
+  // Feature mapping commented out - features are now global and should be mapped via benefits
+  /*
   await prisma.featureMapping.createMany({
     data: [
       { questionId: q3.id, optionKey: '41-50', featureId: progressive.id, weight: 1.5 },
@@ -879,6 +942,7 @@ async function main() {
       { questionId: q3.id, optionKey: '51+', featureId: highIndex.id, weight: 1.5 },
     ],
   });
+  */
 
   console.log(`✅ Created questions with options and feature mappings`);
 
@@ -918,6 +982,8 @@ async function main() {
       ],
     });
 
+    // Session recommendations commented out - products are now commented out
+    /*
     await prisma.sessionRecommendation.createMany({
       data: [
         { sessionId: session.id, productId: product2.id, matchScore: 95.5, rank: BigInt(1), isSelected: false, createdAt: new Date() },
@@ -925,6 +991,7 @@ async function main() {
         { sessionId: session.id, productId: product3.id, matchScore: 65.8, rank: BigInt(3), isSelected: false, createdAt: new Date() },
       ],
     });
+    */
   }
 
   console.log(`✅ Created sample session`);

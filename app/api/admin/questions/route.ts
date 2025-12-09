@@ -417,27 +417,38 @@ export async function POST(request: NextRequest) {
         if (opt.benefitMapping && answerOption) {
           // Create AnswerBenefit records for each benefit with points > 0
           const benefitMappings = Object.entries(opt.benefitMapping)
-            .filter(([_, points]) => points > 0) // Only create mappings with points > 0
+            .filter(([_, points]) => typeof points === 'number' && points > 0) // Only create mappings with points > 0
             .map(([benefitCode, points]) => {
               const benefitId = benefitMap.get(benefitCode);
               if (!benefitId) {
                 console.warn(`[POST /api/admin/questions] Benefit code ${benefitCode} not found`);
                 return null;
               }
+              const pointsValue = typeof points === 'number' ? points : 0;
               return {
                 answerId: answerOption.id,
                 benefitId: benefitId,
-                points: typeof points === 'number' ? points : 1, // Store points from benefitMapping
-                points: typeof points === 'number' ? Math.max(0, Math.min(3, points)) : 0, // Clamp 0-3
+                points: Math.max(0, Math.min(3, pointsValue)), // Clamp 0-3
               };
             })
             .filter((mapping) => mapping !== null);
 
           if (benefitMappings.length > 0) {
-            await prisma.answerBenefit.createMany({
-              data: benefitMappings,
-              skipDuplicates: true,
-            });
+            // Use upsert for each mapping since MongoDB doesn't support skipDuplicates
+            await Promise.all(
+              benefitMappings.map((mapping) =>
+                prisma.answerBenefit.upsert({
+                  where: {
+                    answerId_benefitId: {
+                      answerId: mapping.answerId,
+                      benefitId: mapping.benefitId,
+                    },
+                  },
+                  update: { points: mapping.points },
+                  create: mapping,
+                })
+              )
+            );
           }
         }
       }
