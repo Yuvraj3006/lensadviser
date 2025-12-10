@@ -48,57 +48,59 @@ export function DataTable<T extends Record<string, any>>({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
-            {columns.map((column) => (
-              <th
-                key={String(column.key)}
-                className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider"
-                style={{ width: column.width }}
-              >
-                {column.header}
-              </th>
-            ))}
-            {rowActions && (
-              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Actions
-              </th>
-            )}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200">
-          {data.map((item) => (
-            <tr
-              key={keyExtractor(item)}
-              className={clsx(
-                'hover:bg-slate-50 transition-colors',
-                onRowClick && 'cursor-pointer'
-              )}
-              onClick={() => onRowClick?.(item)}
-            >
+    <div className="overflow-x-auto -mx-4 sm:mx-0">
+      <div className="inline-block min-w-full align-middle">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50">
               {columns.map((column) => (
-                <td
+                <th
                   key={String(column.key)}
-                  className="px-4 py-3 text-sm text-slate-900"
+                  className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider whitespace-nowrap"
+                  style={{ width: column.width }}
                 >
-                  {column.render
-                    ? column.render(item)
-                    : String(item[column.key] ?? '-')}
-                </td>
+                  {column.header}
+                </th>
               ))}
               {rowActions && (
-                <td className="px-4 py-3 text-sm text-right">
-                  <div onClick={(e) => e.stopPropagation()}>
-                    {rowActions(item)}
-                  </div>
-                </td>
+                <th className="px-3 sm:px-4 py-2 sm:py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider whitespace-nowrap">
+                  Actions
+                </th>
               )}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-200 bg-white">
+            {data.map((item) => (
+              <tr
+                key={keyExtractor(item)}
+                className={clsx(
+                  'hover:bg-slate-50 transition-colors',
+                  onRowClick && 'cursor-pointer'
+                )}
+                onClick={() => onRowClick?.(item)}
+              >
+                {columns.map((column) => (
+                  <td
+                    key={String(column.key)}
+                    className="px-3 sm:px-4 py-2 sm:py-3 text-sm text-slate-900 whitespace-nowrap"
+                  >
+                    {column.render
+                      ? column.render(item)
+                      : String(item[column.key] ?? '-')}
+                  </td>
+                ))}
+                {rowActions && (
+                  <td className="px-3 sm:px-4 py-2 sm:py-3 text-sm text-right whitespace-nowrap">
+                    <div onClick={(e) => e.stopPropagation()}>
+                      {rowActions(item)}
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

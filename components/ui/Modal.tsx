@@ -57,7 +57,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm"
       onClick={(e) => {
         if (closeOnOverlay && e.target === e.currentTarget) {
           onClose();
@@ -69,18 +69,18 @@ export function Modal({
     >
       <div
         className={clsx(
-          'bg-white rounded-xl shadow-2xl w-full max-h-[90vh] flex flex-col',
+          'bg-white rounded-xl shadow-2xl w-full max-h-[95vh] sm:max-h-[90vh] flex flex-col',
           sizes[size]
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h2 id="modal-title" className="text-lg font-bold text-slate-900">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200">
+          <h2 id="modal-title" className="text-base sm:text-lg font-bold text-slate-900 truncate pr-2">
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors flex-shrink-0"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -88,13 +88,13 @@ export function Modal({
         </div>
 
         {/* Body */}
-        <div className="px-6 py-4 overflow-y-auto flex-1">
+        <div className="px-4 sm:px-6 py-4 overflow-y-auto flex-1">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 flex items-center justify-end gap-2 sm:gap-3 flex-wrap">
             {footer}
           </div>
         )}

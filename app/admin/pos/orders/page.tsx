@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { DataTable, Column } from '@/components/data-display/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Eye, Printer, Send, Clock, User, Store, DollarSign, UserCheck } from 'lucide-react';
+import { Eye, Printer, Send, Clock, User, Store, DollarSign, UserCheck, Package } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Order {
@@ -213,21 +213,32 @@ export default function POSOrdersPage() {
     }).format(amount);
   };
 
+  const formatTimeShort = (timeString: string) => {
+    try {
+      return format(new Date(timeString), 'MMM dd, HH:mm');
+    } catch {
+      return timeString;
+    }
+  };
+
   const columns: Column<Order>[] = [
     {
       key: 'orderId',
       header: 'Order ID',
       render: (order) => (
-        <span className="font-mono font-semibold text-slate-900">{order.orderId}</span>
+        <span className="font-mono font-semibold text-slate-900 text-xs sm:text-sm">{order.orderId}</span>
       ),
     },
     {
       key: 'time',
       header: 'Time',
       render: (order) => (
-        <div className="flex items-center gap-2 text-slate-600">
-          <Clock size={16} />
-          <span>{formatTime(order.time)}</span>
+        <div className="flex items-center gap-1 sm:gap-2 text-slate-600">
+          <Clock size={14} className="hidden sm:block" />
+          <span className="text-xs sm:text-sm">
+            <span className="sm:hidden">{formatTimeShort(order.time)}</span>
+            <span className="hidden sm:inline">{formatTime(order.time)}</span>
+          </span>
         </div>
       ),
     },
@@ -235,9 +246,9 @@ export default function POSOrdersPage() {
       key: 'customerName',
       header: 'Customer',
       render: (order) => (
-        <div className="flex items-center gap-2">
-          <User size={16} className="text-slate-400" />
-          <span className="text-slate-900">
+        <div className="flex items-center gap-1 sm:gap-2">
+          <User size={14} className="text-slate-400 hidden sm:block" />
+          <span className="text-xs sm:text-sm text-slate-900 truncate max-w-[120px] sm:max-w-none">
             {order.customerName || (
               <span className="text-slate-400 italic">Not provided</span>
             )}
@@ -249,11 +260,11 @@ export default function POSOrdersPage() {
       key: 'store',
       header: 'Store',
       render: (order) => (
-        <div className="flex items-center gap-2">
-          <Store size={16} className="text-slate-400" />
-          <div>
-            <div className="font-medium text-slate-900">{order.store.name}</div>
-            <div className="text-xs text-slate-500">{order.store.code}</div>
+        <div className="flex items-center gap-1 sm:gap-2">
+          <Store size={14} className="text-slate-400 hidden sm:block" />
+          <div className="min-w-0">
+            <div className="font-medium text-xs sm:text-sm text-slate-900 truncate">{order.store.name}</div>
+            <div className="text-xs text-slate-500 hidden sm:block">{order.store.code}</div>
           </div>
         </div>
       ),
@@ -263,38 +274,17 @@ export default function POSOrdersPage() {
       header: 'Status',
       render: (order) => (
         <Badge color={getStatusBadgeColor(order.status)}>
-          {order.status.replace(/_/g, ' ')}
+          <span className="text-xs">{order.status.replace(/_/g, ' ')}</span>
         </Badge>
       ),
     },
     {
-      key: 'staff',
-      header: 'Staff',
-      render: (order) => (
-        <div className="flex items-center gap-2">
-          {order.staff ? (
-            <>
-              <UserCheck size={16} className="text-slate-400" />
-              <div>
-                <div className="text-slate-900">{order.staff.name}</div>
-                {order.staff.role && (
-                  <div className="text-xs text-slate-500">{order.staff.role}</div>
-                )}
-              </div>
-            </>
-          ) : (
-            <span className="text-slate-400 italic">Self-service</span>
-          )}
-        </div>
-      ),
-    },
-    {
       key: 'finalAmount',
-      header: 'Final Amount',
+      header: 'Amount',
       render: (order) => (
-        <div className="flex items-center gap-2 font-semibold text-slate-900">
-          <DollarSign size={16} />
-          {formatCurrency(order.finalAmount)}
+        <div className="flex items-center gap-1 sm:gap-2 font-semibold text-slate-900">
+          <DollarSign size={14} className="hidden sm:block" />
+          <span className="text-xs sm:text-sm">{formatCurrency(order.finalAmount)}</span>
         </div>
       ),
     },
@@ -302,15 +292,15 @@ export default function POSOrdersPage() {
       key: 'actions',
       header: 'Actions',
       render: (order) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
           <Button
             variant="outline"
             size="sm"
             onClick={() => fetchOrderDetail(order.id)}
-            className="h-8"
+            className="h-7 sm:h-8 text-xs px-2 sm:px-3"
           >
-            <Eye size={14} className="mr-1" />
-            View
+            <Eye size={12} className="sm:mr-1" />
+            <span className="hidden sm:inline">View</span>
           </Button>
           {order.status === 'STORE_ACCEPTED' || order.status === 'CUSTOMER_CONFIRMED' ? (
             <Button
@@ -318,10 +308,10 @@ export default function POSOrdersPage() {
               size="sm"
               onClick={() => handlePrint(order.id)}
               disabled={actionLoading === `print-${order.id}`}
-              className="h-8"
+              className="h-7 sm:h-8 text-xs px-2 sm:px-3"
             >
-              <Printer size={14} className="mr-1" />
-              {actionLoading === `print-${order.id}` ? 'Printing...' : 'Print'}
+              <Printer size={12} className="sm:mr-1" />
+              <span className="hidden sm:inline">{actionLoading === `print-${order.id}` ? 'Printing...' : 'Print'}</span>
             </Button>
           ) : null}
           {order.status === 'PRINTED' ? (
@@ -330,10 +320,10 @@ export default function POSOrdersPage() {
               size="sm"
               onClick={() => handlePushToLab(order.id)}
               disabled={actionLoading === `push-${order.id}`}
-              className="h-8"
+              className="h-7 sm:h-8 text-xs px-2 sm:px-3"
             >
-              <Send size={14} className="mr-1" />
-              {actionLoading === `push-${order.id}` ? 'Pushing...' : 'Push to Lab'}
+              <Send size={12} className="sm:mr-1" />
+              <span className="hidden sm:inline">{actionLoading === `push-${order.id}` ? 'Pushing...' : 'Push to Lab'}</span>
             </Button>
           ) : null}
         </div>
@@ -342,23 +332,23 @@ export default function POSOrdersPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">POS Dashboard</h1>
-          <p className="mt-1 text-slate-600">Manage online orders</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">POS Dashboard</h1>
+          <p className="mt-1 text-sm sm:text-base text-slate-600">Manage online orders</p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 rounded-lg bg-white p-4 shadow-sm">
-        <div className="flex-1">
+      <div className="flex flex-col sm:flex-row gap-4 rounded-lg bg-white p-4 shadow-sm">
+        <div className="flex-1 w-full">
           <label className="mb-1 block text-sm font-medium text-slate-700">Status</label>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-slate-300 px-3 sm:px-4 py-2 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All Statuses</option>
             <option value="DRAFT">Draft</option>
@@ -368,12 +358,12 @@ export default function POSOrdersPage() {
             <option value="PUSHED_TO_LAB">Pushed to Lab</option>
           </select>
         </div>
-        <div className="flex-1">
+        <div className="flex-1 w-full">
           <label className="mb-1 block text-sm font-medium text-slate-700">Store</label>
           <select
             value={storeFilter}
             onChange={(e) => setStoreFilter(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-slate-300 px-3 sm:px-4 py-2 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All Stores</option>
             {stores.map((store) => (
@@ -396,8 +386,10 @@ export default function POSOrdersPage() {
           description="There are no orders matching your filters."
         />
       ) : (
-        <div className="rounded-lg bg-white shadow-sm">
-          <DataTable data={orders} columns={columns} />
+        <div className="rounded-lg bg-white shadow-sm overflow-x-auto -mx-4 sm:mx-0">
+          <div className="min-w-[800px] sm:min-w-0">
+            <DataTable data={orders} columns={columns} />
+          </div>
         </div>
       )}
 
@@ -414,15 +406,15 @@ export default function POSOrdersPage() {
               <div className="text-slate-500">Loading order details...</div>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6 max-h-[calc(90vh-200px)] overflow-y-auto">
               {/* Order Info */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-slate-600">Order ID</label>
-                  <div className="mt-1 font-mono font-semibold">{selectedOrder.orderId}</div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Order ID</label>
+                  <div className="mt-1 font-mono font-semibold text-slate-900">{selectedOrder.orderId}</div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-slate-600">Status</label>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
                   <div className="mt-1">
                     <Badge color={getStatusBadgeColor(selectedOrder.status)}>
                       {selectedOrder.status.replace(/_/g, ' ')}
@@ -430,35 +422,35 @@ export default function POSOrdersPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-slate-600">Customer Name</label>
-                  <div className="mt-1">
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Customer Name</label>
+                  <div className="mt-1 text-slate-900">
                     {selectedOrder.customerName || (
                       <span className="text-slate-400 italic">Not provided</span>
                     )}
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-slate-600">Customer Phone</label>
-                  <div className="mt-1">
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Customer Phone</label>
+                  <div className="mt-1 text-slate-900">
                     {selectedOrder.customerPhone || (
                       <span className="text-slate-400 italic">Not provided</span>
                     )}
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-slate-600">Store</label>
-                  <div className="mt-1">{selectedOrder.store.name}</div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Store</label>
+                  <div className="mt-1 text-slate-900">{selectedOrder.store?.name || 'N/A'}</div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-slate-600">Final Amount</label>
-                  <div className="mt-1 font-semibold">{formatCurrency(selectedOrder.finalAmount)}</div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Final Amount</label>
+                  <div className="mt-1 font-semibold text-lg text-slate-900">{formatCurrency(selectedOrder.finalAmount)}</div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-slate-600">Created At</label>
-                  <div className="mt-1">{formatTime(selectedOrder.createdAt)}</div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Created At</label>
+                  <div className="mt-1 text-slate-900">{formatTime(selectedOrder.createdAt)}</div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-slate-600">Sales Mode</label>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Sales Mode</label>
                   <div className="mt-1">
                     <Badge color={selectedOrder.salesMode === 'SELF_SERVICE' ? 'blue' : 'green'}>
                       {selectedOrder.salesMode.replace(/_/g, ' ')}
@@ -468,49 +460,162 @@ export default function POSOrdersPage() {
               </div>
 
               {/* Frame Data */}
-              {selectedOrder.frameData && (
-                <div>
-                  <h3 className="mb-2 font-semibold text-slate-900">Frame Details</h3>
-                  <div className="rounded-lg bg-slate-50 p-4">
-                    <pre className="text-sm text-slate-700">
-                      {JSON.stringify(selectedOrder.frameData, null, 2)}
-                    </pre>
+              {selectedOrder.frameData && typeof selectedOrder.frameData === 'object' && Object.keys(selectedOrder.frameData).length > 0 && (
+                <div className="border-t pt-4">
+                  <h3 className="mb-3 text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <Package size={18} />
+                    Frame Details
+                  </h3>
+                  <div className="rounded-lg bg-slate-50 p-4 space-y-2">
+                    {selectedOrder.frameData.brand && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                        <span className="text-sm text-slate-600">Brand:</span>
+                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.frameData.brand)}</span>
+                      </div>
+                    )}
+                    {selectedOrder.frameData.subBrand && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                        <span className="text-sm text-slate-600">Sub Brand:</span>
+                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.frameData.subBrand)}</span>
+                      </div>
+                    )}
+                    {selectedOrder.frameData.frameType && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                        <span className="text-sm text-slate-600">Frame Type:</span>
+                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.frameData.frameType)}</span>
+                      </div>
+                    )}
+                    {(selectedOrder.frameData.mrp || selectedOrder.frameData.mrp === 0) && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-2 border-t border-slate-200">
+                        <span className="text-sm font-medium text-slate-700">MRP:</span>
+                        <span className="text-sm font-semibold text-slate-900">{formatCurrency(Number(selectedOrder.frameData.mrp) || 0)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Lens Data */}
-              {selectedOrder.lensData && (
-                <div>
-                  <h3 className="mb-2 font-semibold text-slate-900">Lens Details</h3>
-                  <div className="rounded-lg bg-slate-50 p-4">
-                    <pre className="text-sm text-slate-700">
-                      {JSON.stringify(selectedOrder.lensData, null, 2)}
-                    </pre>
+              {selectedOrder.lensData && typeof selectedOrder.lensData === 'object' && Object.keys(selectedOrder.lensData).length > 0 && (
+                <div className="border-t pt-4">
+                  <h3 className="mb-3 text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <Package size={18} />
+                    Lens Details
+                  </h3>
+                  <div className="rounded-lg bg-slate-50 p-4 space-y-2">
+                    {selectedOrder.lensData.name && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                        <span className="text-sm text-slate-600">Name:</span>
+                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.lensData.name)}</span>
+                      </div>
+                    )}
+                    {selectedOrder.lensData.brandLine && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                        <span className="text-sm text-slate-600">Brand Line:</span>
+                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.lensData.brandLine)}</span>
+                      </div>
+                    )}
+                    {selectedOrder.lensData.index && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                        <span className="text-sm text-slate-600">Index:</span>
+                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.lensData.index).replace('INDEX_', '')}</span>
+                      </div>
+                    )}
+                    {(selectedOrder.lensData.price || selectedOrder.lensData.price === 0) && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-2 border-t border-slate-200">
+                        <span className="text-sm font-medium text-slate-700">Price:</span>
+                        <span className="text-sm font-semibold text-slate-900">{formatCurrency(Number(selectedOrder.lensData.price) || 0)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Offer Data */}
-              {selectedOrder.offerData && (
-                <div>
-                  <h3 className="mb-2 font-semibold text-slate-900">Offer Details</h3>
-                  <div className="rounded-lg bg-slate-50 p-4">
-                    <pre className="text-sm text-slate-700">
-                      {JSON.stringify(selectedOrder.offerData, null, 2)}
-                    </pre>
+              {selectedOrder.offerData && typeof selectedOrder.offerData === 'object' && Object.keys(selectedOrder.offerData).length > 0 && (
+                <div className="border-t pt-4">
+                  <h3 className="mb-3 text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <DollarSign size={18} />
+                    Pricing & Offers
+                  </h3>
+                  <div className="rounded-lg bg-slate-50 p-4 space-y-3">
+                    {/* Price Breakdown */}
+                    {(selectedOrder.offerData.frameMRP || selectedOrder.offerData.frameMRP === 0) && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                        <span className="text-sm text-slate-600">Frame MRP:</span>
+                        <span className="text-sm font-medium text-slate-900">{formatCurrency(Number(selectedOrder.offerData.frameMRP) || 0)}</span>
+                      </div>
+                    )}
+                    {(selectedOrder.offerData.lensPrice || selectedOrder.offerData.lensPrice === 0) && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                        <span className="text-sm text-slate-600">Lens Price:</span>
+                        <span className="text-sm font-medium text-slate-900">{formatCurrency(Number(selectedOrder.offerData.lensPrice) || 0)}</span>
+                      </div>
+                    )}
+                    {(selectedOrder.offerData.baseTotal || selectedOrder.offerData.baseTotal === 0) && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-2 border-t border-slate-200">
+                        <span className="text-sm font-medium text-slate-700">Base Total:</span>
+                        <span className="text-sm font-semibold text-slate-900">{formatCurrency(Number(selectedOrder.offerData.baseTotal) || 0)}</span>
+                      </div>
+                    )}
+
+                    {/* Price Components */}
+                    {selectedOrder.offerData.priceComponents && Array.isArray(selectedOrder.offerData.priceComponents) && selectedOrder.offerData.priceComponents.length > 0 && (
+                      <div className="pt-3 border-t border-slate-200 space-y-2">
+                        <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Price Components</div>
+                        {selectedOrder.offerData.priceComponents.map((component: any, idx: number) => (
+                          <div key={idx} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                            <span className={`text-sm ${component.amount < 0 ? 'text-green-600' : 'text-slate-600'}`}>
+                              {component.label}:
+                            </span>
+                            <span className={`text-sm font-medium ${component.amount < 0 ? 'text-green-600' : 'text-slate-900'}`}>
+                              {component.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(Number(component.amount) || 0))}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Discounts */}
+                    {selectedOrder.offerData.categoryDiscount && typeof selectedOrder.offerData.categoryDiscount === 'object' && (
+                      <div className="pt-2 border-t border-slate-200">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                          <span className="text-sm text-green-600">Category Discount:</span>
+                          <span className="text-sm font-semibold text-green-600">
+                            -{formatCurrency(Number(selectedOrder.offerData.categoryDiscount.savings) || 0)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    {selectedOrder.offerData.couponDiscount && typeof selectedOrder.offerData.couponDiscount === 'object' && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                        <span className="text-sm text-green-600">Coupon Discount:</span>
+                        <span className="text-sm font-semibold text-green-600">
+                          -{formatCurrency(Number(selectedOrder.offerData.couponDiscount.savings) || 0)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Final Payable */}
+                    {(selectedOrder.offerData.finalPayable || selectedOrder.offerData.finalPayable === 0) && (
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-3 border-t-2 border-slate-300">
+                        <span className="text-base font-bold text-slate-900">Final Payable:</span>
+                        <span className="text-lg font-bold text-slate-900">{formatCurrency(Number(selectedOrder.offerData.finalPayable) || 0)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Actions */}
-              <div className="flex gap-2 border-t pt-4">
+              <div className="flex flex-col sm:flex-row gap-2 border-t pt-4">
                 {(selectedOrder.status === 'STORE_ACCEPTED' ||
                   selectedOrder.status === 'CUSTOMER_CONFIRMED') && (
                   <Button
                     variant="primary"
                     onClick={() => handlePrint(selectedOrder.id)}
                     disabled={actionLoading === `print-${selectedOrder.id}`}
+                    className="w-full sm:w-auto"
                   >
                     <Printer size={16} className="mr-2" />
                     {actionLoading === `print-${selectedOrder.id}` ? 'Printing...' : 'Print Order'}
@@ -521,6 +626,7 @@ export default function POSOrdersPage() {
                     variant="primary"
                     onClick={() => handlePushToLab(selectedOrder.id)}
                     disabled={actionLoading === `push-${selectedOrder.id}`}
+                    className="w-full sm:w-auto"
                   >
                     <Send size={16} className="mr-2" />
                     {actionLoading === `push-${selectedOrder.id}`
@@ -528,7 +634,11 @@ export default function POSOrdersPage() {
                       : 'Push to Lab'}
                   </Button>
                 )}
-                <Button variant="outline" onClick={() => setSelectedOrder(null)}>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setSelectedOrder(null)}
+                  className="w-full sm:w-auto"
+                >
                   Close
                 </Button>
               </div>
