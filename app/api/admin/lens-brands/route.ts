@@ -5,6 +5,10 @@ import { handleApiError } from '@/lib/errors';
 import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
 
+// NOTE: LensBrand is for reference/display purposes only
+// LensProduct uses brandLine (String) field, NOT a relation to LensBrand
+// LensBrand.name should match LensProduct.brandLine values for consistency
+
 const createLensBrandSchema = z.object({
   name: z.string().min(1, 'Lens brand name is required'),
   description: z.string().optional().nullable(),

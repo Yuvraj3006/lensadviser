@@ -161,8 +161,16 @@ export async function PUT(
             ? String(opt.subQuestionId).trim() 
             : null;
           
+          // Auto-generate option key if not provided
+          const optionKey = opt.key?.trim() || `option_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          // Handle nextQuestionIds array (unlimited nesting support)
+          const nextQuestionIds = opt.nextQuestionIds && Array.isArray(opt.nextQuestionIds) 
+            ? opt.nextQuestionIds.filter((id: any) => id && String(id).trim() !== '')
+            : (subQuestionId ? [subQuestionId] : []); // Fallback to legacy subQuestionId
+
           return {
-            key: String(opt.key).trim(),
+            key: optionKey,
             text: opt.text || opt.textEn || null,
             textEn: String(opt.textEn).trim(),
             textHi: opt.textHi?.trim() || null,
@@ -171,7 +179,8 @@ export async function PUT(
             order: Number(index + 1),
             displayOrder: Number(opt.displayOrder || index + 1),
             triggersSubQuestion: Boolean(opt.triggersSubQuestion || false),
-            subQuestionId: subQuestionId,
+            subQuestionId: subQuestionId, // Keep for backward compatibility
+            nextQuestionIds: nextQuestionIds, // New: array support
           };
         }),
       },
@@ -197,6 +206,9 @@ export async function PUT(
         const answerOption = question.options[i];
         
         if (opt.benefitMapping && answerOption) {
+          // Get category weight for this answer (applies to all benefits)
+          const answerCategoryWeight = typeof opt.categoryWeight === 'number' ? opt.categoryWeight : 1.0;
+          
           // Create AnswerBenefit records for each benefit with points > 0
           const benefitMappings = Object.entries(opt.benefitMapping)
             .filter(([_, points]: [string, unknown]) => typeof points === 'number' && points > 0) // Only create mappings with points > 0
@@ -211,6 +223,7 @@ export async function PUT(
                 answerId: answerOption.id,
                 benefitId: benefitId,
                 points: Math.max(0, Math.min(3, pointsValue)), // Clamp 0-3
+                categoryWeight: answerCategoryWeight, // Category weight multiplier (same for all benefits in this answer)
               };
             })
             .filter((mapping) => mapping !== null);
@@ -226,7 +239,10 @@ export async function PUT(
                       benefitId: mapping.benefitId,
                     },
                   },
-                  update: { points: mapping.points },
+                  update: { 
+                    points: mapping.points,
+                    categoryWeight: mapping.categoryWeight || 1.0,
+                  },
                   create: mapping,
                 })
               )

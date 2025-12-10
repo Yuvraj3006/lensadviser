@@ -13,6 +13,7 @@ const createOrderSchema = z.object({
   frameData: z.any(),
   lensData: z.any(),
   offerData: z.any(),
+  orderType: z.enum(['EYEGLASSES', 'LENS_ONLY', 'POWER_SUNGLASS', 'CONTACT_LENS_ONLY']).optional(),
   finalPrice: z.number().positive(),
 });
 
@@ -38,6 +39,13 @@ export async function POST(request: NextRequest) {
 
     if (!store) {
       throw new ValidationError('Store not found');
+    }
+
+    // Business Rule: Staff selection is mandatory for STAFF_ASSISTED mode
+    if (validated.salesMode === 'STAFF_ASSISTED') {
+      if (!validated.assistedByStaffId && !validated.assistedByName) {
+        throw new ValidationError('Staff selection is required for STAFF_ASSISTED mode. Please provide either assistedByStaffId or assistedByName.');
+      }
     }
 
     // Validate staff if provided
@@ -78,6 +86,7 @@ export async function POST(request: NextRequest) {
         frameData: validated.frameData,
         lensData: validated.lensData,
         offerData: validated.offerData,
+        orderType: validated.orderType || 'EYEGLASSES',
         finalPrice: validated.finalPrice,
         status: 'DRAFT',
         createdAt: new Date(),

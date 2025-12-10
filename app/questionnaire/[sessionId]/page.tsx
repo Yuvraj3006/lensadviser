@@ -21,6 +21,8 @@ interface Question {
     textHi?: string;
     textHiEn?: string;
     icon?: string;
+    triggersSubQuestion?: boolean;
+    subQuestionId?: string;
   }[];
 }
 
@@ -43,12 +45,24 @@ export default function QuestionnaireSessionPage() {
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [language, setLanguage] = useState<'en' | 'hi' | 'hinglish'>('en');
 
   useEffect(() => {
+    // Get language preference
+    const savedLanguage = localStorage.getItem('lenstrack_language') || 'en';
+    setLanguage(savedLanguage as 'en' | 'hi' | 'hinglish');
+    
     if (sessionId) {
       fetchSession();
     }
   }, [sessionId]);
+
+  // Helper function to get text based on language
+  const getText = (textEn: string, textHi?: string, textHiEn?: string): string => {
+    if (language === 'hi' && textHi) return textHi;
+    if (language === 'hinglish' && textHiEn) return textHiEn;
+    return textEn;
+  };
 
   const fetchSession = async () => {
     setLoading(true);
@@ -223,14 +237,13 @@ export default function QuestionnaireSessionPage() {
           {/* Question Text */}
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-white mb-2">
-              {currentQuestion.textEn}
+              {getText(currentQuestion.textEn, currentQuestion.textHi, currentQuestion.textHiEn)}
             </h2>
-            {currentQuestion.textHiEn && (
-              <p className="text-slate-400 text-sm">{currentQuestion.textHiEn}</p>
-            )}
             {currentQuestion.allowMultiple && (
               <p className="text-blue-400 text-xs mt-2">
-                ℹ️ You can select multiple options
+                {language === 'hi' ? 'ℹ️ आप कई विकल्प चुन सकते हैं' : 
+                 language === 'hinglish' ? 'ℹ️ Aap multiple options select kar sakte hain' :
+                 'ℹ️ You can select multiple options'}
               </p>
             )}
           </div>
@@ -255,10 +268,9 @@ export default function QuestionnaireSessionPage() {
                       <div className="text-3xl flex-shrink-0">{option.icon}</div>
                     )}
                     <div className="flex-1">
-                      <p className="text-white font-medium">{option.textEn}</p>
-                      {option.textHiEn && (
-                        <p className="text-slate-400 text-sm mt-1">{option.textHiEn}</p>
-                      )}
+                      <p className="text-white font-medium">
+                        {getText(option.textEn, option.textHi, option.textHiEn)}
+                      </p>
                     </div>
                     {isSelected && (
                       <CheckCircle className="text-blue-500 flex-shrink-0" size={24} />

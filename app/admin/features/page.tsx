@@ -483,6 +483,15 @@ export default function FeaturesPage() {
             options={categoryOptions.filter(opt => opt.value)}
             required
           />
+
+          <Input
+            label="Display Order"
+            type="number"
+            value={formData.displayOrder || ''}
+            onChange={(e) => setFormData({ ...formData, displayOrder: parseInt(e.target.value) || undefined })}
+            hint="Order in which feature appears (lower = first). Leave empty for auto-assignment."
+            min="1"
+          />
         </form>
       </Modal>
 

@@ -85,11 +85,33 @@ interface Recommendation {
   imageUrl?: string | null;
   category: string;
   matchScore: number;
+  matchPercent?: number; // Match percentage (0-100)
   rank: number;
   features: Feature[];
   storeInfo?: StoreInfo;
   pricing: PricingBreakdown;
   offers: Offer[];
+  tintOption?: string; // For Power Sunglasses flow
+  baseOfferPrice?: number; // For tint color selection
+  lensIndex?: string; // Lens index (e.g., 'INDEX_156', 'INDEX_160', 'INDEX_167', 'INDEX_174')
+  indexRecommendation?: {
+    recommendedIndex: string; // INDEX_156, INDEX_160, etc.
+    indexDelta: number; // >0 thinner, 0 ideal, <0 thicker
+    validationMessage?: string | null; // Warning or error message
+    isInvalid?: boolean; // True if violates rules (e.g., INDEX_156 for rimless)
+    isWarning?: boolean; // True if thicker than recommended
+  };
+  thicknessWarning?: boolean; // Show warning if index is thicker than recommended
+  indexInvalid?: boolean; // True if index selection violates rules
+  bandPricing?: {
+    applied: boolean;
+    extra: number;
+    matchedBand?: {
+      minPower: number;
+      maxPower: number;
+      extraCharge: number;
+    };
+  };
 }
 
 interface RecommendationData {
@@ -99,6 +121,7 @@ interface RecommendationData {
   recommendations: Recommendation[];
   answeredFeatures: { feature: string; weight: number }[];
   generatedAt: string;
+  recommendedIndex?: string; // Recommended index for the prescription
   store: {
     name: string;
     city?: string;
@@ -399,15 +422,52 @@ export default function RecommendationsPage() {
   const selectedRec = data.recommendations.find((r) => r.id === selectedProduct);
   const selectedPricing = selectedRec ? calculatePriceWithOffer(selectedRec, selectedOffer[selectedRec.id]) : null;
 
+  // Helper function to extract index value for sorting (thinnest first = higher index number)
+  const getIndexValue = (rec: Recommendation): number => {
+    // Try to get from lensIndex field first
+    if (rec.lensIndex) {
+      const indexMap: Record<string, number> = {
+        'INDEX_156': 1.56,
+        'INDEX_160': 1.60,
+        'INDEX_167': 1.67,
+        'INDEX_174': 1.74,
+        'INDEX_150': 1.50,
+        'INDEX_PC': 1.59,
+      };
+      return indexMap[rec.lensIndex] || 1.50;
+    }
+    // Fallback: extract from name
+    const match = rec.name.match(/\d+\.\d+/);
+    return match ? parseFloat(match[0]) : 1.50;
+  };
+
+  // Sort recommendations based on sortBy, then get first 4
+  const sortedForDisplay = [...data.recommendations].sort((a, b) => {
+    switch (sortBy) {
+      case 'price-high':
+        return calculatePriceWithOffer(b, selectedOffer[b.id]).finalPrice - calculatePriceWithOffer(a, selectedOffer[a.id]).finalPrice;
+      case 'price-low':
+        return calculatePriceWithOffer(a, selectedOffer[a.id]).finalPrice - calculatePriceWithOffer(b, selectedOffer[b.id]).finalPrice;
+      case 'match':
+        return b.matchScore - a.matchScore;
+      case 'index':
+        // Sort by index (thinnest first = higher index number = descending order)
+        return getIndexValue(b) - getIndexValue(a);
+      default:
+        return a.rank - b.rank;
+    }
+  });
+  
   // Get first 4 recommendations for LA-05 spec
-  const topFourRecommendations = data.recommendations.slice(0, 4);
+  const topFourRecommendations = sortedForDisplay.slice(0, 4);
 
   // Get tag for each recommendation based on rank
-  const getRoleTag = (rank: number): 'BEST_MATCH' | 'RECOMMENDED_INDEX' | 'PREMIUM' | 'BUDGET' => {
+  const getRoleTag = (rank: number, allRecs: typeof data.recommendations): 'BEST_MATCH' | 'RECOMMENDED_INDEX' | 'PREMIUM' | 'ANTI_WALKOUT' => {
     if (rank === 1) return 'BEST_MATCH';
     if (rank === 2) return 'RECOMMENDED_INDEX';
     if (rank === 3) return 'PREMIUM';
-    return 'BUDGET';
+    // Rank 4 or lowest price option = Anti-Walkout
+    return 'ANTI_WALKOUT';
   };
 
   // Sort all recommendations for View All modal
@@ -420,8 +480,8 @@ export default function RecommendationsPage() {
       case 'match':
         return b.matchScore - a.matchScore;
       case 'index':
-        // Sort by index if available, otherwise by rank
-        return a.rank - b.rank;
+        // Sort by index (thinnest first = higher index number = descending order)
+        return getIndexValue(b) - getIndexValue(a);
       default:
         return a.rank - b.rank;
     }
@@ -457,15 +517,35 @@ export default function RecommendationsPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-6">
+        {/* Sorting Controls */}
+        <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-slate-300">Sort by:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-4 py-2 border-2 border-slate-600 rounded-lg text-sm font-semibold text-slate-200 bg-slate-800 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="match">Best Match First</option>
+              <option value="price-high">Price: High to Low</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="index">Thinnest First (Index)</option>
+            </select>
+          </div>
+          <div className="text-sm text-slate-400">
+            Showing {topFourRecommendations.length} of {data.recommendations.length} recommendations
+          </div>
+        </div>
+
         {/* LA-05: 4-Card Layout - Vertical scroll on mobile */}
         <div className="space-y-6 mb-10">
           {topFourRecommendations.map((rec) => {
-            const roleTag = getRoleTag(rec.rank);
+            const roleTag = getRoleTag(rec.rank, data.recommendations);
             const tagConfig = {
               BEST_MATCH: { label: 'Best Match', color: 'bg-blue-600 text-white' },
               RECOMMENDED_INDEX: { label: 'Recommended Index', color: 'bg-green-600 text-white' },
               PREMIUM: { label: 'Premium Upgrade', color: 'bg-purple-600 text-white' },
-              BUDGET: { label: 'Budget Option', color: 'bg-orange-600 text-white' },
+              ANTI_WALKOUT: { label: 'Anti-Walkout (Lowest Price)', color: 'bg-orange-600 text-white' },
             }[roleTag];
             
             const priceInfo = calculatePriceWithOffer(rec, selectedOffer[rec.id]);
@@ -558,6 +638,18 @@ export default function RecommendationsPage() {
                         </span>
                       )}
                     </div>
+                    {/* Band Pricing Display */}
+                    {rec.bandPricing?.applied && rec.bandPricing.extra > 0 && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
+                        <span className="font-medium">Power Band Extra:</span>
+                        <span className="font-semibold text-slate-700">+₹{Math.round(rec.bandPricing.extra).toLocaleString()}</span>
+                        {rec.bandPricing.matchedBand && (
+                          <span className="text-slate-500">
+                            ({rec.bandPricing.matchedBand.minPower}D - {rec.bandPricing.matchedBand.maxPower}D)
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {hasCouponDiscount && (
                       <div className="mt-2 flex items-center gap-2">
                         <Ticket size={14} className="text-yellow-600" />
@@ -602,8 +694,27 @@ export default function RecommendationsPage() {
                     fullWidth
                     onClick={() => {
                       setSelectedProduct(rec.id);
-                      // Navigate to offer summary page
-                      router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);
+                      
+                      // Check if this is Power Sunglasses flow
+                      const lensType = localStorage.getItem('lenstrack_lens_type');
+                      const isPowerSunglasses = lensType === 'SUNGLASSES';
+                      
+                      // Check if lens has tint option (TINT/PHOTOCHROMIC/TRANSITION)
+                      const isTintLens = rec.tintOption && ['TINT', 'PHOTOCHROMIC', 'TRANSITION'].includes(rec.tintOption);
+                      
+                      if (isPowerSunglasses && isTintLens) {
+                        // Save selected lens and navigate to tint color selection
+                        localStorage.setItem(`lenstrack_selected_lens_${sessionId}`, JSON.stringify({
+                          id: rec.id,
+                          name: rec.name,
+                          baseOfferPrice: rec.pricing?.lensPrice?.totalLensPrice || rec.basePrice || 0,
+                          tintOption: rec.tintOption,
+                        }));
+                        router.push(`/questionnaire/${sessionId}/tint-color-selection`);
+                      } else {
+                        // Navigate to offer summary page (normal flow)
+                        router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);
+                      }
                     }}
                     className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 text-white font-bold py-4 text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
                   >
@@ -1279,18 +1390,23 @@ export default function RecommendationsPage() {
                   <span className="text-2xl">×</span>
                 </button>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-medium text-blue-100">Sorted by:</span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
                   className="px-4 py-2 border-2 border-white/30 rounded-lg text-sm font-semibold text-slate-700 bg-white shadow-md focus:outline-none focus:ring-2 focus:ring-white/50"
                 >
-                  <option value="price-high">Price: High to Low</option>
-                  <option value="price-low">Price: Low to High</option>
                   <option value="match">Best Match First</option>
+                  <option value="price-low">Price: Low to High</option>
+                  <option value="price-high">Price: High to Low</option>
                   <option value="index">Thinnest First (Index)</option>
                 </select>
+                {data && (
+                  <span className="text-sm text-blue-100 ml-auto">
+                    Showing {sortedRecommendations.length} of {data.recommendations.length} eligible lenses
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1298,30 +1414,93 @@ export default function RecommendationsPage() {
             <div className="flex-1 overflow-y-auto p-6 space-y-3">
               {sortedRecommendations.map((rec) => {
                 const priceInfo = calculatePriceWithOffer(rec, selectedOffer[rec.id]);
-                const lensIndex = rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
+                // Extract index from lensIndex or name
+                const lensIndexStr = rec.lensIndex || rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
+                const lensIndexDisplay = lensIndexStr.replace('INDEX_', '1.').replace(/^1\./, '1.');
                 const brandLine = rec.brand || 'Premium';
                 const benefits = rec.features.slice(0, 3).map(f => f.name);
                 const hasYOPO = rec.offers.some(o => o.type === 'YOPO' && o.isApplicable);
                 const hasCombo = rec.offers.some(o => o.type === 'COMBO' && o.isApplicable);
                 const hasFreeLens = rec.offers.some(o => o.type === 'FREE_LENS' && o.isApplicable);
                 
+                // Get match percentage (prefer matchPercent, fallback to matchScore)
+                const matchPercent = rec.matchPercent ?? Math.round(rec.matchScore);
+                
+                // Get index recommendation data
+                const indexDelta = rec.indexRecommendation?.indexDelta ?? 0;
+                const recommendedIndex = rec.indexRecommendation?.recommendedIndex || data?.recommendedIndex;
+                const recommendedIndexDisplay = recommendedIndex?.replace('INDEX_', '1.').replace(/^1\./, '1.') || '';
+                const thicknessWarning = rec.thicknessWarning || rec.indexRecommendation?.isWarning || false;
+                const indexInvalid = rec.indexInvalid || rec.indexRecommendation?.isInvalid || false;
+                const validationMessage = rec.indexRecommendation?.validationMessage;
+                
+                // Calculate thickness difference display
+                const getThicknessDisplay = () => {
+                  if (indexDelta === 0) {
+                    return { text: 'Ideal thickness', color: 'text-green-600', icon: '✓' };
+                  } else if (indexDelta > 0) {
+                    return { text: `${indexDelta === 1 ? '~20-30%' : indexDelta === 2 ? '~40-50%' : '~60%+'} thinner than recommended`, color: 'text-blue-600', icon: '✨' };
+                  } else {
+                    const thicknessPercent = Math.abs(indexDelta) === 1 ? '~20-30%' : Math.abs(indexDelta) === 2 ? '~40-50%' : '~60%+';
+                    return { text: `${thicknessPercent} thicker than recommended`, color: 'text-yellow-600', icon: '⚠️' };
+                  }
+                };
+                const thicknessInfo = getThicknessDisplay();
+                
                 return (
-                  <div key={rec.id} className="border-2 border-slate-200 rounded-xl p-5 hover:border-blue-400 hover:shadow-lg transition-all bg-white group">
+                  <div key={rec.id} className={`border-2 rounded-xl p-5 hover:shadow-lg transition-all bg-white group ${
+                    indexInvalid ? 'border-red-300 bg-red-50/30' : thicknessWarning ? 'border-yellow-300 bg-yellow-50/30' : 'border-slate-200 hover:border-blue-400'
+                  }`}>
                     <div className="flex items-start justify-between gap-6">
                       <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
+                        <div className="flex items-center gap-3 mb-3 flex-wrap">
                           <h3 className="text-xl font-bold text-slate-900">{rec.name}</h3>
+                          {/* Match % Badge */}
                           <span className="px-3 py-1 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 text-xs font-bold rounded-full border border-blue-200">
-                            {Math.round(rec.matchScore)}% Match
+                            {matchPercent}% Match
                           </span>
+                          {indexInvalid && (
+                            <span className="px-2.5 py-1 bg-red-100 text-red-800 text-xs font-semibold rounded-lg border border-red-200">
+                              ❌ Not Suitable
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-3">
+                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-3 flex-wrap">
                           <span className="font-medium text-slate-700">{brandLine}</span>
                           <span className="text-slate-400">•</span>
-                          <span>Index {lensIndex}</span>
+                          <span>Index {lensIndexDisplay}</span>
+                          {recommendedIndexDisplay && (
+                            <>
+                              <span className="text-slate-400">•</span>
+                              <span className="text-slate-500">Recommended: {recommendedIndexDisplay}</span>
+                            </>
+                          )}
                           <span className="text-slate-400">•</span>
                           <span>{rec.category}</span>
                         </div>
+                        
+                        {/* Thickness Difference Display */}
+                        {recommendedIndexDisplay && (
+                          <div className={`mb-3 px-3 py-2 rounded-lg border ${indexInvalid ? 'bg-red-50 border-red-200' : thicknessWarning ? 'bg-yellow-50 border-yellow-200' : indexDelta > 0 ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className={thicknessInfo.color}>{thicknessInfo.icon}</span>
+                              <span className={`font-medium ${thicknessInfo.color}`}>
+                                {thicknessInfo.text}
+                              </span>
+                              {indexDelta !== 0 && recommendedIndexDisplay && (
+                                <span className="text-slate-500 text-xs">
+                                  (Recommended: {recommendedIndexDisplay})
+                                </span>
+                              )}
+                            </div>
+                            {validationMessage && (
+                              <p className={`text-xs mt-1 ${indexInvalid ? 'text-red-700' : thicknessWarning ? 'text-yellow-700' : 'text-slate-600'}`}>
+                                {validationMessage}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        
                         <div className="mb-3">
                           <span className="text-2xl font-bold text-slate-900">₹{Math.round(priceInfo.finalPrice).toLocaleString()}</span>
                           {priceInfo.savings > 0 && (
@@ -1359,9 +1538,14 @@ export default function RecommendationsPage() {
                           // Navigate to offer summary page
                           router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);
                         }}
-                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold px-8 py-3 shadow-md hover:shadow-lg transition-all whitespace-nowrap"
+                        disabled={indexInvalid}
+                        className={`font-bold px-8 py-3 shadow-md hover:shadow-lg transition-all whitespace-nowrap ${
+                          indexInvalid 
+                            ? 'bg-slate-400 cursor-not-allowed' 
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
+                        }`}
                       >
-                        Select
+                        {indexInvalid ? 'Not Available' : 'Select'}
                       </Button>
                     </div>
                   </div>

@@ -10,8 +10,12 @@ const updateLensProductSchema = z.object({
   itCode: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
   brandLine: z.string().min(1).optional(), // LensProduct uses brandLine string, not lensBrandId
+  lensBrandId: z.string().optional(), // Accept lensBrandId for backward compatibility, will convert to brandLine
   type: z.enum(['SINGLE_VISION', 'PROGRESSIVE', 'BIFOCAL', 'ANTI_FATIGUE', 'MYOPIA_CONTROL']).optional(),
   index: z.enum(['INDEX_156', 'INDEX_160', 'INDEX_167', 'INDEX_174']).optional(),
+  tintOption: z.enum(['CLEAR', 'TINT', 'PHOTOCHROMIC', 'TRANSITION']).optional(),
+  mrp: z.number().min(0).optional(),
+  offerPrice: z.number().min(0).optional(),
   baseOfferPrice: z.number().min(0).optional(),
   addOnPrice: z.number().min(0).optional().nullable(),
   // Rx ranges are handled separately via LensRxRange model
@@ -41,10 +45,21 @@ export async function PUT(
       throw new NotFoundError('Lens product');
     }
 
+    // Handle brandLine - convert lensBrandId to brandLine if provided
+    let brandLine = validated.brandLine;
+    if (validated.lensBrandId && !brandLine) {
+      const brand = await prisma.lensBrand.findUnique({
+        where: { id: validated.lensBrandId },
+      });
+      if (brand) {
+        brandLine = brand.name;
+      }
+    }
+
     // Verify lens brand if updating (check if brandLine exists in LensBrand)
-    if (validated.brandLine) {
+    if (brandLine) {
       const brand = await prisma.lensBrand.findFirst({
-        where: { name: validated.brandLine },
+        where: { name: brandLine },
       });
 
       if (!brand) {
@@ -88,10 +103,11 @@ export async function PUT(
       data: {
         ...(validated.itCode && { itCode: validated.itCode }),
         ...(validated.name && { name: validated.name }),
-        ...(validated.brandLine && { brandLine: validated.brandLine }),
+        ...(brandLine && { brandLine: brandLine }),
         ...(validated.type && { visionType: validated.type as VisionType }),
         ...(validated.index && { lensIndex: validated.index as LensIndex }),
-        ...(validated.baseOfferPrice !== undefined && { baseOfferPrice: validated.baseOfferPrice }),
+        ...(validated.tintOption && { tintOption: validated.tintOption as any }),
+        ...(validated.baseOfferPrice !== undefined && { baseOfferPrice: validated.baseOfferPrice || validated.offerPrice }),
         ...(validated.addOnPrice !== undefined && { addOnPrice: validated.addOnPrice }),
         ...(validated.yopoEligible !== undefined && { yopoEligible: validated.yopoEligible }),
         ...(validated.isActive !== undefined && { isActive: validated.isActive }),

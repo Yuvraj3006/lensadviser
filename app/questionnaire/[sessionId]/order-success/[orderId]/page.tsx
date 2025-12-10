@@ -16,7 +16,6 @@ import {
   ExternalLink,
   FileText
 } from 'lucide-react';
-import html2pdf from 'html2pdf.js';
 
 interface OrderData {
   id: string;
@@ -150,8 +149,17 @@ export default function OrderSuccessPage() {
   const handleDownloadReceipt = async () => {
     if (!orderData) return;
     
+    // Check if we're in browser environment
+    if (typeof window === 'undefined') {
+      showToast('error', 'PDF download is only available in browser');
+      return;
+    }
+    
     try {
       showToast('info', 'Generating PDF receipt...');
+      
+      // Dynamically import html2pdf only on client side
+      const html2pdf = (await import('html2pdf.js')).default;
       
       // Create a temporary element with receipt content
       const receiptElement = document.createElement('div');

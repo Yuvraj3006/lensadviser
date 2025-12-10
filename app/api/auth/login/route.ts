@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
           email: user.email,
           name: user.name,
           role: user.role,
+          organizationId: user.organizationId, // Include organizationId
           storeId: user.storeId,
           storeName: storeName,
         },

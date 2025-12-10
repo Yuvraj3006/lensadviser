@@ -98,6 +98,39 @@ export async function PUT(
       where: { id },
     });
 
+    // CRITICAL: Reject updates to FRAME and SUNGLASS products
+    // Per specification: Frames/Sunglasses should only be entered manually in customer flow
+    if (existing && (existing.type === 'FRAME' || existing.type === 'SUNGLASS')) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'INVALID_PRODUCT_TYPE',
+            message: 'Frame and Sunglass products cannot be updated here. These products should be entered manually in the customer flow only.',
+            details: {
+              type: existing.type,
+              note: 'Use manual entry in customer flow for frames and sunglasses',
+            },
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    // Also reject if trying to change type to FRAME or SUNGLASS
+    if (validated.type && (validated.type === 'FRAME' || validated.type === 'SUNGLASS')) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'INVALID_PRODUCT_TYPE',
+            message: 'Cannot change product type to Frame or Sunglass. These products should be entered manually in the customer flow only.',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     if (!existing) {
       throw new NotFoundError('Product');
     }
@@ -233,6 +266,34 @@ export async function DELETE(
     authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
 
     const { id } = await params;
+
+    // Verify product exists and check type
+    const existing = await prisma.retailProduct.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundError('Product');
+    }
+
+    // CRITICAL: Reject deletion of FRAME and SUNGLASS products
+    // Per specification: Frames/Sunglasses should only be entered manually in customer flow
+    if (existing.type === 'FRAME' || existing.type === 'SUNGLASS') {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'INVALID_PRODUCT_TYPE',
+            message: 'Frame and Sunglass products cannot be deleted here. These products should be entered manually in the customer flow only.',
+            details: {
+              type: existing.type,
+              note: 'Use manual entry in customer flow for frames and sunglasses',
+            },
+          },
+        },
+        { status: 400 }
+      );
+    }
 
     const product = await prisma.retailProduct.update({
       where: { id },

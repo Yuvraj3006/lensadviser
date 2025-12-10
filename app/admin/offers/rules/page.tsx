@@ -55,6 +55,9 @@ interface OfferRule {
   startDate?: string | null;
   endDate?: string | null;
   createdAt: string;
+  config?: any; // Additional configuration for offer rules
+  upsellThreshold?: number | null; // Upsell threshold for offers
+  upsellRewardText?: string | null; // Upsell reward text
 }
 
 export default function OfferRulesPage() {
@@ -163,7 +166,12 @@ export default function OfferRulesPage() {
   };
 
   const handleEdit = (rule: OfferRule) => {
-    setFormData(rule);
+    // Ensure config object exists for editing
+    const ruleWithConfig = {
+      ...rule,
+      config: (rule as any).config || {},
+    };
+    setFormData(ruleWithConfig);
     setEditingRule(rule);
     setIsCreateOpen(true);
   };
@@ -187,6 +195,7 @@ export default function OfferRulesPage() {
         body: JSON.stringify({
           ...formData,
           organizationId,
+          config: (formData as any).config || {},
         }),
       });
 
@@ -424,13 +433,300 @@ export default function OfferRulesPage() {
             />
           </div>
 
-          {formData.discountType === 'COMBO_PRICE' && (
-            <Input
-              label="Combo Price"
-              type="number"
-              value={formData.comboPrice || ''}
-              onChange={(e) => setFormData({ ...formData, comboPrice: e.target.value ? parseFloat(e.target.value) : null })}
-            />
+          {formData.offerType === 'YOPO' && (
+            <div className="space-y-4">
+              <Select
+                label="Free Under YOPO"
+                value={(formData as any).freeUnderYOPO || 'BEST_OF'}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  config: {
+                    ...(formData as any).config || {},
+                    freeUnderYOPO: e.target.value
+                  }
+                } as any)}
+                options={[
+                  { value: 'BEST_OF', label: 'BEST_OF - Pay higher of frame or lens' },
+                  { value: 'FRAME', label: 'FRAME - Frame free, pay lens price' },
+                  { value: 'LENS', label: 'LENS - Lens free, pay frame price' },
+                ]}
+              />
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={((formData as any).config?.bonusFreeAllowed !== false)}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    config: {
+                      ...(formData as any).config || {},
+                      bonusFreeAllowed: e.target.checked
+                    }
+                  } as any)}
+                />
+                <span>Allow Bonus Free Product</span>
+              </label>
+            </div>
+          )}
+
+          {formData.offerType === 'COMBO_PRICE' && (
+            <div className="space-y-4">
+              <Select
+                label="Combo Type"
+                value={((formData as any).config?.comboType) || 'FIXED'}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  config: {
+                    ...(formData as any).config,
+                    comboType: e.target.value
+                  }
+                })}
+                options={[
+                  { value: 'FIXED', label: 'Fixed Price (Standard)' },
+                  { value: 'FRAME_MRP_ONLY', label: 'Frame MRP Only (Lens Free)' },
+                  { value: 'BRAND_LINE_COMBO', label: 'Brand-Line Combo (Frame Sub-Category + Lens Brand Line)' },
+                  { value: 'FRAME_CATEGORY_COMBO', label: 'Frame Category Combo (Category + Lens Brand Line)' },
+                  { value: 'VISION_TYPE_COMBO', label: 'Vision Type Combo (Vision Type + Lens Brand Line)' },
+                ]}
+              />
+              
+              {((formData as any).config?.comboType === 'FIXED' || !(formData as any).config?.comboType) && (
+                <Input
+                  label="Combo Price (₹)"
+                  type="number"
+                  value={formData.comboPrice || ''}
+                  onChange={(e) => setFormData({ ...formData, comboPrice: e.target.value ? parseFloat(e.target.value) : null })}
+                />
+              )}
+              
+              {((formData as any).config?.comboType === 'BRAND_LINE_COMBO') && (
+                <>
+                  <Input
+                    label="Required Frame Sub-Category"
+                    value={((formData as any).config?.requiredFrameSubCategory) || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      config: {
+                        ...(formData as any).config,
+                        requiredFrameSubCategory: e.target.value
+                      }
+                    })}
+                    placeholder="e.g., ESSENTIAL, ALFA"
+                  />
+                  <Input
+                    label="Required Lens Brand Line"
+                    value={((formData as any).config?.requiredLensBrandLine) || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      config: {
+                        ...(formData as any).config,
+                        requiredLensBrandLine: e.target.value
+                      }
+                    })}
+                    placeholder="e.g., BLUEXPERT, DIGI360_ADVANCED"
+                  />
+                  <Input
+                    label="Brand-Line Combo Price (₹)"
+                    type="number"
+                    value={((formData as any).config?.brandLineComboPrice) || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      config: {
+                        ...(formData as any).config,
+                        brandLineComboPrice: e.target.value ? parseFloat(e.target.value) : null
+                      }
+                    })}
+                    placeholder="e.g., 1499"
+                  />
+                </>
+              )}
+              
+              {((formData as any).config?.comboType === 'FRAME_CATEGORY_COMBO') && (
+                <>
+                  <Input
+                    label="Required Frame Category"
+                    value={((formData as any).config?.requiredFrameCategory) || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      config: {
+                        ...(formData as any).config,
+                        requiredFrameCategory: e.target.value
+                      }
+                    })}
+                    placeholder="e.g., LUXURY, ESSENTIAL"
+                  />
+                  <Input
+                    label="Required Lens Brand Line"
+                    value={((formData as any).config?.requiredLensBrandLine) || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      config: {
+                        ...(formData as any).config,
+                        requiredLensBrandLine: e.target.value
+                      }
+                    })}
+                    placeholder="e.g., DIGI360_ADVANCED"
+                  />
+                  <Input
+                    label="Frame Category Combo Price (₹)"
+                    type="number"
+                    value={((formData as any).config?.frameCategoryComboPrice) || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      config: {
+                        ...(formData as any).config,
+                        frameCategoryComboPrice: e.target.value ? parseFloat(e.target.value) : null
+                      }
+                    })}
+                    placeholder="e.g., 1499"
+                  />
+                </>
+              )}
+              
+              {((formData as any).config?.comboType === 'VISION_TYPE_COMBO') && (
+                <>
+                  <Input
+                    label="Required Vision Type"
+                    value={((formData as any).config?.requiredVisionType) || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      config: {
+                        ...(formData as any).config,
+                        requiredVisionType: e.target.value
+                      }
+                    })}
+                    placeholder="e.g., TINT, PHOTOCHROMIC"
+                  />
+                  <Input
+                    label="Required Lens Brand Line"
+                    value={((formData as any).config?.requiredLensBrandLine) || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      config: {
+                        ...(formData as any).config,
+                        requiredLensBrandLine: e.target.value
+                      }
+                    })}
+                    placeholder="e.g., TINT_NEXT"
+                  />
+                  <Input
+                    label="Vision Type Combo Price (₹)"
+                    type="number"
+                    value={((formData as any).config?.visionTypeComboPrice) || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      config: {
+                        ...(formData as any).config,
+                        visionTypeComboPrice: e.target.value ? parseFloat(e.target.value) : null
+                      }
+                    })}
+                    placeholder="e.g., 899"
+                  />
+                </>
+              )}
+              
+              {((formData as any).config?.comboType === 'FRAME_MRP_ONLY') && (
+                <Input
+                  label="Required Lens Brand Line (optional)"
+                  value={((formData as any).config?.requiredLensBrandLine) || ''}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    config: {
+                      ...(formData as any).config,
+                      requiredLensBrandLine: e.target.value
+                    }
+                  })}
+                  placeholder="e.g., BLUEXPERT (leave empty for any lens)"
+                />
+              )}
+            </div>
+          )}
+
+          {formData.offerType === 'BONUS_FREE_PRODUCT' && (
+            <div className="space-y-4">
+              <Input
+                label="Trigger Min Bill Value (₹)"
+                type="number"
+                value={((formData as any).config?.triggerMinBill) || ''}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  config: {
+                    ...(formData as any).config,
+                    triggerMinBill: e.target.value ? parseFloat(e.target.value) : 0
+                  }
+                })}
+                placeholder="e.g., 3000"
+              />
+              <Input
+                label="Bonus Value Limit (₹)"
+                type="number"
+                value={((formData as any).config?.bonusLimit) || ''}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  config: {
+                    ...(formData as any).config,
+                    bonusLimit: e.target.value ? parseFloat(e.target.value) : 0
+                  }
+                })}
+                placeholder="e.g., 1499"
+              />
+              <Select
+                label="Bonus Category"
+                value={((formData as any).config?.bonusCategory) || 'ACCESSORY'}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  config: {
+                    ...(formData as any).config,
+                    bonusCategory: e.target.value
+                  }
+                })}
+                options={[
+                  { value: 'FRAME', label: 'FRAME' },
+                  { value: 'SUNGLASS', label: 'SUNGLASS' },
+                  { value: 'CONTACT_LENS', label: 'CONTACT_LENS' },
+                  { value: 'ACCESSORY', label: 'ACCESSORY' },
+                ]}
+              />
+              <Input
+                label="Eligible Brands (comma-separated, * for all)"
+                value={Array.isArray((formData as any).config?.eligibleBrands) 
+                  ? ((formData as any).config.eligibleBrands as string[]).join(', ')
+                  : ''}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  config: {
+                    ...(formData as any).config,
+                    eligibleBrands: e.target.value 
+                      ? e.target.value.split(',').map(b => b.trim()).filter(b => b)
+                      : []
+                  }
+                })}
+                placeholder="e.g., LENSTRACK, RAYBAN or * for all"
+              />
+            </div>
+          )}
+
+          {(formData.offerType === 'PERCENT_OFF' || formData.offerType === 'FLAT_OFF') && (
+            <div className="space-y-4">
+              <Input
+                label="Upsell Threshold (₹)"
+                type="number"
+                value={((formData as any).upsellThreshold) || ''}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  upsellThreshold: e.target.value ? parseFloat(e.target.value) : null
+                })}
+                placeholder="Bill value threshold for upsell"
+              />
+              <Input
+                label="Upsell Reward Text"
+                value={((formData as any).upsellRewardText) || ''}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  upsellRewardText: e.target.value
+                })}
+                placeholder="e.g., FREE Sunglasses worth ₹1499"
+              />
+            </div>
           )}
 
           <div className="flex items-center gap-4">

@@ -6,8 +6,12 @@ import { UserRole } from '@/lib/constants';
 import { RetailProductType } from '@prisma/client';
 import { z } from 'zod';
 
+// NOTE: 
+// - FRAME and SUNGLASS: Manual entry only (not SKU products)
+// - CONTACT_LENS: Use ContactLensProduct model (/admin/contact-lens-products)
+// - ACCESSORY: Only type allowed in RetailProduct
 const createProductSchema = z.object({
-  type: z.enum(['FRAME', 'SUNGLASS', 'CONTACT_LENS', 'ACCESSORY']),
+  type: z.enum(['ACCESSORY']), // Only ACCESSORY allowed - CONTACT_LENS uses ContactLensProduct model
   brandId: z.string().min(1, 'Brand ID is required'),
   subBrandId: z.string().optional().nullable(),
   name: z.string().optional().nullable(),
@@ -34,7 +38,22 @@ export async function GET(request: NextRequest) {
     const where: any = {};
 
     // Validate type against enum values
-    const validTypes: RetailProductType[] = ['FRAME', 'SUNGLASS', 'CONTACT_LENS', 'ACCESSORY'];
+    // NOTE: 
+    // - FRAME and SUNGLASS: Manual entry only (not SKU products)
+    // - CONTACT_LENS: Use ContactLensProduct model (/admin/contact-lens-products)
+    // - ACCESSORY: Only type allowed in RetailProduct
+    if (typeParam && (typeParam === 'FRAME' || typeParam === 'SUNGLASS' || typeParam === 'CONTACT_LENS')) {
+      // Return empty array for FRAME/SUNGLASS/CONTACT_LENS requests
+      return Response.json({
+        success: true,
+        data: [],
+        message: typeParam === 'CONTACT_LENS' 
+          ? 'Contact lens products are managed in /admin/contact-lens-products. Use ContactLensProduct model.'
+          : 'Frame and Sunglass products are not managed here. Use manual entry in customer flow.',
+      });
+    }
+    
+    const validTypes: RetailProductType[] = ['ACCESSORY'];
     if (typeParam && validTypes.includes(typeParam as RetailProductType)) {
       where.type = typeParam as RetailProductType;
     }
@@ -111,6 +130,10 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = createProductSchema.parse(body);
+
+    // Note: Schema validation already restricts type to ACCESSORY only
+    // CONTACT_LENS should use ContactLensProduct model (/admin/contact-lens-products)
+    // FRAME and SUNGLASS are rejected - they should only be entered manually in customer flow
 
     // Verify brand exists (brands are global)
     const brand = await prisma.productBrand.findUnique({

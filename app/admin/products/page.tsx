@@ -29,6 +29,10 @@ interface Brand {
 
 interface RetailProduct {
   id: string;
+  // Note: 
+  // - FRAME and SUNGLASS: Manual entry only (not SKU products)
+  // - CONTACT_LENS: Use ContactLensProduct model (/admin/contact-lens-products)
+  // - ACCESSORY: Only type allowed in RetailProduct
   type: 'FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY';
   brand: {
     id: string;
@@ -45,11 +49,15 @@ interface RetailProduct {
   isActive: boolean;
 }
 
-type ProductType = 'FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY';
+// NOTE: 
+// - FRAME and SUNGLASS: Manual entry only (not SKU products)
+// - CONTACT_LENS: Use /admin/contact-lens-products (ContactLensProduct model)
+// - ACCESSORY: Only type allowed in RetailProduct
+type ProductType = 'ACCESSORY';
 
 export default function ProductsPage() {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<ProductType>('FRAME');
+  const [activeTab, setActiveTab] = useState<ProductType>('ACCESSORY');
   const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<RetailProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +84,7 @@ export default function ProductsPage() {
 
   // Product form
   const [productFormData, setProductFormData] = useState({
-    type: 'FRAME' as ProductType,
+    type: 'ACCESSORY' as ProductType,
     brandId: '',
     subBrandId: '',
     name: '',
@@ -663,23 +671,11 @@ export default function ProductsPage() {
   };
 
   const getProductTypeLabel = (type: ProductType) => {
-    switch (type) {
-      case 'FRAME': return 'Frames';
-      case 'SUNGLASS': return 'Sunglasses';
-      case 'CONTACT_LENS': return 'Contact Lenses';
-      case 'ACCESSORY': return 'Accessories';
-      default: return type;
-    }
+    return 'Accessories';
   };
 
   const getAddButtonLabel = () => {
-    switch (activeTab) {
-      case 'FRAME': return 'Add Frame';
-      case 'SUNGLASS': return 'Add Sunglass';
-      case 'CONTACT_LENS': return 'Add Contact Lens';
-      case 'ACCESSORY': return 'Add Accessory';
-      default: return 'Add Product';
-    }
+    return 'Add Accessory';
   };
 
   return (
@@ -691,9 +687,10 @@ export default function ProductsPage() {
       </div>
 
       {/* Product Type Tabs */}
+      {/* NOTE: FRAME and SUNGLASS tabs removed - only manual entry in customer flow per specification */}
       <div className="mb-6">
         <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1 inline-flex">
-          {(['FRAME', 'SUNGLASS', 'CONTACT_LENS', 'ACCESSORY'] as ProductType[]).map((type) => (
+          {(['ACCESSORY'] as ProductType[]).map((type) => (
             <button
               key={type}
               onClick={() => setActiveTab(type)}

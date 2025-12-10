@@ -50,6 +50,13 @@ enum LensCategory {
   ULTRA
 }
 
+enum OrderType {
+  EYEGLASSES
+  LENS_ONLY
+  POWER_SUNGLASS
+  CONTACT_LENS_ONLY
+}
+
 type OfferRuleConfig {
   comboPrice        Int?
   discountType      String?
@@ -66,11 +73,21 @@ type OrderFrameData {
 }
 
 type OrderLensData {
-  brandLine String
-  id        String
-  index     String
-  name      String
-  price     Int
+  brandLine        String
+  id               String
+  index            String
+  name             String
+  price            Int
+  itCode           String?  // Lens SKU
+  visionType       String?  // SINGLE_VISION, PROGRESSIVE, etc.
+  basePrice        Int?     // Base lens price
+  finalLensPrice   Int?     // Final price after band pricing
+  powerBand        Json?    // Power band information
+  bandExtra        Int?     // Extra charge from band pricing
+  tint             Json?    // Tint selection data
+  mirror           Json?    // Mirror coating data
+  thicknessWarning Boolean? // Thickness warning flag
+  recommendedIndex String?  // Recommended index for prescription
 }
 
 type OrderOfferData {
@@ -100,10 +117,11 @@ type OrderOfferDataPriceComponents {
 }
 
 model AnswerBenefit {
-  id        String @id @default(auto()) @map("_id") @db.ObjectId
-  answerId  String @db.ObjectId
-  benefitId String @db.ObjectId
-  points    Float  @default(0) // Benefit points (e.g. +1.5, +2.0, +3.0) - can be fractional
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  answerId      String  @db.ObjectId
+  benefitId     String  @db.ObjectId
+  points        Float   @default(0) // Benefit points (e.g. +1.5, +2.0, +3.0) - can be fractional
+  categoryWeight Float  @default(1.0) // Category weight multiplier (e.g., screen-heavy answers amplify screen benefits)
 
   answer  AnswerOption @relation(fields: [answerId], references: [id], onDelete: Cascade)
   benefit Benefit      @relation(fields: [benefitId], references: [id], onDelete: Cascade)
@@ -125,7 +143,8 @@ model AnswerOption {
   textHi              String?
   textHiEn            String?
   triggersSubQuestion Boolean   @default(false) // If true, this answer triggers a sub-question
-  subQuestionId       String?   @db.ObjectId // ID of the sub-question to show after this answer
+  subQuestionId       String?   @db.ObjectId // ID of the sub-question to show after this answer (legacy - single sub-question)
+  nextQuestionIds     String[]  @default([]) // Array of question IDs for unlimited nesting support
   createdAt           DateTime? @default(now()) // Made nullable to handle existing null records
   updatedAt           DateTime  @updatedAt
 
@@ -139,6 +158,39 @@ model AnswerOption {
   @@index([triggersSubQuestion])
 }
 
+// Unified master for Benefits and Features - simple single table
+model BenefitFeature {
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
+  type           String           // 'BENEFIT' or 'FEATURE'
+  code           String           // B01..B12 for benefits, F01..F11 for features
+  name           String
+  description    String?
+  // Benefit-specific fields (null for features)
+  pointWeight    Float?           @default(1.0) // Global importance weight
+  maxScore       Float?           @default(3.0) // Usually 3
+  // Feature-specific fields (null for benefits)
+  category       String?          // DURABILITY, COATING, PROTECTION, LIFESTYLE, VISION
+  displayOrder   Int?             // Order for display
+  // Common fields
+  isActive       Boolean          @default(true)
+  organizationId String?          @db.ObjectId // null for global features (F01-F11)
+  createdAt      DateTime         @default(now()) @db.Date
+  updatedAt      DateTime         @updatedAt @db.Date
+  
+  // Relations - Note: These will be updated after migration
+  // answerMappings AnswerBenefit[]
+  // productMappings ProductBenefit[]
+  // productFeatureMappings ProductFeature[]
+
+  @@unique([code, organizationId]) // Code unique per organization (or globally for features)
+  @@index([type])
+  @@index([organizationId])
+  @@index([isActive])
+  @@index([category])
+  @@index([displayOrder])
+}
+
+// Legacy Benefit model - deprecated, use BenefitFeature with type='BENEFIT'
 model Benefit {
   id             String           @id @default(auto()) @map("_id") @db.ObjectId
   code           String           @unique // B01..B12 (fixed codes, can extend)
@@ -160,20 +212,23 @@ model Benefit {
 }
 
 model CategoryDiscount {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  brandCode        String
-  createdAt        DateTime @db.Date
-  customerCategory String
-  discountPercent  Float
-  isActive         Boolean
-  maxDiscount      Float
-  organizationId   String   @db.ObjectId
-  updatedAt        DateTime @db.Date
+  id                        String   @id @default(auto()) @map("_id") @db.ObjectId
+  brandCode                 String
+  createdAt                 DateTime @db.Date
+  customerCategory          String
+  discountPercent           Float
+  isActive                  Boolean
+  maxDiscount               Float
+  organizationId            String   @db.ObjectId
+  updatedAt                 DateTime @db.Date
+  categoryVerificationRequired Boolean @default(false) // If true, require ID proof upload
+  allowedIdTypes            String[] @default([]) // Array of allowed ID types: ["STUDENT_ID", "DOCTOR_ID", "TEACHER_ID", "ARMY_ID", etc.]
 
   @@unique([organizationId, customerCategory, brandCode])
   @@index([organizationId])
   @@index([customerCategory])
   @@index([isActive])
+  @@index([categoryVerificationRequired])
 }
 
 model Coupon {
@@ -198,6 +253,7 @@ model Coupon {
   @@index([code])
 }
 
+// Legacy Feature model - deprecated, use BenefitFeature with type='FEATURE'
 model Feature {
   id             String           @id @default(auto()) @map("_id") @db.ObjectId
   code           String           @unique // F01..F11 (fixed codes)
@@ -217,6 +273,7 @@ model Feature {
   @@index([displayOrder])
 }
 
+// Legacy FeatureBenefit model - deprecated, removed in simplified structure
 model FeatureBenefit {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   benefitId String   @db.ObjectId
@@ -232,6 +289,7 @@ model FeatureBenefit {
   @@index([benefitId])
 }
 
+// Legacy FeatureMapping model - deprecated, removed in simplified structure
 model FeatureMapping {
   id         String @id @default(auto()) @map("_id") @db.ObjectId
   featureId  String @db.ObjectId
@@ -326,15 +384,53 @@ model Order {
   frameData         OrderFrameData
   lensData          OrderLensData
   offerData         OrderOfferData
+  orderType         OrderType      @default(EYEGLASSES)
   salesMode         String
   status            String
   storeId           String         @db.ObjectId
   updatedAt         DateTime       @db.Date
+  categoryIdProof   Json?          // ID proof upload data for category discounts
+  offerAudits       OrderOfferAudit[]
 
   @@index([storeId])
   @@index([status])
   @@index([createdAt])
   @@index([assistedByStaffId])
+  @@index([orderType])
+}
+
+// Order Offer Audit - tracks all offers applied to an order
+model OrderOfferAudit {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId         String   @db.ObjectId
+  offerCode       String   // Offer rule code
+  offerType       String   // YOPO, COMBO_PRICE, FREE_LENS, etc.
+  ruleSnapshot    Json     // Full snapshot of offer rule at time of application
+  discountAmount  Float    @default(0)
+  appliedAt       DateTime @default(now()) @db.Date
+  appliedBy       String?  @db.ObjectId // Staff ID who applied (if applicable)
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([offerCode])
+  @@index([offerType])
+  @@index([appliedAt])
+}
+
+model StoreOfferMap {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  storeId       String    @db.ObjectId
+  offerRuleId   String    @db.ObjectId
+  isActive      Boolean   @default(true)
+  activatedAt   DateTime  @default(now()) @db.Date
+  deactivatedAt DateTime? @db.Date
+  createdAt     DateTime  @default(now()) @db.Date
+  updatedAt     DateTime  @updatedAt @db.Date
+
+  @@unique([storeId, offerRuleId])
+  @@index([storeId])
+  @@index([offerRuleId])
+  @@index([isActive])
 }
 
 model Organization {
@@ -365,9 +461,13 @@ model Prescription {
 
 // Old Product model removed - replaced by LensProduct
 
+// NOTE: LensBrand is for reference/display purposes only
+// LensProduct uses brandLine (String) field, NOT a relation to LensBrand
+// LensBrand.name should match LensProduct.brandLine values for consistency
+// This is a loose coupling - LensBrand is not enforced as a foreign key
 model LensBrand {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name        String   @unique
+  name        String   @unique // Should match LensProduct.brandLine values
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now()) @db.Date
@@ -377,8 +477,8 @@ model LensBrand {
 }
 
 model LensProduct {
-  id             String                 @id @default(auto()) @map("_id") @db.ObjectId
-  itCode         String                 @unique
+  id             String                     @id @default(auto()) @map("_id") @db.ObjectId
+  itCode         String                     @unique
   name           String
   brandLine      String
   visionType     VisionType
@@ -387,15 +487,18 @@ model LensProduct {
   baseOfferPrice Float
   addOnPrice     Float?
   category       LensCategory
-  yopoEligible   Boolean                @default(true)
-  deliveryDays   Int                    @default(4)
-  isActive       Boolean                @default(true)
-  createdAt      DateTime               @default(now()) @db.Date
-  updatedAt      DateTime               @updatedAt @db.Date
+  yopoEligible   Boolean                    @default(true)
+  deliveryDays   Int                        @default(4)
+  isActive       Boolean                    @default(true)
+  createdAt      DateTime                   @default(now()) @db.Date
+  updatedAt      DateTime                   @updatedAt @db.Date
   rxRanges       LensRxRange[]
   benefits       ProductBenefit[]
   features       ProductFeature[]
   specs          ProductSpecification[]
+  tintColors     LensProductTintColor[]
+  mirrorCoatings LensProductMirrorCoating[]
+  bandPricing    LensBandPricing[]
 
   @@index([brandLine])
   @@index([visionType])
@@ -418,6 +521,157 @@ model LensRxRange {
   lens       LensProduct @relation(fields: [lensId], references: [id], onDelete: Cascade)
 
   @@index([lensId])
+}
+
+// Band Pricing for power-based extra charges
+model LensBandPricing {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  lensId      String      @db.ObjectId
+  minPower    Float       // Minimum power (absolute value)
+  maxPower    Float       // Maximum power (absolute value)
+  extraCharge Float       @default(0) // Extra charge for this power band
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now()) @db.Date
+  updatedAt   DateTime    @updatedAt @db.Date
+  lens        LensProduct @relation(fields: [lensId], references: [id], onDelete: Cascade)
+
+  @@index([lensId])
+  @@index([isActive])
+}
+
+enum TintColorCategory {
+  SOLID
+  GRADIENT
+  FASHION
+  POLARIZED
+  PHOTOCHROMIC
+}
+
+model TintColor {
+  id              String                 @id @default(auto()) @map("_id") @db.ObjectId
+  code            String                 @unique
+  name            String
+  hexColor        String?
+  imageUrl        String?
+  category        TintColorCategory
+  darknessPercent Int
+  isPolarized     Boolean                @default(false)
+  isMirror        Boolean                @default(false)
+  basePrice       Float                  @default(0) // Base price for this tint
+  isActive        Boolean                @default(true)
+  displayOrder    Int                    @default(0)
+  createdAt       DateTime               @default(now()) @db.Date
+  updatedAt       DateTime               @updatedAt @db.Date
+  lensProducts    LensProductTintColor[]
+  indexPricing    TintColorIndexPricing[] // Index-based pricing rules
+
+  @@index([isActive])
+  @@index([displayOrder])
+  @@index([category])
+}
+
+// Index-based pricing for tint colors
+model TintColorIndexPricing {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  tintColorId String    @db.ObjectId
+  lensIndex   LensIndex // INDEX_156, INDEX_160, INDEX_167, INDEX_174
+  priceFactor Float     @default(1.0) // Multiplier for base price (e.g., 1.2 = 20% extra)
+  addOnPrice  Float     @default(0) // Fixed add-on price for this index
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @db.Date
+  updatedAt   DateTime  @updatedAt @db.Date
+  tintColor   TintColor @relation(fields: [tintColorId], references: [id], onDelete: Cascade)
+
+  @@unique([tintColorId, lensIndex])
+  @@index([tintColorId])
+  @@index([lensIndex])
+  @@index([isActive])
+}
+
+model MirrorCoating {
+  id           String                     @id @default(auto()) @map("_id") @db.ObjectId
+  code         String                     @unique
+  name         String
+  imageUrl     String?
+  addOnPrice   Float                      @default(0)
+  isActive     Boolean                    @default(true)
+  displayOrder Int                        @default(0)
+  createdAt    DateTime                   @default(now()) @db.Date
+  updatedAt    DateTime                   @updatedAt @db.Date
+  lensProducts LensProductMirrorCoating[]
+
+  @@index([isActive])
+  @@index([displayOrder])
+}
+
+model LensProductTintColor {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  lensId      String      @db.ObjectId
+  tintColorId String      @db.ObjectId
+  lens        LensProduct @relation(fields: [lensId], references: [id], onDelete: Cascade)
+  tintColor   TintColor   @relation(fields: [tintColorId], references: [id], onDelete: Cascade)
+
+  @@unique([lensId, tintColorId])
+  @@index([lensId])
+  @@index([tintColorId])
+}
+
+model LensProductMirrorCoating {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  lensId          String        @db.ObjectId
+  mirrorCoatingId String        @db.ObjectId
+  lens            LensProduct   @relation(fields: [lensId], references: [id], onDelete: Cascade)
+  mirrorCoating   MirrorCoating @relation(fields: [mirrorCoatingId], references: [id], onDelete: Cascade)
+
+  @@unique([lensId, mirrorCoatingId])
+  @@index([lensId])
+  @@index([mirrorCoatingId])
+}
+
+enum ContactLensModality {
+  DAILY
+  BIWEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum ContactLensType {
+  SPHERICAL
+  TORIC
+  MULTIFOCAL
+  COSMETIC
+}
+
+model ContactLensProduct {
+  id           String              @id @default(auto()) @map("_id") @db.ObjectId
+  skuCode      String              @unique
+  brand        String
+  line         String
+  modality     ContactLensModality
+  lensType     ContactLensType
+  material     String?
+  waterContent String?
+  designNotes  String?
+  packSize     Int
+  mrp          Float
+  offerPrice   Float
+  sphMin       Float?
+  sphMax       Float?
+  cylMin       Float?
+  cylMax       Float?
+  axisSteps    String? // JSON array of numbers
+  addMin       Float?
+  addMax       Float?
+  isColorLens  Boolean             @default(false)
+  colorOptions String? // JSON array of color names
+  isActive     Boolean             @default(true)
+  createdAt    DateTime            @default(now()) @db.Date
+  updatedAt    DateTime            @updatedAt @db.Date
+
+  @@index([brand])
+  @@index([modality])
+  @@index([lensType])
+  @@index([isActive])
 }
 
 model ProductBenefit {

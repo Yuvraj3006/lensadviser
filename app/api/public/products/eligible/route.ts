@@ -3,10 +3,10 @@ import { handleApiError, ValidationError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 
 /**
- * GET /api/public/products/eligible
+ * POST /api/public/products/eligible
  * Get products eligible for upsell based on price range
  */
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const storeId = searchParams.get('storeId');
@@ -27,10 +27,14 @@ export async function GET(request: NextRequest) {
       throw new ValidationError('Store not found');
     }
 
-    // Fetch retail products (frames) for upsell
+    // NOTE: FRAME and SUNGLASS are manual-entry only, no SKU products exist
+    // This endpoint should only return CONTACT_LENS and ACCESSORY products for upsell
+    // Frames/Sunglasses cannot be used for upsell as they are not catalog products
+    
+    // Fetch retail products (CONTACT_LENS and ACCESSORY only) for upsell
     const products = await prisma.retailProduct.findMany({
       where: {
-        type: 'FRAME',
+        type: { in: ['CONTACT_LENS', 'ACCESSORY'] },
         isActive: true,
       },
       include: {
@@ -50,14 +54,14 @@ export async function GET(request: NextRequest) {
         const price = product.mrp;
         return {
           id: product.id,
-          name: product.name || `${product.brand.name} Frame`,
+          name: product.name || `${product.brand.name} ${product.type}`,
           brand: product.brand.name,
           imageUrl: null,
           basePrice: product.mrp,
           storePrice: product.mrp,
           inStock: true,
           sku: product.sku || product.id,
-          category: 'FRAME',
+          category: product.type,
         };
       })
       .filter(product => {

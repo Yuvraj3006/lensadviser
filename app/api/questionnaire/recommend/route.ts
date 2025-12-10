@@ -29,6 +29,7 @@ const recommendRequestSchema = z.object({
   ),
   visionTypeOverride: z.enum(['MYOPIA', 'HYPEROPIA', 'ASTIGMATISM', 'PRESBYOPIA', 'MULTIFOCAL', 'OTHER']).optional().nullable(),
   budgetFilter: z.enum(['ECONOMY', 'STANDARD', 'PREMIUM', 'BEST']).optional().nullable(),
+  category: z.enum(['EYEGLASSES', 'SUNGLASSES', 'ONLY_LENS', 'CONTACT_LENSES']).optional().nullable(),
   organizationId: z.string(),
 });
 
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
       answers: validated.answers,
       visionTypeOverride: (validated.visionTypeOverride as any) || null,
       budgetFilter: validated.budgetFilter || null,
+      category: validated.category || null,
       organizationId: validated.organizationId,
     });
 

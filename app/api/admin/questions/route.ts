@@ -126,20 +126,65 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Fetch benefit mappings for all options
+    const allOptionIds = questions.flatMap((q: any) => (q.options || []).map((opt: any) => opt.id || opt._id?.toString()));
+    const benefitMappings = allOptionIds.length > 0
+      ? await prisma.answerBenefit.findMany({
+          where: { answerId: { in: allOptionIds } },
+        })
+      : [];
+    const benefitMappingsByAnswerId = new Map<string, any[]>();
+    benefitMappings.forEach((bm: any) => {
+      const answerId = bm.answerId.toString();
+      if (!benefitMappingsByAnswerId.has(answerId)) {
+        benefitMappingsByAnswerId.set(answerId, []);
+      }
+      benefitMappingsByAnswerId.get(answerId)!.push(bm);
+    });
+
+    // Fetch benefits to get codes
+    const benefitIds = [...new Set(benefitMappings.map((bm: any) => bm.benefitId))];
+    const benefits = benefitIds.length > 0
+      ? await prisma.benefit.findMany({
+          where: { id: { in: benefitIds } },
+        })
+      : [];
+    const benefitMap = new Map(benefits.map((b: any) => [b.id.toString(), b]));
+
     const formattedQuestions = questions.map((q: any) => {
-      const options = (q.options || []).map((opt: any) => ({
-        id: opt.id || (opt._id ? opt._id.toString() : ''),
-        key: opt.key,
-        textEn: opt.textEn || opt.key,
-        textHi: opt.textHi || null,
-        textHiEn: opt.textHiEn || null,
-        icon: opt.icon || null,
-        order: opt.order || 0,
-        displayOrder: opt.displayOrder || opt.order || 0,
-        triggersSubQuestion: opt.triggersSubQuestion || false,
-        subQuestionId: opt.subQuestionId || null,
-        benefitMapping: {}, // Will be populated from AnswerBenefit if needed
-      }));
+      const options = (q.options || []).map((opt: any) => {
+        const optionId = opt.id?.toString() || opt._id?.toString() || '';
+        const mappings = benefitMappingsByAnswerId.get(optionId) || [];
+        const benefitMapping: Record<string, number> = {};
+        let categoryWeight = 1.0;
+        
+        mappings.forEach((bm: any) => {
+          const benefit = benefitMap.get(bm.benefitId.toString());
+          if (benefit) {
+            benefitMapping[benefit.code] = bm.points || 0;
+            // Use first mapping's categoryWeight (they should all be the same per answer)
+            if (bm.categoryWeight) {
+              categoryWeight = bm.categoryWeight;
+            }
+          }
+        });
+
+        return {
+          id: optionId,
+          key: opt.key,
+          textEn: opt.textEn || opt.key,
+          textHi: opt.textHi || null,
+          textHiEn: opt.textHiEn || null,
+          icon: opt.icon || null,
+          order: opt.order || 0,
+          displayOrder: opt.displayOrder || opt.order || 0,
+          triggersSubQuestion: opt.triggersSubQuestion || false,
+          subQuestionId: opt.subQuestionId || null,
+          nextQuestionIds: opt.nextQuestionIds || (opt.subQuestionId ? [opt.subQuestionId] : []), // Support both formats
+          categoryWeight: categoryWeight,
+          benefitMapping: benefitMapping,
+        };
+      });
       
       return {
         id: q.id || (q._id ? q._id.toString() : ''),
@@ -225,21 +270,9 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Validate options
+    // Validate options (key is optional - will be auto-generated)
     for (let i = 0; i < body.options.length; i++) {
       const opt = body.options[i];
-      if (!opt.key || !opt.key.trim()) {
-        return Response.json(
-          {
-            success: false,
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: `Option ${i + 1}: Key is required`,
-            },
-          },
-          { status: 400 }
-        );
-      }
       if (!opt.textEn || !opt.textEn.trim()) {
         return Response.json(
           {
@@ -364,15 +397,33 @@ export async function POST(request: NextRequest) {
       optionsCount: options.length,
     });
     
+    // Auto-generate question key if not provided
+    const questionKey = questionData.key?.trim() || `question_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Auto-translate if Hindi/Hinglish not provided
+    let textHi = questionData.textHi?.trim() || null;
+    let textHiEn = questionData.textHiEn?.trim() || null;
+    
+    if (!textHi || !textHiEn) {
+      try {
+        const { autoTranslateQuestion } = await import('@/lib/translation.service');
+        const translations = autoTranslateQuestion(questionData.textEn.trim());
+        textHi = textHi || translations.hindi || null;
+        textHiEn = textHiEn || translations.hinglish || null;
+      } catch (error) {
+        console.warn('Auto-translation failed, using provided values:', error);
+      }
+    }
+
     const question = await prisma.question.create({
       data: {
         organizationId: user.organizationId,
-        code: questionData.code || questionData.key, // Support both code and key
-        key: questionData.key.trim(),
+        code: questionData.code || questionKey, // Support both code and key
+        key: questionKey,
         text: questionData.text || questionData.textEn, // Support both text and textEn
         textEn: questionData.textEn.trim(),
-        textHi: questionData.textHi?.trim() || null,
-        textHiEn: questionData.textHiEn?.trim() || null,
+        textHi: textHi,
+        textHiEn: textHiEn,
         category: String(questionData.category), // Ensure it's a string
         questionCategory: questionData.questionCategory?.trim() || null,
         questionType: questionData.questionType?.trim() || null,
@@ -383,24 +434,48 @@ export async function POST(request: NextRequest) {
         parentAnswerId: questionData.parentAnswerId || null, // Support subquestions
         isActive: Boolean(questionData.isActive ?? true),
         options: {
-          create: options.map((opt: any, index: number) => {
+          create: await Promise.all(options.map(async (opt: any, index: number) => {
             const subQuestionId = (opt.triggersSubQuestion && opt.subQuestionId && String(opt.subQuestionId).trim() !== '') 
               ? String(opt.subQuestionId).trim() 
               : null;
             
+            // Auto-generate option key if not provided
+            const optionKey = opt.key?.trim() || `option_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            // Auto-translate answer options if Hindi/Hinglish not provided
+            let optTextHi = opt.textHi?.trim() || null;
+            let optTextHiEn = opt.textHiEn?.trim() || null;
+            
+            if (opt.textEn && (!optTextHi || !optTextHiEn)) {
+              try {
+                const { autoTranslateAnswer } = await import('@/lib/translation.service');
+                const translations = autoTranslateAnswer(opt.textEn.trim());
+                optTextHi = optTextHi || translations.hindi || null;
+                optTextHiEn = optTextHiEn || translations.hinglish || null;
+              } catch (error) {
+                console.warn(`Auto-translation failed for option ${index}:`, error);
+              }
+            }
+            
+            // Handle nextQuestionIds array (unlimited nesting support)
+            const nextQuestionIds = opt.nextQuestionIds && Array.isArray(opt.nextQuestionIds) 
+              ? opt.nextQuestionIds.filter((id: any) => id && String(id).trim() !== '')
+              : (subQuestionId ? [subQuestionId] : []); // Fallback to legacy subQuestionId
+
             return {
-              key: String(opt.key).trim(),
+              key: optionKey,
               text: opt.text || opt.textEn || null,
               textEn: String(opt.textEn).trim(),
-              textHi: opt.textHi?.trim() || null,
-              textHiEn: opt.textHiEn?.trim() || null,
+              textHi: optTextHi,
+              textHiEn: optTextHiEn,
               icon: opt.icon?.trim() || null,
               order: Number(index + 1),
               displayOrder: Number(opt.displayOrder || index + 1),
               triggersSubQuestion: Boolean(opt.triggersSubQuestion || false),
-              subQuestionId: subQuestionId,
+              subQuestionId: subQuestionId, // Keep for backward compatibility
+              nextQuestionIds: nextQuestionIds, // New: array support
             };
-          }),
+          })),
         },
       },
       include: {
@@ -415,6 +490,9 @@ export async function POST(request: NextRequest) {
         const answerOption = question.options[i];
         
         if (opt.benefitMapping && answerOption) {
+          // Get category weight for this answer (applies to all benefits)
+          const answerCategoryWeight = typeof opt.categoryWeight === 'number' ? opt.categoryWeight : 1.0;
+          
           // Create AnswerBenefit records for each benefit with points > 0
           const benefitMappings = Object.entries(opt.benefitMapping)
             .filter(([_, points]) => typeof points === 'number' && points > 0) // Only create mappings with points > 0
@@ -429,6 +507,7 @@ export async function POST(request: NextRequest) {
                 answerId: answerOption.id,
                 benefitId: benefitId,
                 points: Math.max(0, Math.min(3, pointsValue)), // Clamp 0-3
+                categoryWeight: answerCategoryWeight, // Category weight multiplier (same for all benefits in this answer)
               };
             })
             .filter((mapping) => mapping !== null);
@@ -444,7 +523,10 @@ export async function POST(request: NextRequest) {
                       benefitId: mapping.benefitId,
                     },
                   },
-                  update: { points: mapping.points },
+                  update: { 
+                    points: mapping.points,
+                    categoryWeight: mapping.categoryWeight || 1.0,
+                  },
                   create: mapping,
                 })
               )

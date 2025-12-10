@@ -88,8 +88,8 @@ export default function QuestionnairePage() {
   };
 
   const handleStart = () => {
-    // Navigate to customer details page (first step of flow)
-    router.push('/questionnaire/customer-details');
+    // Navigate to mode selection first (as per spec: Store → Mode → Language → Mode Selection)
+    router.push('/questionnaire/mode-selection');
   };
 
   return (

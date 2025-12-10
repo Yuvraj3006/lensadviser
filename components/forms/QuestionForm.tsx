@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 type ProductCategory = 'EYEGLASSES' | 'SUNGLASSES' | 'CONTACT_LENSES' | 'ACCESSORIES';
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronRight, Languages } from 'lucide-react';
 
 interface Benefit {
   id: string;
@@ -22,8 +22,10 @@ interface AnswerOption {
   icon?: string;
   order: number;
   benefitMapping: Record<string, number>; // { B01: 2, B04: 1.5, ... }
+  categoryWeight?: number; // Category weight multiplier (default 1.0)
   triggersSubQuestion?: boolean; // If true, this answer triggers a sub-question
-  subQuestionId?: string | null; // ID of the sub-question to show after this answer
+  subQuestionId?: string | null; // ID of the sub-question to show after this answer (legacy - single sub-question)
+  nextQuestionIds?: string[]; // Array of question IDs for unlimited nesting support
 }
 
 interface QuestionFormProps {
@@ -41,10 +43,14 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
     textHiEn: question?.textHiEn || '',
     category: question?.category || 'EYEGLASSES',
     order: question?.order || 0,
+    displayOrder: question?.displayOrder || question?.order || 0, // displayOrder field
     isRequired: question?.isRequired ?? true,
     allowMultiple: question?.allowMultiple ?? false,
     isActive: question?.isActive ?? true,
     parentAnswerId: question?.parentAnswerId || null, // For interconnected questions
+    questionCategory: question?.questionCategory || '', // Optional category grouping
+    questionType: question?.questionType || '', // Optional type (SINGLE_SELECT, MULTI_SELECT, etc.)
+    code: question?.code || '', // Optional code field
   });
 
   const [options, setOptions] = useState<AnswerOption[]>(() => {
@@ -57,12 +63,14 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
         icon: opt.icon || '',
         order: opt.order || opt.displayOrder || 1,
         benefitMapping: opt.benefitMapping || {},
+        categoryWeight: opt.categoryWeight || 1.0,
         triggersSubQuestion: opt.triggersSubQuestion || false,
         subQuestionId: opt.subQuestionId || null,
+        nextQuestionIds: opt.nextQuestionIds || (opt.subQuestionId ? [opt.subQuestionId] : []), // Support both old and new format
       }));
     }
     return [
-      { key: '', textEn: '', textHi: '', textHiEn: '', icon: '', order: 1, benefitMapping: {}, triggersSubQuestion: false, subQuestionId: null },
+      { key: '', textEn: '', textHi: '', textHiEn: '', icon: '', order: 1, benefitMapping: {}, triggersSubQuestion: false, subQuestionId: null, nextQuestionIds: [] },
     ];
   });
 
@@ -71,6 +79,8 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
   const [expandedBenefitMappings, setExpandedBenefitMappings] = useState<Set<number>>(new Set());
   const [allQuestions, setAllQuestions] = useState<any[]>([]); // All questions for sub-question dropdown
   const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [translatingQuestion, setTranslatingQuestion] = useState(false);
+  const [translatingOptions, setTranslatingOptions] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetchBenefits();
@@ -99,6 +109,77 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
       console.error('Failed to fetch questions:', error);
     } finally {
       setLoadingQuestions(false);
+    }
+  };
+
+  const handleAutoTranslateQuestion = async () => {
+    if (!formData.textEn || formData.textEn.trim().length === 0) {
+      return;
+    }
+
+    setTranslatingQuestion(true);
+    try {
+      const response = await fetch('/api/admin/translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: formData.textEn,
+          type: 'question',
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setFormData({
+          ...formData,
+          textHi: data.data.hindi || formData.textHi,
+          textHiEn: data.data.hinglish || formData.textHiEn,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to translate:', error);
+    } finally {
+      setTranslatingQuestion(false);
+    }
+  };
+
+  const handleAutoTranslateOption = async (index: number) => {
+    const option = options[index];
+    if (!option.textEn || option.textEn.trim().length === 0) {
+      return;
+    }
+
+    setTranslatingOptions(new Set([...translatingOptions, index]));
+    try {
+      const response = await fetch('/api/admin/translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: option.textEn,
+          type: 'answer',
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        const updatedOptions = [...options];
+        updatedOptions[index] = {
+          ...option,
+          textHi: data.data.hindi || option.textHi,
+          textHiEn: data.data.hinglish || option.textHiEn,
+        };
+        setOptions(updatedOptions);
+      }
+    } catch (error) {
+      console.error('Failed to translate option:', error);
+    } finally {
+      const newSet = new Set(translatingOptions);
+      newSet.delete(index);
+      setTranslatingOptions(newSet);
     }
   };
 
@@ -157,8 +238,10 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
         icon: '', 
         order: options.length + 1,
         benefitMapping: {},
+        categoryWeight: 1.0,
         triggersSubQuestion: false,
         subQuestionId: null,
+        nextQuestionIds: [],
       },
     ]);
   };
@@ -224,10 +307,7 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
     // Validate options
     for (let i = 0; i < options.length; i++) {
       const opt = options[i];
-      if (!opt.key || !opt.key.trim()) {
-        alert(`Option ${i + 1}: Key is required`);
-        return;
-      }
+      // Option key is optional - backend will auto-generate if not provided
       if (!opt.textEn || !opt.textEn.trim()) {
         alert(`Option ${i + 1}: Text (English) is required`);
         return;
@@ -274,15 +354,56 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
             value={formData.key}
             onChange={(e) => handleChange('key', e.target.value)}
             required
-            hint="Unique identifier (use lowercase with underscores)"
           />
           
           <Input
-            label="Display Order"
+            label="Order"
             type="number"
             value={formData.order}
-            onChange={(e) => handleChange('order', parseInt(e.target.value))}
+            onChange={(e) => handleChange('order', parseInt(e.target.value) || 0)}
             required
+            hint="Sort order for questions"
+          />
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <Input
+            label="Display Order"
+            type="number"
+            value={formData.displayOrder}
+            onChange={(e) => handleChange('displayOrder', parseInt(e.target.value) || formData.order)}
+            hint="Display order (defaults to Order if not set)"
+          />
+          
+          <Input
+            label="Code (Optional)"
+            placeholder="e.g., Q01"
+            value={formData.code}
+            onChange={(e) => handleChange('code', e.target.value)}
+            hint="Optional code for reference"
+          />
+          
+          <Input
+            label="Question Category (Optional)"
+            placeholder="e.g., lifestyle"
+            value={formData.questionCategory}
+            onChange={(e) => handleChange('questionCategory', e.target.value)}
+            hint="Optional category grouping"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4">
+          <Select
+            label="Question Type (Optional)"
+            value={formData.questionType || ''}
+            onChange={(e) => handleChange('questionType', e.target.value || '')}
+            options={[
+              { value: '', label: '-- Auto (based on allowMultiple) --' },
+              { value: 'SINGLE_SELECT', label: 'Single Select' },
+              { value: 'MULTI_SELECT', label: 'Multi Select' },
+              { value: 'TEXT', label: 'Text Input' },
+              { value: 'NUMBER', label: 'Number Input' },
+            ]}
           />
         </div>
 
@@ -297,10 +418,23 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
 
       {/* Question Text */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-slate-900">Question Text</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-slate-900">Question Text</h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAutoTranslateQuestion}
+            disabled={!formData.textEn || formData.textEn.trim().length === 0 || translatingQuestion}
+            className="flex items-center gap-2"
+          >
+            <Languages size={16} />
+            {translatingQuestion ? 'Translating...' : 'Auto-Translate'}
+          </Button>
+        </div>
         
         <Input
-          label="English"
+          label="English *"
           placeholder="How many hours do you spend on screens daily?"
           value={formData.textEn}
           onChange={(e) => handleChange('textEn', e.target.value)}
@@ -308,14 +442,14 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
         />
         
         <Input
-          label="Hindi (Optional)"
+          label="Hindi (Auto-generated)"
           placeholder="आप प्रतिदिन कितने घंटे स्क्रीन पर बिताते हैं?"
           value={formData.textHi}
           onChange={(e) => handleChange('textHi', e.target.value)}
         />
         
         <Input
-          label="Hinglish (Optional)"
+          label="Hinglish (Auto-generated)"
           placeholder="Aap daily kitne ghante screen par bitaate hain?"
           value={formData.textHiEn}
           onChange={(e) => handleChange('textHiEn', e.target.value)}
@@ -343,11 +477,10 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                 <div className="flex-1 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <Input
-                      label="Option Key"
-                      placeholder="e.g., 0-2hrs"
-                      value={option.key}
+                      label="Option Key (Optional)"
+                      placeholder="Auto-generated if empty"
+                      value={option.key || ''}
                       onChange={(e) => updateOption(index, 'key', e.target.value)}
-                      required
                     />
                     <Input
                       label="Icon/Emoji"
@@ -357,23 +490,41 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                     />
                   </div>
                   
-                  <Input
-                    label="English Text"
-                    placeholder="0-2 hours"
-                    value={option.textEn}
-                    onChange={(e) => updateOption(index, 'textEn', e.target.value)}
-                    required
-                  />
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <Input
+                        label="English Text *"
+                        placeholder="0-2 hours"
+                        value={option.textEn}
+                        onChange={(e) => updateOption(index, 'textEn', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="pt-6">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAutoTranslateOption(index)}
+                        disabled={!option.textEn || option.textEn.trim().length === 0 || translatingOptions.has(index)}
+                        className="flex items-center gap-1"
+                        title="Auto-translate to Hindi and Hinglish"
+                      >
+                        <Languages size={14} />
+                        {translatingOptions.has(index) ? 'Translating...' : 'Translate'}
+                      </Button>
+                    </div>
+                  </div>
                   
                   <div className="grid grid-cols-2 gap-3">
                     <Input
-                      label="Hindi (Optional)"
+                      label="Hindi (Auto-generated)"
                       placeholder="0-2 घंटे"
                       value={option.textHi}
                       onChange={(e) => updateOption(index, 'textHi', e.target.value)}
                     />
                     <Input
-                      label="Hinglish (Optional)"
+                      label="Hinglish (Auto-generated)"
                       placeholder="0-2 ghante"
                       value={option.textHiEn}
                       onChange={(e) => updateOption(index, 'textHiEn', e.target.value)}
@@ -402,30 +553,60 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                         ) : benefits.length === 0 ? (
                           <p className="text-sm text-slate-500">No benefits available. Create benefits first.</p>
                         ) : (
-                          <div className="grid grid-cols-3 gap-4">
-                            {benefits.map((benefit) => (
-                              <div key={benefit.code} className="space-y-1">
-                                <label className="block text-xs font-medium text-slate-600">
-                                  {benefit.code} — {benefit.name}
-                                </label>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  max="3"
-                                  value={option.benefitMapping[benefit.code] || 0}
-                                  onChange={(e) =>
-                                    updateAnswerBenefit(
-                                      index,
-                                      benefit.code,
-                                      parseFloat(e.target.value) || 0
-                                    )
-                                  }
-                                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  placeholder="0"
-                                />
-                              </div>
-                            ))}
+                          <div className="space-y-4">
+                            {/* Category Weight (applies to all benefits for this answer) */}
+                            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                              <label className="block text-xs font-semibold text-blue-900 mb-1">
+                                Category Weight (Multiplier for all benefits)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0.5"
+                                max="3"
+                                value={option.categoryWeight || 1.0}
+                                onChange={(e) => {
+                                  const updated = [...options];
+                                  updated[index] = {
+                                    ...updated[index],
+                                    categoryWeight: parseFloat(e.target.value) || 1.0,
+                                  };
+                                  setOptions(updated);
+                                }}
+                                className="w-full rounded-lg border border-blue-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="1.0"
+                              />
+                              <p className="text-xs text-blue-700 mt-1">
+                                Screen-heavy answers should have higher weight (e.g., 1.5) to amplify screen-related benefits
+                              </p>
+                            </div>
+                            
+                            {/* Benefit Points */}
+                            <div className="grid grid-cols-3 gap-4">
+                              {benefits.map((benefit) => (
+                                <div key={benefit.code} className="space-y-1">
+                                  <label className="block text-xs font-medium text-slate-600">
+                                    {benefit.code} — {benefit.name}
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    max="3"
+                                    value={option.benefitMapping[benefit.code] || 0}
+                                    onChange={(e) =>
+                                      updateAnswerBenefit(
+                                        index,
+                                        benefit.code,
+                                        parseFloat(e.target.value) || 0
+                                      )
+                                    }
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="0"
+                                  />
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -453,9 +634,16 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                         </label>
                         <Select
                           value={option.subQuestionId || ''}
-                          onChange={(e) => updateOption(index, 'subQuestionId', e.target.value || null)}
+                          onChange={(e) => {
+                            const subQId = e.target.value || null;
+                            updateOption(index, 'subQuestionId', subQId);
+                            // Also update nextQuestionIds if it's empty
+                            if (subQId && (!option.nextQuestionIds || option.nextQuestionIds.length === 0)) {
+                              updateOption(index, 'nextQuestionIds', [subQId]);
+                            }
+                          }}
                           options={[
-                            { value: '', label: '-- Select Question --' },
+                            { value: '', label: '-- Select Single Question (Legacy) --' },
                             ...allQuestions
                               .filter((q) => q.id !== question?.id) // Prevent self-link
                               .sort((a, b) => (a.displayOrder || a.order || 0) - (b.displayOrder || b.order || 0))
@@ -468,6 +656,53 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                         {loadingQuestions && (
                           <p className="text-xs text-slate-500 mt-1">Loading questions...</p>
                         )}
+                        {/* Multiple sub-questions (new feature) */}
+                        <div className="mt-3">
+                          <label className="block text-xs text-slate-600 mb-1">
+                            Or select multiple questions (unlimited nesting):
+                          </label>
+                          <div className="space-y-2 max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-2">
+                            {allQuestions
+                              .filter((q) => q.id !== question?.id)
+                              .sort((a, b) => (a.displayOrder || a.order || 0) - (b.displayOrder || b.order || 0))
+                              .map((q) => {
+                                const isSelected = (option.nextQuestionIds || []).includes(q.id);
+                                return (
+                                  <label
+                                    key={q.id}
+                                    className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        const currentIds = option.nextQuestionIds || [];
+                                        const newIds = e.target.checked
+                                          ? [...currentIds, q.id]
+                                          : currentIds.filter((id) => id !== q.id);
+                                        updateOption(index, 'nextQuestionIds', newIds);
+                                        // Update legacy subQuestionId if only one selected
+                                        if (newIds.length === 1) {
+                                          updateOption(index, 'subQuestionId', newIds[0]);
+                                        } else if (newIds.length === 0) {
+                                          updateOption(index, 'subQuestionId', null);
+                                        }
+                                      }}
+                                      className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-slate-700">
+                                      {q.textEn || q.text || q.key} (Order: {q.displayOrder || q.order || 0})
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                          </div>
+                          {(option.nextQuestionIds || []).length > 0 && (
+                            <p className="text-xs text-blue-600 mt-1">
+                              {(option.nextQuestionIds || []).length} question(s) selected
+                            </p>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

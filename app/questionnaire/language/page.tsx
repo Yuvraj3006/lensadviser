@@ -15,8 +15,8 @@ export default function LanguagePage() {
     // Also save to localStorage for persistence
     localStorage.setItem('lenstrack_language', lang);
     
-    // Navigate to prescription page
-    router.push('/questionnaire/prescription');
+    // Navigate to mode selection (lens-type) as per spec: Language → Mode Selection
+    router.push('/questionnaire/lens-type');
   };
 
   return (

@@ -25,15 +25,52 @@ export async function GET(request: NextRequest) {
       where.isActive = isActive === 'true';
     }
 
-    const features = await prisma.feature.findMany({
-      where,
-      orderBy: {
-        displayOrder: 'asc', // Order by displayOrder (F01, F02, ...)
-      },
-    });
+    // Get all features - displayOrder should now be fixed (no nulls)
+    // But handle gracefully in case there are still issues
+    let allFeatures;
+    try {
+      allFeatures = await prisma.feature.findMany({
+        where,
+        orderBy: {
+          displayOrder: 'asc', // Order by displayOrder (F01, F02, ...)
+        },
+      });
+    } catch (error: any) {
+      // If there are still null displayOrder values, use raw query
+      if (error.code === 'P2032' && error.meta?.field === 'displayOrder') {
+        console.warn('[Features API] Found null displayOrder values, using raw query');
+        const { MongoClient } = await import('mongodb');
+        const databaseUrl = process.env.DATABASE_URL;
+        if (databaseUrl) {
+          const mongoClient = new MongoClient(databaseUrl);
+          await mongoClient.connect();
+          const db = mongoClient.db();
+          const featuresCollection = db.collection('Feature');
+          
+          const featuresArray = await featuresCollection.find(where).toArray();
+          allFeatures = featuresArray.map((f: any) => ({
+            id: f._id.toString(),
+            code: f.code,
+            name: f.name,
+            description: f.description,
+            category: f.category,
+            displayOrder: f.displayOrder || 999,
+            isActive: f.isActive,
+            createdAt: f.createdAt,
+            updatedAt: f.updatedAt,
+          })).sort((a, b) => (a.displayOrder || 999) - (b.displayOrder || 999));
+          
+          await mongoClient.close();
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
+      }
+    }
 
     // Get product counts
-    const featureIds = features.map(f => f.id);
+    const featureIds = allFeatures.map(f => f.id);
     const productFeatureCounts = await prisma.productFeature.groupBy({
       by: ['featureId'],
       where: { featureId: { in: featureIds } },
@@ -42,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     const productCountMap = new Map(productFeatureCounts.map(pf => [pf.featureId, pf._count]));
 
-    const formattedFeatures = features.map((feature) => ({
+    const formattedFeatures = allFeatures.map((feature) => ({
       id: feature.id,
       code: feature.code, // Use code instead of key
       name: feature.name,

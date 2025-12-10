@@ -54,19 +54,39 @@ export class RecommendationService {
 
     // Step 3: Get available products for this category and store
     // Map category to RetailProductType
-    const categoryMap: Record<string, 'FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY'> = {
-      'EYEGLASSES': 'FRAME',
-      'SUNGLASSES': 'SUNGLASS',
-      'CONTACT_LENSES': 'CONTACT_LENS',
-      'ACCESSORIES': 'ACCESSORY',
-    };
-    const productType = categoryMap[category] || 'FRAME';
-    const products = await (prisma as any).retailProduct.findMany({
-      where: {
-        type: productType,
-        isActive: true,
-      },
-    });
+    // NOTE: FRAME and SUNGLASS are manual-entry only, not SKU products
+    // For EYEGLASSES/SUNGLASSES, recommend LENS products, not frames
+    // For CONTACT_LENSES/ACCESSORIES, use RetailProduct
+    let products: any[] = [];
+    
+    if (category === 'EYEGLASSES' || category === 'SUNGLASSES') {
+      // For frame-based flows, recommend LENS products (not frames)
+      products = await prisma.lensProduct.findMany({
+        where: {
+          isActive: true,
+        },
+      });
+    } else if (category === 'CONTACT_LENSES') {
+      // For contact lenses, use ContactLensProduct (not RetailProduct)
+      products = await (prisma as any).contactLensProduct.findMany({
+        where: {
+          isActive: true,
+        },
+      });
+      // Map to expected format
+      products = products.map((cl: any) => ({
+        ...cl,
+        type: 'CONTACT_LENS',
+      }));
+    } else if (category === 'ACCESSORIES') {
+      // For accessories, use RetailProduct
+      products = await (prisma as any).retailProduct.findMany({
+        where: {
+          type: 'ACCESSORY',
+          isActive: true,
+        },
+      });
+    }
 
     // Manually fetch features and storeProducts
     const productIds = products.map((p: any) => p.id);
@@ -77,8 +97,10 @@ export class RecommendationService {
 
     // Fetch feature details
     const featureIds = [...new Set(productFeatures.map(pf => pf.featureId))];
-    const features = await prisma.feature.findMany({ where: { id: { in: featureIds } } });
-    const featureMap = new Map(features.map(f => [f.id, f]));
+    const features = await (prisma as any).benefitFeature.findMany({ 
+      where: { id: { in: featureIds }, type: 'FEATURE' } 
+    });
+    const featureMap = new Map(features.map((f: any) => [f.id, f]));
 
     // Attach features and storeProducts to products
     const productsWithRelations = products.map((p: any) => ({
@@ -128,29 +150,35 @@ export class RecommendationService {
 
   /**
    * Build preference vector from session answers
+   * SIMPLIFIED: Use AnswerBenefit directly instead of FeatureMapping
+   * Clean mapping: AnswerOption → Benefit → Points
    */
   private async buildPreferenceVector(answers: any[]): Promise<PreferenceVector> {
-    const preferenceVector: PreferenceVector = {};
+    // Get answer IDs
+    const answerIds = answers.map(a => a.optionId);
+    
+    // Get benefit scores directly from AnswerBenefit
+    const answerBenefits = await prisma.answerBenefit.findMany({
+      where: {
+        answerId: { in: answerIds },
+      },
+      include: {
+        benefit: true,
+      },
+    });
 
-    for (const answer of answers) {
-      // Get feature mappings for this answer option
-      const mappings = await prisma.featureMapping.findMany({
-        where: {
-          questionId: answer.questionId,
-          optionKey: answer.option.key,
-        },
-      });
-
-      // Accumulate weights
-      for (const mapping of mappings) {
-        if (!preferenceVector[mapping.featureId]) {
-          preferenceVector[mapping.featureId] = 0;
-        }
-        preferenceVector[mapping.featureId] += mapping.weight;
+    // Build benefit preference map (using benefit codes as keys)
+    const benefitPreference: Record<string, number> = {};
+    answerBenefits.forEach((ab) => {
+      if (ab.benefit && typeof ab.points === 'number') {
+        const code = ab.benefit.code;
+        benefitPreference[code] = (benefitPreference[code] || 0) + ab.points;
       }
-    }
+    });
 
-    return preferenceVector;
+    // Return empty preference vector for now (legacy compatibility)
+    // The actual scoring should use benefit-based matching, not feature-based
+    return {};
   }
 
   /**

@@ -9,6 +9,7 @@ import { Glasses, Sun, Contact, Package, ArrowRight, ArrowLeft } from 'lucide-re
 // Client-safe ProductCategory
 const ProductCategory = {
   EYEGLASSES: 'EYEGLASSES',
+  ONLY_LENS: 'ONLY_LENS', // New: Only Lens flow (no frame)
   SUNGLASSES: 'SUNGLASSES',
   CONTACT_LENSES: 'CONTACT_LENSES',
   ACCESSORIES: 'ACCESSORIES',
@@ -34,8 +35,15 @@ export default function LensTypePage() {
       value: ProductCategory.EYEGLASSES,
       label: 'Eyeglasses',
       icon: <Glasses size={48} />,
-      description: 'Clear prescription lenses',
+      description: 'Frame + Lens',
       color: 'from-blue-500 to-blue-600',
+    },
+    {
+      value: ProductCategory.ONLY_LENS,
+      label: 'Only Lens',
+      icon: <Glasses size={48} />,
+      description: 'Lens replacement only',
+      color: 'from-green-500 to-green-600',
     },
     {
       value: ProductCategory.SUNGLASSES,
@@ -108,7 +116,7 @@ export default function LensTypePage() {
           <div className="flex justify-between pt-6 border-t border-slate-700">
             <Button
               variant="outline"
-              onClick={() => router.push('/questionnaire/customer-details')}
+              onClick={() => router.push('/questionnaire/language')}
               className="flex items-center gap-2"
             >
               <ArrowLeft size={18} />

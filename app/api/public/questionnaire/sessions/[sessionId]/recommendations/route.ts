@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { handleApiError, NotFoundError } from '@/lib/errors';
-import { generateRecommendations, getSessionRecommendations } from '@/lib/recommendation-engine';
+import { recommendationsAdapterService } from '@/services/recommendations-adapter.service';
 import { prisma } from '@/lib/prisma';
 
 // GET /api/public/questionnaire/sessions/[sessionId]/recommendations
@@ -54,16 +54,18 @@ export async function GET(
       }, { status: 400 });
     }
 
-    // Check if recommendations already exist
-    let result = await getSessionRecommendations(sessionId);
-
-    // If no recommendations, generate them
-    if (!result) {
-      try {
-        console.log(`[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] Generating recommendations for session ${sessionId}`);
-        result = await generateRecommendations(sessionId);
-        console.log(`[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] Generated ${result.recommendations.length} recommendations`);
-      } catch (genError: any) {
+    // Generate recommendations using new BenefitRecommendationService adapter
+    let result;
+    try {
+      console.log(`[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] Generating recommendations for session ${sessionId}`);
+      result = await recommendationsAdapterService.generateRecommendations(sessionId);
+      console.log(`[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] Generated ${result.recommendations.length} recommendations`);
+    } catch (genError: any) {
+      console.error('[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] Error details:', {
+        message: genError?.message,
+        stack: genError?.stack,
+        name: genError?.name,
+      });
         console.error('[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] Error generating recommendations:', {
           error: genError,
           message: genError?.message,
@@ -90,7 +92,6 @@ export async function GET(
           }, { status: 404 });
         }
         throw genError; // Re-throw to be handled by handleApiError
-      }
     }
 
     // Convert Date to ISO string for JSON serialization
@@ -105,14 +106,26 @@ export async function GET(
 
     // Validate result before returning
     if (!result || !result.recommendations || result.recommendations.length === 0) {
-      console.error('[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] No recommendations in result:', result);
+      console.error('[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] No recommendations in result');
+      console.error('[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] Result structure:', {
+        hasResult: !!result,
+        hasRecommendations: !!(result && result.recommendations),
+        recommendationsLength: result?.recommendations?.length || 0,
+        benefitScoresCount: result?.benefitScores ? Object.keys(result.benefitScores).length : 0,
+      });
+      
+      // Return success with empty recommendations instead of error
+      // Frontend can handle empty state
       return Response.json({
-        success: false,
-        error: {
-          code: 'NO_RECOMMENDATIONS',
-          message: 'No recommendations could be generated. Please try again.',
+        success: true,
+        data: {
+          ...formattedResult,
+          recommendations: [],
+          store: store,
+          sessionStatus: session.status,
+          message: 'No recommendations found. Please check if lens products are available in the database.',
         },
-      }, { status: 404 });
+      });
     }
 
     return Response.json({
@@ -157,7 +170,7 @@ export async function POST(
       throw new NotFoundError('Session not found');
     }
 
-    const result = await generateRecommendations(sessionId);
+    const result = await recommendationsAdapterService.generateRecommendations(sessionId);
 
     return Response.json({
       success: true,

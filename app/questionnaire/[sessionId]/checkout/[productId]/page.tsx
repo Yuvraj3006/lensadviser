@@ -18,7 +18,8 @@ import {
   ChevronDown,
   Gift,
   Tag,
-  Percent
+  Percent,
+  AlertCircle
 } from 'lucide-react';
 import { OfferCalculationResult, OfferApplied } from '@/types/offer-engine';
 
@@ -420,13 +421,49 @@ export default function CheckoutPage() {
                 
                 {/* Category Discount */}
                 {checkoutData.offerResult.categoryDiscount && (
-                  <div className="flex justify-between text-sm text-blue-300">
-                    <span className="flex items-center gap-1">
-                      <Percent size={14} />
-                      {checkoutData.offerResult.categoryDiscount.description}
-                    </span>
-                    <span className="font-medium">-₹{Math.round(checkoutData.offerResult.categoryDiscount.savings || 0).toLocaleString()}</span>
-                  </div>
+                  <>
+                    <div className="flex justify-between text-sm text-blue-300">
+                      <span className="flex items-center gap-1">
+                        <Percent size={14} />
+                        {checkoutData.offerResult.categoryDiscount.description}
+                      </span>
+                      <span className="font-medium">-₹{Math.round(checkoutData.offerResult.categoryDiscount.savings || 0).toLocaleString()}</span>
+                    </div>
+                    {/* Category Discount ID Verification */}
+                    {(checkoutData.offerResult.categoryDiscount as any)?.verificationRequired && (
+                      <div className="mt-3 p-3 bg-yellow-900/30 border border-yellow-500/30 rounded-lg">
+                        <p className="text-xs text-yellow-200 mb-2">
+                          <AlertCircle size={14} className="inline mr-1" />
+                          ID proof required for category discount
+                        </p>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              // Store file for order creation
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                // Store base64 or file reference
+                                localStorage.setItem('lenstrack_category_id_proof', JSON.stringify({
+                                  fileName: file.name,
+                                  fileType: file.type,
+                                  fileSize: file.size,
+                                  // In production, upload to server and store URL
+                                }));
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="w-full text-xs text-slate-300 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">
+                          Allowed: {(checkoutData.offerResult.categoryDiscount as any)?.allowedIdTypes?.join(', ') || 'Any ID'}
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
                 
                 {/* Coupon Discount */}

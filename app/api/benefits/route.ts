@@ -6,25 +6,27 @@ import { handleApiError } from '@/lib/errors';
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const organizationId = searchParams.get('organizationId');
+    let organizationId = searchParams.get('organizationId');
 
+    // Try to get from auth if not in query
     if (!organizationId) {
-      return Response.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'organizationId is required',
-          },
-        },
-        { status: 400 }
-      );
+      try {
+        const { authenticate } = await import('@/middleware/auth.middleware');
+        const user = await authenticate(request);
+        organizationId = user.organizationId;
+      } catch {
+        // Not authenticated, return all benefits (they're global)
+        organizationId = null;
+      }
+    }
+
+    const where: any = {};
+    if (organizationId) {
+      where.organizationId = organizationId;
     }
 
     const benefits = await prisma.benefit.findMany({
-      where: {
-        organizationId,
-      },
+      where,
       orderBy: {
         code: 'asc',
       },

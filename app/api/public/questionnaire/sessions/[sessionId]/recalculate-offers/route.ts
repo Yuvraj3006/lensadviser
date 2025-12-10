@@ -101,19 +101,35 @@ export async function POST(
     const organizationId = store.organizationId;
     const baseLensPrice = organization.baseLensPrice || 0;
     const storeProduct = storeProducts[0];
-    const framePrice = storeProduct?.priceOverride ?? (product as any).baseOfferPrice ?? 0;
-
+    
     // Calculate lens pricing - use baseOfferPrice from lens product
     // Features no longer have pricing, so we use the product's baseOfferPrice
-    const totalLensPrice = (product as any).baseOfferPrice ?? baseLensPrice;
+    let totalLensPrice = (product as any).baseOfferPrice ?? baseLensPrice;
+    
+    // Add mirror coating add-on price if tint selection exists (for Power Sunglasses)
+    // Tint selection is stored in request body or can be fetched from session
+    const tintSelection = body.tintSelection;
+    if (tintSelection?.mirrorAddOnPrice) {
+      totalLensPrice += tintSelection.mirrorAddOnPrice;
+    }
+
+    // Check if this is an "Only Lens" session (no frame)
+    // Frame data is stored in customerEmail field as JSON (since Session model doesn't have notes field)
+    const sessionNotes = session.customerEmail as any;
+    const frameData = sessionNotes?.frame;
+    const isOnlyLens = !frameData || !frameData.brand || frameData.mrp === 0;
 
     // Prepare inputs for Offer Engine
-    const frameInput: FrameInput = {
-      brand: (product as any).brand || (product as any).brandLine || 'UNKNOWN',
-      subCategory: null, // Product model doesn't have subCategory field
-      mrp: framePrice,
-      frameType: undefined,
-    };
+    // For "Only Lens" flow, frame is optional/null
+    let frameInput: FrameInput | null = null;
+    if (!isOnlyLens && frameData && frameData.brand && frameData.mrp > 0) {
+      frameInput = {
+        brand: frameData.brand,
+        subCategory: frameData.subCategory || null,
+        mrp: frameData.mrp || 0,
+        frameType: frameData.frameType || undefined,
+      };
+    }
 
     // Handle itCode as Json? field - convert to string if needed
     const itCodeValue = product.itCode 
@@ -127,6 +143,20 @@ export async function POST(
       yopoEligible: product.yopoEligible || false,
     };
 
+    // Calculate offers using offer engine (frame is optional for lens-only flow)
+    const offerResult = await offerEngineService.calculateOffers({
+      frame: frameInput, // null for lens-only flow
+      lens: lensInput,
+      customerCategory: (session.customerCategory as any) || null,
+      couponCode: couponCode || null,
+      secondPair: secondPair || null,
+      organizationId,
+    });
+
+    return Response.json({
+      success: true,
+      data: offerResult,
+    });
   } catch (error: any) {
     console.error('[recalculate-offers] Error:', error);
     console.error('[recalculate-offers] Error type:', typeof error);

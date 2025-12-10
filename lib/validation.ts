@@ -104,12 +104,16 @@ export const CreateQuestionSchema = z.object({
   textHiEn: z.string().optional(),
   category: z.enum(['EYEGLASSES', 'SUNGLASSES', 'CONTACT_LENSES', 'ACCESSORIES']),
   order: z.number().int().default(0),
+  displayOrder: z.number().int().optional(), // Optional display order
+  code: z.string().optional(), // Optional code field
+  questionCategory: z.string().optional(), // Optional category grouping
+  questionType: z.string().optional(), // Optional type (SINGLE_SELECT, MULTI_SELECT, etc.)
   isRequired: z.boolean().default(true),
   allowMultiple: z.boolean().default(false),
   showIf: z.any().optional(),
   options: z.array(
     z.object({
-      key: z.string(),
+      key: z.string().optional(), // Optional - backend will auto-generate if not provided
       textEn: z.string(),
       textHi: z.string().optional(),
       textHiEn: z.string().optional(),

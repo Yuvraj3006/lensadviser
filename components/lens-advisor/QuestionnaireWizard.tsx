@@ -197,10 +197,31 @@ export function QuestionnaireWizard() {
       }
     }
 
-    // Check for subquestions to inject
+    // Check for subquestions to inject using triggersSubQuestion + subQuestionId (backend structure)
     const selectedOption = currentQuestion.options.find((o) => selected.includes(o.id));
+    
+    // Use backend structure: triggersSubQuestion + subQuestionId
+    if ((selectedOption as any)?.triggersSubQuestion && (selectedOption as any)?.subQuestionId) {
+      const subQuestionId = (selectedOption as any).subQuestionId;
+      // Find the sub-question from all questions
+      const subQuestion = allQuestions.find((q) => q.id === subQuestionId) || 
+                         questions.find((q) => q.id === subQuestionId);
+      
+      if (subQuestion) {
+        // Inject sub-question after current question
+        const currentIndex = allQuestions.findIndex((q) => q.id === currentQuestion.id);
+        const newQuestions = [...allQuestions];
+        
+        // Only inject if not already in the list
+        if (!newQuestions.find((q) => q.id === subQuestion.id)) {
+          newQuestions.splice(currentIndex + 1, 0, subQuestion);
+          setAllQuestions(newQuestions);
+        }
+      }
+    }
+    
+    // Legacy support: Also check childQuestions for backward compatibility
     if (selectedOption?.childQuestions && selectedOption.childQuestions.length > 0) {
-      // Inject subquestions after current question
       const currentIndex = allQuestions.findIndex((q) => q.id === currentQuestion.id);
       const newQuestions = [...allQuestions];
       selectedOption.childQuestions.forEach((subQ, idx) => {
@@ -299,6 +320,8 @@ export function QuestionnaireWizard() {
         <div className="space-y-3">
           {currentQuestion.options.map((option) => {
             const isSelected = selected.includes(option.id);
+            const optionText = option.textEn;
+            
             return (
               <button
                 key={option.id}
@@ -333,7 +356,7 @@ export function QuestionnaireWizard() {
                       )}
                     </div>
                   )}
-                  <span className="font-medium text-slate-900">{option.textEn}</span>
+                  <span className="font-medium text-slate-900">{optionText}</span>
                 </div>
               </button>
             );

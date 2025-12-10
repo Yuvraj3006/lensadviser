@@ -22,12 +22,27 @@ const couponSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
+    // Try to get user from auth, fallback to query param
+    let organizationId: string | null = null;
+    try {
+      const { authenticate } = await import('@/middleware/auth.middleware');
+      const user = await authenticate(request);
+      organizationId = user.organizationId;
+    } catch {
+      // Not authenticated, try query param
+    }
+
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get('organizationId');
+    organizationId = organizationId || searchParams.get('organizationId');
     const isActive = searchParams.get('isActive');
 
-    if (!organizationId) {
+    if (!organizationId || organizationId.trim() === '') {
       throw new ValidationError('organizationId is required');
+    }
+
+    // Validate organizationId is a valid ObjectID format
+    if (!/^[0-9a-fA-F]{24}$/.test(organizationId)) {
+      throw new ValidationError('Invalid organizationId format');
     }
 
     const where: any = {

@@ -10,13 +10,17 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const category = searchParams.get('category') || 'EYEGLASSES';
-    const organizationId = searchParams.get('organizationId');
+    let organizationId = searchParams.get('organizationId');
 
+    // Try to get from auth if not in query
     if (!organizationId) {
-      return Response.json({
-        success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'organizationId is required' },
-      }, { status: 400 });
+      try {
+        const { authenticate } = await import('@/middleware/auth.middleware');
+        const user = await authenticate(request);
+        organizationId = user.organizationId;
+      } catch {
+        // Not authenticated, organizationId not required for public lens listing
+      }
     }
 
     const products = await prisma.lensProduct.findMany({

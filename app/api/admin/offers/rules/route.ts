@@ -44,13 +44,18 @@ export async function GET(request: NextRequest) {
     authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
 
     const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get('organizationId') || user.organizationId;
+    let organizationId = searchParams.get('organizationId') || user.organizationId;
     const frameBrand = searchParams.get('frameBrand');
     const offerType = searchParams.get('offerType');
     const isActive = searchParams.get('isActive');
 
-    if (!organizationId) {
+    if (!organizationId || organizationId.trim() === '') {
       throw new ValidationError('organizationId is required');
+    }
+
+    // Validate organizationId is a valid ObjectID format
+    if (!/^[0-9a-fA-F]{24}$/.test(organizationId)) {
+      throw new ValidationError('Invalid organizationId format');
     }
 
     const where: any = {
@@ -154,6 +159,27 @@ export async function POST(request: NextRequest) {
     if (data.isSecondPairRule !== undefined) ruleConfigData.isSecondPairRule = data.isSecondPairRule;
     if (data.secondPairPercent !== undefined) ruleConfigData.secondPairPercent = typeof data.secondPairPercent === 'string' ? parseFloat(data.secondPairPercent) : data.secondPairPercent;
     if (data.lensItCodes !== undefined) ruleConfigData.lensItCodes = Array.isArray(data.lensItCodes) ? data.lensItCodes : [];
+    
+    // YOPO-specific config fields
+    if (data.config?.freeUnderYOPO !== undefined) ruleConfigData.freeUnderYOPO = data.config.freeUnderYOPO;
+    if (data.config?.bonusFreeAllowed !== undefined) ruleConfigData.bonusFreeAllowed = data.config.bonusFreeAllowed;
+    
+    // Bonus Free Product config fields
+    if (data.config?.triggerMinBill !== undefined) ruleConfigData.triggerMinBill = typeof data.config.triggerMinBill === 'string' ? parseFloat(data.config.triggerMinBill) : data.config.triggerMinBill;
+    if (data.config?.bonusLimit !== undefined) ruleConfigData.bonusLimit = typeof data.config.bonusLimit === 'string' ? parseFloat(data.config.bonusLimit) : data.config.bonusLimit;
+    if (data.config?.bonusCategory !== undefined) ruleConfigData.bonusCategory = data.config.bonusCategory;
+    if (data.config?.eligibleBrands !== undefined) ruleConfigData.eligibleBrands = Array.isArray(data.config.eligibleBrands) ? data.config.eligibleBrands : [];
+    if (data.config?.eligibleCategories !== undefined) ruleConfigData.eligibleCategories = Array.isArray(data.config.eligibleCategories) ? data.config.eligibleCategories : [];
+    
+    // Combo Price variant config fields
+    if (data.config?.comboType !== undefined) ruleConfigData.comboType = data.config.comboType;
+    if (data.config?.requiredFrameSubCategory !== undefined) ruleConfigData.requiredFrameSubCategory = data.config.requiredFrameSubCategory;
+    if (data.config?.requiredFrameCategory !== undefined) ruleConfigData.requiredFrameCategory = data.config.requiredFrameCategory;
+    if (data.config?.requiredLensBrandLine !== undefined) ruleConfigData.requiredLensBrandLine = data.config.requiredLensBrandLine;
+    if (data.config?.requiredVisionType !== undefined) ruleConfigData.requiredVisionType = data.config.requiredVisionType;
+    if (data.config?.brandLineComboPrice !== undefined) ruleConfigData.brandLineComboPrice = typeof data.config.brandLineComboPrice === 'string' ? parseFloat(data.config.brandLineComboPrice) : data.config.brandLineComboPrice;
+    if (data.config?.frameCategoryComboPrice !== undefined) ruleConfigData.frameCategoryComboPrice = typeof data.config.frameCategoryComboPrice === 'string' ? parseFloat(data.config.frameCategoryComboPrice) : data.config.frameCategoryComboPrice;
+    if (data.config?.visionTypeComboPrice !== undefined) ruleConfigData.visionTypeComboPrice = typeof data.config.visionTypeComboPrice === 'string' ? parseFloat(data.config.visionTypeComboPrice) : data.config.visionTypeComboPrice;
 
     // Build rule data - only include fields that exist in the model
     const ruleData: any = {

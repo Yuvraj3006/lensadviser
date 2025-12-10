@@ -19,6 +19,8 @@ type ProductCategory = 'EYEGLASSES' | 'SUNGLASSES' | 'CONTACT_LENSES' | 'ACCESSO
 type OfferCondition = 'MIN_PURCHASE' | 'MATCH_SCORE' | 'FIRST_PURCHASE' | 'BRAND_SPECIFIC' | 'CATEGORY' | 'NO_CONDITION';
 import { offerEngineService } from '@/services/offer-engine.service';
 import { FrameInput, LensInput } from '@/types/offer-engine';
+import { IndexRecommendationService } from '@/services/index-recommendation.service';
+import { RxInput } from '@/services/rx-validation.service';
 
 interface LensPricing {
   baseLensPrice: number;
@@ -73,6 +75,16 @@ interface RecommendedProduct {
     key: string;
     price: number;
   }[];
+  lensIndex?: string; // Lens index (e.g., 'INDEX_156', 'INDEX_160', 'INDEX_167', 'INDEX_174')
+  indexRecommendation?: {
+    recommendedIndex: string; // INDEX_156, INDEX_160, etc.
+    indexDelta: number; // >0 thinner, 0 ideal, <0 thicker
+    validationMessage?: string | null; // Warning or error message
+    isInvalid?: boolean; // True if violates rules (e.g., INDEX_156 for rimless)
+    isWarning?: boolean; // True if thicker than recommended
+  };
+  thicknessWarning?: boolean; // Show warning if index is thicker than recommended
+  indexInvalid?: boolean; // True if index selection violates rules
   storeInfo?: {
     priceOverride?: number | null;
     stockQuantity: number;
@@ -93,6 +105,7 @@ interface RecommendationResult {
     feature: string;
     weight: number;
   }[];
+  recommendedIndex?: string; // Recommended index for the prescription
   generatedAt: Date;
 }
 
@@ -320,98 +333,123 @@ export async function generateRecommendations(
     where: { sessionId },
   });
 
-  // 4. Get option IDs and question IDs from answers
+  // 4. Get option IDs from answers
   const optionIds = sessionAnswers.map((a) => a.optionId);
-  const questionIds = [...new Set(sessionAnswers.map((a) => a.questionId))];
-
-  // 5. Get options with their keys
-  const options = await prisma.answerOption.findMany({
-    where: { id: { in: optionIds } },
-    select: { id: true, key: true, questionId: true },
-  });
-
-  // 6. Create a map of optionId to optionKey
-  const optionMap = new Map(options.map((opt) => [opt.id, opt.key]));
-
-  // 7. Get all selected option keys
-  const selectedOptions = sessionAnswers.map((answer) => ({
-    questionId: answer.questionId,
-    optionKey: optionMap.get(answer.optionId) || '',
-  })).filter((opt) => opt.optionKey !== '');
 
   // Check if we have any selected options
-  if (selectedOptions.length === 0) {
+  if (optionIds.length === 0) {
     throw new Error('No valid answers found for this session');
   }
 
-  // 3. Get feature mappings for selected options
-  const featureMappings = await prisma.featureMapping.findMany({
+  // 5. Get benefit scores directly from AnswerBenefit (simplified - no FeatureMapping needed)
+  // Clean mapping: AnswerOption → Benefit → Points
+  const answerBenefits = await (prisma.answerBenefit.findMany as any)({
     where: {
-      OR: selectedOptions.map((opt) => ({
-        questionId: opt.questionId,
-        optionKey: opt.optionKey,
-      })),
+      answerId: { in: optionIds },
+    },
+    include: {
+      benefit: true,
     },
   });
 
-  // 4. Calculate feature weights (aggregate by feature)
-  // Fetch features separately
-  const featureIds = [...new Set(featureMappings.map(m => m.featureId))];
-  const features = await prisma.feature.findMany({
-    where: { id: { in: featureIds } },
+  // Get benefit codes from unified BenefitFeature model
+  const benefitIds = [...new Set(answerBenefits.map((ab: any) => ab.benefitId))];
+  const benefitFeatures = await (prisma as any).benefitFeature.findMany({
+    where: {
+      id: { in: benefitIds },
+      type: 'BENEFIT',
+    },
   });
-  const featureMap = new Map(features.map(f => [f.id, f]));
+  const benefitIdToCodeMap = new Map(benefitFeatures.map((bf: any) => [bf.id, bf.code]));
 
-  const featureWeights: Map<string, { feature: any; totalWeight: number }> = new Map();
-
-  featureMappings.forEach((mapping) => {
-    const existing = featureWeights.get(mapping.featureId);
-    const feature = featureMap.get(mapping.featureId);
-    if (existing) {
-      existing.totalWeight += mapping.weight;
-    } else {
-      featureWeights.set(mapping.featureId, {
-        feature: feature || null,
-        totalWeight: mapping.weight,
-      });
+  // Build benefit scores map directly from AnswerBenefit
+  const benefitScoresMap = new Map<string, number>();
+  answerBenefits.forEach((ab: any) => {
+    if (ab.benefitId && typeof ab.points === 'number') {
+      const code = benefitIdToCodeMap.get(ab.benefitId) || ab.benefit?.code;
+      if (code) {
+        const existing = benefitScoresMap.get(code) || 0;
+        benefitScoresMap.set(code, existing + ab.points);
+      }
     }
   });
 
-  // 5. Get all active retail products (frames) for this category
-  // Map session.category to RetailProductType
-  // EYEGLASSES -> FRAME, SUNGLASSES -> SUNGLASS, etc.
-  const categoryMap: Record<string, 'FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY'> = {
-    'EYEGLASSES': 'FRAME',
-    'SUNGLASSES': 'SUNGLASS',
-    'CONTACT_LENSES': 'CONTACT_LENS',
-    'ACCESSORIES': 'ACCESSORY',
-  };
+  // 5. Get products for recommendation
+  // NOTE: FRAME and SUNGLASS are manual-entry only, not SKU products
+  // For EYEGLASSES/SUNGLASSES categories, we recommend LENS products, not frames
+  // For CONTACT_LENSES, we use ContactLensProduct (not RetailProduct)
+  // For ACCESSORIES, we use RetailProduct with type='ACCESSORY'
   
-  const productType = (categoryMap[session.category] || 'FRAME') as 'FRAME' | 'SUNGLASS' | 'CONTACT_LENS' | 'ACCESSORY';
+  let products: any[] = [];
   
-  const products = await (prisma as any).retailProduct.findMany({
-    where: {
-      type: productType,
-      isActive: true,
-    },
-    include: {
-      brand: {
-        select: {
-          id: true,
-          name: true,
+  if (session.category === 'EYEGLASSES' || session.category === 'SUNGLASSES') {
+    // For frame-based flows, recommend LENS products (not frames)
+    // Frames are manually entered, so we don't query RetailProduct for them
+    products = await (prisma as any).lensProduct.findMany({
+      where: {
+        isActive: true,
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            name: true,
+          },
         },
       },
-      subBrand: {
-        select: {
-          id: true,
-          name: true,
+    });
+    
+    if (products.length === 0) {
+      throw new Error('No lens products found for recommendation');
+    }
+  } else if (session.category === 'CONTACT_LENSES') {
+    // For contact lenses, use ContactLensProduct (not RetailProduct)
+    // ContactLensProduct has power ranges and proper CL-specific fields
+    products = await (prisma as any).contactLensProduct.findMany({
+      where: {
+        isActive: true,
+      },
+    });
+    
+    // Map ContactLensProduct to expected format
+    products = products.map((cl: any) => ({
+      ...cl,
+      type: 'CONTACT_LENS',
+      brand: { id: '', name: cl.brand },
+      subBrand: null,
+    }));
+    
+    if (products.length === 0) {
+      throw new Error('No contact lens products found');
+    }
+  } else if (session.category === 'ACCESSORIES') {
+    // For accessories, use RetailProduct
+    products = await (prisma as any).retailProduct.findMany({
+      where: {
+        type: 'ACCESSORY',
+        isActive: true,
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        subBrand: {
+          select: {
+            id: true,
+            name: true,
+          },
         },
       },
-    },
-  });
-
-  if (products.length === 0) {
-    throw new Error('No products found for this category');
+    });
+    
+    if (products.length === 0) {
+      throw new Error('No accessory products found');
+    }
+  } else {
+    throw new Error(`Unsupported category: ${session.category}`);
   }
 
   // Get product IDs
@@ -452,43 +490,8 @@ export async function generateRecommendations(
     storeProductsByProductId.get(sp.productId)!.push(sp);
   });
 
-    // 6. Get feature-benefit mappings for interconnected scoring
-    const featureIdsForBenefitMapping = Array.from(featureWeights.keys());
-    // FeatureBenefit model - use type assertion if needed
-    const featureBenefitMappings = featureIdsForBenefitMapping.length > 0
-      ? await (prisma as any).featureBenefit?.findMany({
-          where: {
-            featureId: { in: featureIdsForBenefitMapping },
-          },
-          include: {
-            benefit: true,
-          },
-        }) || []
-      : [];
-
-    // Get benefit scores from answers for interconnected scoring
-    const answerIds = sessionAnswers.map((a) => a.optionId);
-    // Query AnswerBenefit - MongoDB ObjectId filtering
-    const answerBenefits = answerIds.length > 0
-      ? await (prisma.answerBenefit.findMany as any)({
-          where: {
-            answerId: { in: answerIds },
-          },
-          include: {
-            benefit: true,
-          },
-        })
-      : [];
-
-    // Build benefit scores map
-    const benefitScoresMap = new Map<string, number>();
-    answerBenefits.forEach((ab: any) => {
-      if (ab.benefit && typeof ab.points === 'number') {
-        const code = ab.benefit.code;
-        const existing = benefitScoresMap.get(code) || 0;
-        benefitScoresMap.set(code, existing + ab.points);
-      }
-    });
+    // 6. Benefit scores are already calculated above from AnswerBenefit
+    // No need for FeatureMapping or FeatureBenefit - using direct AnswerOption → Benefit mapping
 
     // Get product benefits for interconnected scoring
     // Query ProductBenefit - MongoDB ObjectId filtering
@@ -511,7 +514,7 @@ export async function generateRecommendations(
     });
 
     // 7. Answer Boosts removed - all scoring now via Benefits only
-    const selectedAnswerIds = new Set(answerIds.map(id => String(id)));
+    const selectedAnswerIds = new Set(optionIds.map(id => String(id)));
 
     // 8. Calculate match scores and pricing for each product (Backend Spec Algorithm)
     const scoredProducts = await Promise.all(products.map(async (product: any) => {
@@ -531,133 +534,92 @@ export async function generateRecommendations(
         }
       }
 
-      // Final Score = benefitComponent only (Answer Boosts removed)
+      // Final Score = benefitComponent only (simplified - no FeatureMapping needed)
+      // Clean mapping: AnswerOption → Benefit → Points, then match with Product → Benefit → Score
       const finalScore = benefitComponent;
 
-      // Feature-based score (for backward compatibility and hybrid scoring)
-      let featureScore = 0;
-      let maxFeatureScore = 0;
-
-      featureWeights.forEach(({ feature, totalWeight }) => {
-        maxFeatureScore += totalWeight;
-
-        const productFeature = productFeatureList.find(
-          (pf) => pf.featureId === feature.id
-        );
-
-        if (productFeature) {
-          // ProductFeature is now just a join table - presence means feature is enabled (strength = 1.0)
-          featureScore += totalWeight * 1.0;
-        }
-      });
-
-      const normalizedFeatureScore = maxFeatureScore > 0 
-        ? Math.min(100, (featureScore / maxFeatureScore) * 100) 
-        : 50;
-
-      // Interconnected score (Feature → Benefit) - Enhanced scoring
-      let interconnectedScore = 0;
-      let maxInterconnectedScore = 0;
-
-      featureWeights.forEach(({ feature, totalWeight }) => {
-        const featureMappings = featureBenefitMappings.filter(
-          (fb: any) => String(fb.featureId) === String(feature.id)
-        );
-
-        featureMappings.forEach((mapping: any) => {
-          const benefitCode = mapping.benefit.code;
-          const benefitPoints = benefitScoresMap.get(benefitCode) || 0;
-
-          if (benefitPoints > 0) {
-            const productBenefit = productBenefitList.find(
-              (pb: any) => pb.benefit.code === benefitCode
-            );
-
-            if (productBenefit) {
-              interconnectedScore += totalWeight * mapping.weight * productBenefit.score;
-            }
-          }
-
-          maxInterconnectedScore += Math.abs(totalWeight) * mapping.weight * 3; // Max strength 3
-        });
-      });
-
-      const normalizedInterconnectedScore = maxInterconnectedScore > 0
-        ? Math.min(100, (interconnectedScore / maxInterconnectedScore) * 100)
+      // Calculate normalized score (0-100) based on benefit matching only
+      // Max possible score = sum of all user benefit points * max product benefit score (3)
+      const maxPossibleBenefitScore = Array.from(benefitScoresMap.values()).reduce((sum, score) => sum + score, 0) * 3;
+      
+      const normalizedScore = maxPossibleBenefitScore > 0
+        ? Math.min(100, (finalScore / maxPossibleBenefitScore) * 100)
         : 0;
 
-      // BACKEND SPEC: Use benefit-based scoring as primary, with feature-based as fallback
-      // If benefit scores exist, use them; otherwise fall back to feature-based
-      let normalizedScore: number;
-      if (benefitScoresMap.size > 0 || productBenefitList.length > 0) {
-        // Calculate max possible benefit score for normalization
-        const maxPossibleBenefitScore = Array.from(benefitScoresMap.values()).reduce((sum, score) => sum + score, 0) * 3; // Max product benefit score is 3
-        
-        // Normalize to 0-100
-        normalizedScore = maxPossibleBenefitScore > 0
-          ? Math.min(100, (finalScore / maxPossibleBenefitScore) * 100)
-          : 0;
-        
-        // Hybrid approach: 70% benefit-based + 20% feature + 10% interconnected
-        if (normalizedFeatureScore > 0 || normalizedInterconnectedScore > 0) {
-          normalizedScore = normalizedScore * 0.7 + normalizedFeatureScore * 0.2 + normalizedInterconnectedScore * 0.1;
-        }
-      } else {
-        // Fallback to feature-based if no benefits
-        normalizedScore = normalizedFeatureScore * 0.8 + normalizedInterconnectedScore * 0.2;
-      }
-
-    // Store info
+    // Get manually entered frame data from session (stored in customerEmail field as JSON)
+    // NOTE: FRAME and SUNGLASS are manual-entry only, not SKU products
+    const sessionFrameData = (session.customerEmail as any)?.frame || null;
+    
+    // Store info - for LENS products, get store product pricing
     const storeProduct = productStoreProducts[0];
-    const frameMrp = (product as any).mrp || 0;
-    const framePrice = storeProduct?.priceOverride || frameMrp;
-    const discount = storeProduct?.priceOverride && storeProduct.priceOverride < frameMrp
-      ? Math.round(((frameMrp - storeProduct.priceOverride) / frameMrp) * 100)
-      : undefined;
-
+    
     // Calculate lens pricing from DB feature prices
     const productFeatures = productFeatureList.map((pf) => ({
       id: pf.feature.id,
       name: pf.feature.name,
-      code: (pf.feature as any).code || (pf.feature as any).key || '',
+      key: (pf.feature as any).key || (pf.feature as any).code || '',
       price: 0, // Features no longer have prices - pricing is handled via lens product baseOfferPrice
     }));
     
-    const lensPrice = calculateLensPricing(productFeatures, baseLensPrice);
+    // For calculateLensPricing, map to include 'code' field
+    const featuresForPricing = productFeatures.map(f => ({
+      id: f.id,
+      name: f.name,
+      code: f.key, // Use key as code for pricing calculation
+      price: f.price,
+    }));
+    const lensPrice = calculateLensPricing(featuresForPricing, baseLensPrice);
+    
+    // Get lens product base price (LensProduct has baseOfferPrice)
+    const lensBasePrice = (product as any).baseOfferPrice || baseLensPrice;
+    const finalLensPrice = storeProduct?.priceOverride || lensBasePrice || lensPrice.totalLensPrice;
     
     // Validate prices before calling offer engine
-    if (framePrice <= 0) {
-      console.warn(`[generateRecommendations] Invalid framePrice for product ${product.id}: ${framePrice}`);
-    }
-    if (lensPrice.totalLensPrice <= 0) {
-      console.warn(`[generateRecommendations] Invalid lensPrice for product ${product.id}: ${lensPrice.totalLensPrice}`);
+    if (finalLensPrice <= 0) {
+      console.warn(`[generateRecommendations] Invalid lensPrice for product ${product.id}: ${finalLensPrice}`);
     }
 
     // Prepare inputs for new Offer Engine
-    // RetailProduct has: brand (via relation), mrp, type, name, sku
-    const frameInput: FrameInput = {
-      brand: (product as any).brand?.name || 'UNKNOWN', // Get brand name from relation
-      subCategory: (product as any).subBrand?.name || null, // Get subBrand name from relation
-      mrp: Math.max(0, framePrice), // Ensure non-negative
-      frameType: undefined, // Can be added to RetailProduct model if needed
-    };
+    // For EYEGLASSES/SUNGLASSES: Use manually entered frame data from session
+    // For CONTACT_LENSES/ACCESSORIES: No frame data
+    let frameInput: FrameInput | null = null;
+    
+    if (session.category === 'EYEGLASSES' || session.category === 'SUNGLASSES') {
+      if (sessionFrameData && sessionFrameData.brand && sessionFrameData.mrp > 0) {
+        frameInput = {
+          brand: sessionFrameData.brand,
+          subCategory: sessionFrameData.subCategory || null,
+          mrp: Math.max(0, sessionFrameData.mrp),
+          frameType: sessionFrameData.frameType || undefined,
+        };
+      } else {
+        // No frame data - lens-only flow
+        frameInput = null;
+      }
+    }
 
-    // For lens, use default values since RetailProduct doesn't have lens-specific fields
-    // These will be set when a lens is actually selected
+    // For lens, use LensProduct data
     const lensInput: LensInput = {
-      itCode: 'DEFAULT', // Default IT code - will be replaced when lens is selected
-      price: Math.max(0, lensPrice.totalLensPrice), // Ensure non-negative
-      brandLine: 'STANDARD', // Default brand line
-      yopoEligible: false, // Default value
+      itCode: (product as any).itCode || 'UNKNOWN',
+      price: Math.max(0, finalLensPrice),
+      brandLine: (product as any).brandLine || 'STANDARD',
+      yopoEligible: (product as any).yopoEligible || false,
     };
 
     // Validate required fields before calling offer engine
     if (!lensInput.itCode || lensInput.itCode.trim() === '') {
-      console.warn(`[generateRecommendations] Missing itCode for product ${product.id}, using SKU: ${product.sku}`);
-      lensInput.itCode = String(product.sku);
+      console.warn(`[generateRecommendations] Missing itCode for lens product ${product.id}`);
+      lensInput.itCode = `LENS-${product.id}`;
     }
 
     // Calculate offers using new Offer Engine
+    const frameMrp = frameInput?.mrp || 0;
+    const framePrice = storeProduct?.priceOverride || frameMrp;
+    const discount = storeProduct?.priceOverride && storeProduct.priceOverride < frameMrp
+      ? Math.round(((frameMrp - storeProduct.priceOverride) / frameMrp) * 100)
+      : undefined;
+    const productType = session.category as ProductCategory;
+    
     let offerResult;
     try {
       offerResult = await offerEngineService.calculateOffers({
@@ -666,21 +628,26 @@ export async function generateRecommendations(
         customerCategory: (session.customerCategory as any) || null,
         couponCode: null, // Can be added later
         organizationId,
+        mode: frameInput ? 'FRAME_AND_LENS' : 'ONLY_LENS',
       });
     } catch (offerError: any) {
       console.error(`[generateRecommendations] Offer engine error for product ${product.id}:`, offerError);
       // Use default pricing if offer engine fails
       offerResult = {
-        frameMRP: framePrice,
-        lensPrice: lensPrice.totalLensPrice,
-        baseTotal: framePrice + lensPrice.totalLensPrice,
-        effectiveBase: framePrice + lensPrice.totalLensPrice,
+        frameMRP: frameMrp,
+        lensPrice: finalLensPrice,
+        baseTotal: frameMrp + finalLensPrice,
+        effectiveBase: frameMrp + finalLensPrice,
         offersApplied: [],
-        priceComponents: [
-          { label: 'Frame MRP', amount: framePrice },
-          { label: 'Lens Offer Price', amount: lensPrice.totalLensPrice },
-        ],
-        finalPayable: framePrice + lensPrice.totalLensPrice,
+        priceComponents: frameMrp > 0 
+          ? [
+              { label: 'Frame MRP', amount: frameMrp },
+              { label: 'Lens Offer Price', amount: finalLensPrice },
+            ]
+          : [
+              { label: 'Lens Offer Price', amount: finalLensPrice },
+            ],
+        finalPayable: frameMrp + finalLensPrice,
       };
     }
 
@@ -744,6 +711,54 @@ export async function generateRecommendations(
     // BACKEND SPEC: Calculate matchPercent (normalized score as percentage)
     const matchPercent = Math.round(normalizedScore);
 
+      // Calculate index recommendation for this product
+    let indexRecommendation: any = undefined;
+    let thicknessWarning = false;
+    let indexInvalid = false;
+    
+    try {
+      const indexService = new IndexRecommendationService();
+      // Get prescription from customerEmail (JSON field) or prescriptionId
+      const prescriptionData = (session.customerEmail as any)?.prescription || 
+                               (session.prescriptionId && typeof session.prescriptionId === 'object' ? session.prescriptionId : null) ||
+                               null;
+      
+      if (prescriptionData && (product as any).lensIndex) {
+        const rxInput: RxInput = {
+          rSph: prescriptionData.rSph || prescriptionData.odSphere || null,
+          rCyl: prescriptionData.rCyl || prescriptionData.odCylinder || null,
+          add: prescriptionData.add || prescriptionData.rAdd || prescriptionData.odAdd || prescriptionData.lAdd || prescriptionData.osAdd || null,
+          lSph: prescriptionData.lSph || prescriptionData.osSphere || null,
+          lCyl: prescriptionData.lCyl || prescriptionData.osCylinder || null,
+        };
+        
+        const recommendedIndex = indexService.recommendIndex(rxInput, frameInput);
+        const indexDelta = indexService.calculateIndexDelta(
+          (product as any).lensIndex,
+          recommendedIndex
+        );
+        
+        const indexValidation = indexService.validateIndexSelection(
+          (product as any).lensIndex,
+          rxInput,
+          frameInput
+        );
+        
+        indexRecommendation = {
+          recommendedIndex,
+          indexDelta,
+          validationMessage: indexValidation.message,
+          isInvalid: !indexValidation.isValid,
+          isWarning: indexValidation.isWarning,
+        };
+        
+        thicknessWarning = indexDelta < 0 || indexValidation.isWarning;
+        indexInvalid = !indexValidation.isValid;
+      }
+    } catch (error) {
+      console.warn(`[generateRecommendations] Failed to calculate index recommendation for product ${product.id}:`, error);
+    }
+
     // Reuse frameMrp from line 600 (already declared above)
     return {
       id: product.id,
@@ -760,6 +775,10 @@ export async function generateRecommendations(
       finalScore: Math.round(finalScore * 10) / 10, // BACKEND SPEC: Final score (benefitComponent only)
       rank: 0,
       features: productFeatures,
+      lensIndex: (product as any).lensIndex || undefined, // Add lensIndex to product
+      indexRecommendation, // Add index recommendation data
+      thicknessWarning, // Add thickness warning flag
+      indexInvalid, // Add invalid index flag
       storeInfo: storeProduct ? {
         priceOverride: storeProduct.priceOverride,
         stockQuantity: Number(storeProduct.stockQuantity), // Convert BigInt to number
@@ -812,15 +831,47 @@ export async function generateRecommendations(
     )
   );
 
-  // 9. Format answered features for display
-  const answeredFeatures = Array.from(featureWeights.values()).map(({ feature, totalWeight }) => ({
-    feature: feature.name,
-    weight: totalWeight,
+  // 9. Format answered benefits for display (simplified - using AnswerBenefit directly)
+  const answeredFeatures = Array.from(benefitScoresMap.entries()).map(([code, points]) => ({
+    feature: code, // Using benefit code as identifier
+    weight: points,
   }));
 
   // Ensure we have at least some recommendations
   if (topRecommendations.length === 0) {
     throw new Error('No products found matching the criteria');
+  }
+
+  // Calculate recommended index for the prescription
+  let recommendedIndex: string | undefined;
+  try {
+    const indexService = new IndexRecommendationService();
+    const sessionFrameData = (session.customerEmail as any)?.frame || null;
+    // Get prescription from customerEmail (JSON field) or prescriptionId
+    const prescriptionData = (session.customerEmail as any)?.prescription || 
+                             (session.prescriptionId && typeof session.prescriptionId === 'object' ? session.prescriptionId : null) ||
+                             null;
+    
+      if (prescriptionData) {
+        const rxInput: RxInput = {
+          rSph: prescriptionData.rSph || prescriptionData.odSphere || null,
+          rCyl: prescriptionData.rCyl || prescriptionData.odCylinder || null,
+          add: prescriptionData.add || prescriptionData.rAdd || prescriptionData.odAdd || prescriptionData.lAdd || prescriptionData.osAdd || null,
+          lSph: prescriptionData.lSph || prescriptionData.osSphere || null,
+          lCyl: prescriptionData.lCyl || prescriptionData.osCylinder || null,
+        };
+      
+      const frameInput: FrameInput | null = sessionFrameData ? {
+        frameType: sessionFrameData.frameType || null,
+        brand: sessionFrameData.brand || undefined,
+        subCategory: sessionFrameData.subCategory || null,
+        mrp: sessionFrameData.mrp || undefined,
+      } : null;
+      
+      recommendedIndex = indexService.recommendIndex(rxInput, frameInput);
+    }
+  } catch (error) {
+    console.warn('[generateRecommendations] Failed to calculate recommended index:', error);
   }
 
   return {
@@ -829,6 +880,7 @@ export async function generateRecommendations(
     customerName: session.customerName || null,
     recommendations: topRecommendations,
     answeredFeatures: answeredFeatures.sort((a, b) => b.weight - a.weight),
+    recommendedIndex,
     generatedAt: new Date(),
   };
 }
@@ -1147,56 +1199,34 @@ export async function getSessionRecommendations(
   // Filter out null values (products that weren't found)
   const validRecommendations = recommendations.filter((rec): rec is NonNullable<typeof rec> => rec !== null);
 
-  // Get answered features for display (optional - can be empty for cached recommendations)
+  // Get answered benefits for display (simplified - no FeatureMapping needed)
   const sessionAnswers = await prisma.sessionAnswer.findMany({
     where: { sessionId },
   });
 
   const optionIds = sessionAnswers.map((a) => a.optionId);
-  const options = await prisma.answerOption.findMany({
-    where: { id: { in: optionIds } },
-    select: { id: true, key: true },
-  });
-
-  const optionMap = new Map(options.map((opt) => [opt.id, opt.key]));
-  const selectedOptions = sessionAnswers.map((answer) => ({
-    questionId: answer.questionId,
-    optionKey: optionMap.get(answer.optionId) || '',
-  })).filter((opt) => opt.optionKey !== '');
-
-  const featureMappings = await prisma.featureMapping.findMany({
+  const answerBenefits = await (prisma.answerBenefit.findMany as any)({
     where: {
-      OR: selectedOptions.map((opt) => ({
-        questionId: opt.questionId,
-        optionKey: opt.optionKey,
-      })),
+      answerId: { in: optionIds },
+    },
+    include: {
+      benefit: true,
     },
   });
 
-  // Fetch features separately
-  const featureIdsForMapping = [...new Set(featureMappings.map(m => m.featureId))];
-  const featuresForMapping = await prisma.feature.findMany({
-    where: { id: { in: featureIdsForMapping } },
-  });
-  const featureMapForMapping = new Map(featuresForMapping.map(f => [f.id, f]));
-
-  const featureWeights: Map<string, { feature: any; totalWeight: number }> = new Map();
-  featureMappings.forEach((mapping) => {
-    const existing = featureWeights.get(mapping.featureId);
-    const feature = featureMapForMapping.get(mapping.featureId);
-    if (existing) {
-      existing.totalWeight += mapping.weight;
-    } else {
-      featureWeights.set(mapping.featureId, {
-        feature: feature || null,
-        totalWeight: mapping.weight,
-      });
+  // Build answered benefits list (for display purposes)
+  const answeredBenefitsMap = new Map<string, number>();
+  answerBenefits.forEach((ab: any) => {
+    if (ab.benefit && typeof ab.points === 'number') {
+      const code = ab.benefit.code;
+      const existing = answeredBenefitsMap.get(code) || 0;
+      answeredBenefitsMap.set(code, existing + ab.points);
     }
   });
 
-  const answeredFeatures = Array.from(featureWeights.values()).map(({ feature, totalWeight }) => ({
-    feature: feature.name,
-    weight: totalWeight,
+  const answeredFeatures = Array.from(answeredBenefitsMap.entries()).map(([code, points]) => ({
+    feature: code, // Using benefit code as identifier
+    weight: points,
   }));
 
   // Ensure we have valid recommendations

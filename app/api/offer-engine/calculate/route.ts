@@ -63,6 +63,15 @@ const calculateOfferSchema = z.object({
     secondPairLensPrice: z.number().optional(),
   }).nullable().optional(),
   organizationId: z.string(),
+  // For CONTACT_LENS_ONLY mode
+  mode: z.enum(['FRAME_AND_LENS', 'ONLY_LENS', 'CONTACT_LENS_ONLY']).optional(),
+  otherItems: z.array(z.object({
+    type: z.enum(['CONTACT_LENS', 'ACCESSORY']),
+    brand: z.string(),
+    mrp: z.number(),
+    finalPrice: z.number(),
+    quantity: z.number().optional(),
+  })).optional(),
 });
 
 /**
@@ -82,17 +91,27 @@ export async function POST(request: NextRequest) {
 
     // Normalize input format
     const normalizedInput: OfferCalculationInput = {
-      frame: body.cart?.frame || body.frame,
-      lens: body.cart?.lens || body.lens,
+      frame: body.cart?.frame || body.frame || null,
+      lens: body.cart?.lens || body.lens || null,
       customerCategory: body.customer?.category || body.customerCategory || null,
       couponCode: body.couponCode || null,
       secondPair: body.secondPair || null,
       organizationId: body.organizationId,
+      mode: body.mode || (body.frame && body.lens ? 'FRAME_AND_LENS' : body.lens ? 'ONLY_LENS' : 'CONTACT_LENS_ONLY'),
+      otherItems: body.otherItems || undefined,
     };
 
     // V2: Mandatory validations
-    if (!normalizedInput.frame || !normalizedInput.lens) {
-      throw new ValidationError('Frame and lens are required');
+    // For CONTACT_LENS_ONLY mode, otherItems is required
+    if (normalizedInput.mode === 'CONTACT_LENS_ONLY') {
+      if (!normalizedInput.otherItems || normalizedInput.otherItems.length === 0) {
+        throw new ValidationError('otherItems is required for CONTACT_LENS_ONLY mode');
+      }
+    } else {
+      // For frame+lens or lens-only, lens is required
+      if (!normalizedInput.lens) {
+        throw new ValidationError('Lens is required for frame+lens or lens-only modes');
+      }
     }
 
     // Calculate offers using the offer engine

@@ -101,19 +101,35 @@ export async function POST(request: NextRequest) {
     try {
       const now = new Date();
       
-      // Prepare session data
-      const sessionData: any = {
-        storeId: store.id,
-        userId: defaultUser.id,
-        category,
-        customerName: customerName || null,
-        customerPhone: customerPhone || null,
-        customerEmail: customerEmail || null,
-        customerCategory: customerCategory || null,
-        status: 'IN_PROGRESS',
-        startedAt: now,
-        completedAt: now, // Set to current date, will be updated when session completes
+    // Prepare session data
+    // Store frame data in customerEmail field as JSON (since Session model doesn't have notes field)
+    // For "Only Lens" flow, frame will be null/undefined
+    const sessionNotes: any = {};
+    if (frame && frame.brand && frame.mrp > 0) {
+      sessionNotes.frame = {
+        brand: frame.brand,
+        subCategory: frame.subCategory || null,
+        mrp: frame.mrp,
+        frameType: frame.frameType || null,
       };
+    }
+    // Store prescription data in notes if needed
+    if (prescription) {
+      sessionNotes.prescription = prescription;
+    }
+    
+    const sessionData: any = {
+      storeId: store.id,
+      userId: defaultUser.id,
+      category,
+      customerName: customerName || 'Guest', // Required field - use default if not provided
+      customerPhone: customerPhone || '0000000000', // Required field - use default if not provided
+      customerEmail: Object.keys(sessionNotes).length > 0 ? sessionNotes : null, // Store frame/prescription data here
+      customerCategory: customerCategory || null,
+      status: 'IN_PROGRESS',
+      startedAt: now,
+      completedAt: now, // Set to current date, will be updated when session completes
+    };
       
       // prescriptionId is Json? type in schema, so we need to handle it carefully
       // Since it's Json?, we can pass it as a string (MongoDB ObjectId) or null

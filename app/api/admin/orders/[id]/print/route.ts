@@ -21,9 +21,6 @@ export async function POST(
 
     const order = await prisma.order.findUnique({
       where: { id },
-      include: {
-        store: true,
-      },
     });
 
     if (!order) {

@@ -5,71 +5,55 @@ import { handleApiError } from '@/lib/errors';
 
 /**
  * GET /api/admin/products/brands
- * Get unique brands from products (frames only)
+ * Get unique brands for frames/sunglasses (from ProductBrand, not RetailProduct)
+ * NOTE: FRAME and SUNGLASS are manual-entry only, no SKU products exist
  */
 export async function GET(request: NextRequest) {
   try {
     const user = await authenticate(request);
 
-    // Get all active frames from RetailProduct
-    const products = await prisma.retailProduct.findMany({
+    // Get all active frame/sunglass brands from ProductBrand (not RetailProduct)
+    // FRAME and SUNGLASS are manual-entry only, so we get brands directly
+    const brands = await prisma.productBrand.findMany({
       where: {
-        type: 'FRAME',
         isActive: true,
+        OR: [
+          { productTypes: { has: 'FRAME' } },
+          { productTypes: { has: 'SUNGLASS' } },
+        ],
       },
       include: {
-        brand: {
-          select: {
-            id: true,
-            name: true,
+        subBrands: {
+          orderBy: {
+            name: 'asc',
           },
         },
-        subBrand: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
+      },
+      orderBy: {
+        name: 'asc',
       },
     });
 
-    // Extract unique brands from ProductBrand
-    const brands = Array.from(
-      new Set(products.map((p) => p.brand.name).filter((b): b is string => !!b))
-    ).sort();
+    // Extract unique brand names
+    const brandNames = brands.map((b) => b.name).sort();
 
-    // Extract unique sub-brands
-    const subBrands = Array.from(
-      new Set(
-        products
-          .map((p) => p.subBrand?.name)
-          .filter((b): b is string => !!b)
-      )
-    ).sort();
+    // Extract unique sub-brands across all brands
+    const allSubBrands = brands.flatMap((b) => b.subBrands.map((sb) => sb.name));
+    const uniqueSubBrands = Array.from(new Set(allSubBrands)).sort();
 
     // Get brand-subBrand combinations
     const brandSubBrandMap: Record<string, string[]> = {};
-    products.forEach((p) => {
-      if (p.brand.name && p.subBrand?.name) {
-        if (!brandSubBrandMap[p.brand.name]) {
-          brandSubBrandMap[p.brand.name] = [];
-        }
-        if (!brandSubBrandMap[p.brand.name].includes(p.subBrand.name)) {
-          brandSubBrandMap[p.brand.name].push(p.subBrand.name);
-        }
+    brands.forEach((brand) => {
+      if (brand.subBrands.length > 0) {
+        brandSubBrandMap[brand.name] = brand.subBrands.map((sb) => sb.name).sort();
       }
-    });
-
-    // Sort brand lines for each brand
-    Object.keys(brandSubBrandMap).forEach((brand) => {
-      brandSubBrandMap[brand].sort();
     });
 
     return Response.json({
       success: true,
       data: {
-        brands,
-        subBrands,
+        brands: brandNames,
+        subBrands: uniqueSubBrands,
         brandSubBrandMap,
       },
     });

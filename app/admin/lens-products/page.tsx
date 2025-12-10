@@ -57,6 +57,7 @@ export default function LensProductsPage() {
     lensBrandId: '',
     type: 'SINGLE_VISION' as LensType,
     index: 'INDEX_156' as LensIndex,
+    tintOption: 'CLEAR' as 'CLEAR' | 'TINT' | 'PHOTOCHROMIC' | 'TRANSITION',
     mrp: 0,
     offerPrice: 0,
     addOnPrice: 0,
@@ -129,6 +130,7 @@ export default function LensProductsPage() {
       lensBrandId: '',
       type: 'SINGLE_VISION',
       index: 'INDEX_156',
+      tintOption: 'CLEAR',
       mrp: 0,
       offerPrice: 0,
       addOnPrice: 0,
@@ -150,6 +152,7 @@ export default function LensProductsPage() {
       lensBrandId: product.lensBrand.id,
       type: product.type,
       index: product.index,
+      tintOption: (product as any).tintOption || 'CLEAR',
       mrp: product.mrp,
       offerPrice: product.offerPrice,
       addOnPrice: product.addOnPrice || 0,
@@ -472,6 +475,24 @@ export default function LensProductsPage() {
                   { value: 'INDEX_167', label: '1.67' },
                   { value: 'INDEX_174', label: '1.74' },
                   { value: 'INDEX_PC', label: 'PC 1.59' },
+                ]}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Tint Option *
+              </label>
+              <Select
+                value={formData.tintOption}
+                onChange={(e) => setFormData({ ...formData, tintOption: e.target.value as any })}
+                options={[
+                  { value: 'CLEAR', label: 'Clear' },
+                  { value: 'TINT', label: 'Tint' },
+                  { value: 'PHOTOCHROMIC', label: 'Photochromic' },
+                  { value: 'TRANSITION', label: 'Transition' },
                 ]}
               />
             </div>

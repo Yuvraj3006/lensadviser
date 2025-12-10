@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLensAdvisorStore } from '@/stores/lens-advisor-store';
 import { useSessionStore } from '@/stores/session-store';
@@ -13,6 +13,7 @@ export default function PrescriptionPage() {
   const rx = useLensAdvisorStore((state) => state.rx);
   const setRx = useLensAdvisorStore((state) => state.setRx);
   const language = useSessionStore((state) => state.language);
+  const hasLoadedRef = useRef(false); // Track if we've already loaded from localStorage
 
   useEffect(() => {
     // Check if language is selected, redirect if not
@@ -22,13 +23,37 @@ export default function PrescriptionPage() {
       return;
     }
     
-    // Load saved prescription from localStorage
-    const saved = localStorage.getItem('lenstrack_prescription');
-    if (saved) {
-      const rxData = JSON.parse(saved);
-      setRx(rxData);
+    // Check if Contact Lens is selected - redirect to power input method
+    const savedLensType = localStorage.getItem('lenstrack_lens_type');
+    if (savedLensType === 'CONTACT_LENSES') {
+      // Redirect to Contact Lens power input method selection
+      router.push('/questionnaire/contact-lens/power-input-method');
+      return;
     }
-  }, [setRx, language, router]);
+    
+    // Load saved prescription from localStorage only once (prevent infinite loop)
+    if (!hasLoadedRef.current) {
+      const saved = localStorage.getItem('lenstrack_prescription');
+      if (saved) {
+        try {
+          const rxData = JSON.parse(saved);
+          // Check if rx is empty (no prescription data yet)
+          const isRxEmpty = !rx.odSphere && !rx.osSphere && !rx.odCylinder && !rx.osCylinder;
+          
+          // Only set if rx is empty or if saved data is different
+          if (isRxEmpty || JSON.stringify(rx) !== JSON.stringify(rxData)) {
+            setRx(rxData);
+          }
+          hasLoadedRef.current = true; // Mark as loaded
+        } catch (error) {
+          console.error('[PrescriptionPage] Failed to parse saved prescription:', error);
+          hasLoadedRef.current = true; // Mark as loaded even on error to prevent retries
+        }
+      } else {
+        hasLoadedRef.current = true; // Mark as loaded if no saved data
+      }
+    }
+  }, [language, router, rx, setRx]); // Now safe to include rx and setRx since we use ref to prevent re-runs
 
   const handleNext = () => {
     // Validation: SPH ±20 range, CYL negative only
@@ -44,7 +69,8 @@ export default function PrescriptionPage() {
 
     // Save to localStorage
     localStorage.setItem('lenstrack_prescription', JSON.stringify(rx));
-    // Navigate to frame page
+    
+    // Navigate to frame page (session will be created there, then redirect to tint selection if Power Sunglasses)
     router.push('/questionnaire/frame');
   };
 

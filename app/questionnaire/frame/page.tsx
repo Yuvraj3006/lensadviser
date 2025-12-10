@@ -33,6 +33,7 @@ export default function FramePage() {
   const setFrame = useLensAdvisorStore((state) => state.setFrame);
   const storeCode = useSessionStore((state) => state.storeCode);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lensType, setLensType] = useState<string | null>(null);
 
   useEffect(() => {
     // Load saved frame data from localStorage
@@ -44,6 +45,15 @@ export default function FramePage() {
       } catch (error) {
         console.error('Failed to parse saved frame data:', error);
       }
+    }
+    
+    // Check lens type to determine if frame entry is required
+    const savedLensType = localStorage.getItem('lenstrack_lens_type') || localStorage.getItem('lenstrack_category');
+    setLensType(savedLensType);
+    
+    // If "Only Lens" is selected, skip frame entry and go directly to questionnaire
+    if (savedLensType === 'ONLY_LENS') {
+      handleSkipFrame();
     }
   }, [setFrame]);
 
@@ -58,10 +68,71 @@ export default function FramePage() {
     });
   }, [frame]);
 
+  // Handle skipping frame entry for "Only Lens" flow
+  const handleSkipFrame = async () => {
+    const savedLensType = localStorage.getItem('lenstrack_lens_type') || localStorage.getItem('lenstrack_category');
+    
+    // Only skip if "Only Lens" is selected
+    if (savedLensType !== 'ONLY_LENS') {
+      return; // Don't skip for other categories
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Get all collected data
+      const customerDetails = JSON.parse(localStorage.getItem('lenstrack_customer_details') || '{}');
+      const prescription = JSON.parse(localStorage.getItem('lenstrack_prescription') || '{}');
+      const currentStoreCode = storeCode;
+
+      // Create session without frame data
+      // Map ONLY_LENS to EYEGLASSES for backend compatibility (backend uses EYEGLASSES category)
+      const response = await fetch('/api/public/questionnaire/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          storeCode: currentStoreCode || 'MAIN-001',
+          category: 'EYEGLASSES', // Backend uses EYEGLASSES, we'll track ONLY_LENS separately
+          customerName: customerDetails?.name || undefined,
+          customerPhone: customerDetails?.phone || undefined,
+          customerEmail: customerDetails?.email || undefined,
+          customerCategory: customerDetails?.category || undefined,
+          prescription: (prescription && Object.keys(prescription).length > 0) ? prescription : undefined,
+          // No frame data for "Only Lens" flow
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success && data.data?.sessionId) {
+        // Store that this is an "Only Lens" session
+        localStorage.setItem(`lenstrack_session_${data.data.sessionId}_only_lens`, 'true');
+        router.push(`/questionnaire/${data.data.sessionId}`);
+      } else {
+        showToast('error', data.error?.message || 'Failed to create session');
+      }
+    } catch (error) {
+      console.error('[FramePage] Error skipping frame:', error);
+      showToast('error', 'An error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleNext = async () => {
     console.log('[FramePage] handleNext called, frame:', frame);
     
-    // Validate required fields
+    // Check if "Only Lens" is selected - skip frame validation
+    const savedLensType = localStorage.getItem('lenstrack_lens_type') || localStorage.getItem('lenstrack_category');
+    if (savedLensType === 'ONLY_LENS') {
+      // Skip frame entry for "Only Lens" flow
+      await handleSkipFrame();
+      return;
+    }
+    
+    // Validate required fields for other flows
     if (!frame?.brand || !frame?.brand.trim()) {
       showToast('error', 'Please select a frame brand');
       return;
@@ -302,7 +373,25 @@ export default function FramePage() {
 
       // Handle successful HTTP response but API-level error
       if (data.success && data.data?.sessionId) {
-        router.push(`/questionnaire/${data.data.sessionId}`);
+        const sessionId = data.data.sessionId;
+        localStorage.setItem('lenstrack_session_id', sessionId);
+        
+        // Check if Power Sunglasses - tint color selection is mandatory after prescription
+        const savedLensType = localStorage.getItem('lenstrack_lens_type');
+        const isPowerSunglasses = savedLensType === 'SUNGLASSES';
+        
+        if (isPowerSunglasses) {
+          // Check if tint selection has already been done
+          const tintSelection = localStorage.getItem(`lenstrack_tint_selection_${sessionId}`);
+          if (!tintSelection) {
+            // Redirect to tint color selection (mandatory step for Power Sunglasses)
+            router.push(`/questionnaire/${sessionId}/tint-color-selection`);
+            return;
+          }
+        }
+        
+        // Continue to questionnaire
+        router.push(`/questionnaire/${sessionId}`);
       } else {
         // Handle various error formats
         let errorMessage = 'Failed to start questionnaire';
@@ -341,6 +430,35 @@ export default function FramePage() {
       setIsSubmitting(false);
     }
   };
+
+  // Show message if "Only Lens" is selected
+  if (lensType === 'ONLY_LENS') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-8">
+        <div className="max-w-4xl w-full">
+          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-2xl">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-white mb-4">Only Lens Selected</h2>
+              <p className="text-slate-300 mb-6">Frame entry is not required for lens-only purchases.</p>
+              <p className="text-slate-400 mb-8">Proceeding to questionnaire...</p>
+              {isSubmitting ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                </div>
+              ) : (
+                <Button
+                  onClick={handleSkipFrame}
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                >
+                  Continue to Questionnaire →
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-8">

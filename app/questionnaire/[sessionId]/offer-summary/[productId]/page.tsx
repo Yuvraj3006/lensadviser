@@ -93,6 +93,10 @@ export default function OfferSummaryPage() {
       // Get frame data from localStorage
       const frameData = JSON.parse(localStorage.getItem('lenstrack_frame') || '{}');
       
+      // Get tint selection if available (for Power Sunglasses)
+      const tintSelection = localStorage.getItem(`lenstrack_tint_selection_${sessionId}`);
+      const tintData = tintSelection ? JSON.parse(tintSelection) : null;
+      
       // Calculate offers using offer engine
       const offersResponse = await fetch(
         `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
@@ -103,6 +107,7 @@ export default function OfferSummaryPage() {
             productId: productId,
             couponCode: null,
             secondPair: null,
+            tintSelection: tintData, // Include tint selection for mirror add-on price
           }),
         }
       );

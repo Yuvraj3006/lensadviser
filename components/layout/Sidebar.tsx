@@ -22,6 +22,7 @@ import {
   FileText,
   ShoppingCart,
   TrendingUp,
+  Eye,
 } from 'lucide-react';
 // UserRole enum - defined inline since Prisma doesn't export unused enums
 enum UserRole {
@@ -81,6 +82,12 @@ const navItems: NavItem[] = [
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
   },
   {
+    label: 'Contact Lens Products',
+    href: '/admin/contact-lens-products',
+    icon: <Eye size={20} />,
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+  },
+  {
     label: 'Questionnaire Builder',
     href: '/admin/questionnaire',
     icon: <HelpCircle size={20} />,
@@ -137,6 +144,12 @@ const navItems: NavItem[] = [
     href: '/admin/pos/orders',
     icon: <ShoppingCart size={20} />,
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.STORE_MANAGER],
+  },
+  {
+    label: 'Power Converter',
+    href: '/admin/tools/power-converter',
+    icon: <Calculator size={20} />,
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.STORE_MANAGER, UserRole.SALES_EXECUTIVE],
   },
   {
     label: 'Prescriptions',

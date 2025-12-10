@@ -26,8 +26,12 @@ interface RecommendedLens {
   indexRecommendation?: {
     recommendedIndex: string; // INDEX_156, INDEX_160, etc.
     indexDelta: number; // >0 thinner, 0 ideal, <0 thicker
+    validationMessage?: string | null; // Warning or error message
+    isInvalid?: boolean; // True if violates rules (e.g., INDEX_156 for rimless)
+    isWarning?: boolean; // True if thicker than recommended
   };
   thicknessWarning?: boolean;
+  indexInvalid?: boolean; // True if index selection violates rules
 }
 
 interface LensRecommendationCardProps {
@@ -81,7 +85,9 @@ export function LensRecommendationCard({ lens, isSelected, onSelect, recommended
   
   const isBestIndex = indexDelta === 0 && recommendedIndex && lensIndex === recommendedIndex;
   const isExtraThin = indexDelta > 0;
-  const showThicknessWarning = (lens.thicknessWarning || indexDelta < 0) && recommendedIndex;
+  const showThicknessWarning = (lens.thicknessWarning || indexDelta < 0 || lens.indexRecommendation?.isWarning) && recommendedIndex;
+  const showInvalidWarning = lens.indexInvalid || lens.indexRecommendation?.isInvalid;
+  const validationMessage = lens.indexRecommendation?.validationMessage;
 
   return (
     <div
@@ -126,11 +132,24 @@ export function LensRecommendationCard({ lens, isSelected, onSelect, recommended
             </div>
           )}
           
+          {/* Invalid Index Warning (e.g., INDEX_156 for rimless) */}
+          {showInvalidWarning && (
+            <div className="mt-2 p-2 bg-red-50 border border-red-300 rounded text-xs text-red-800 font-medium">
+              ❌ {validationMessage || 'This index is not suitable for your frame type. Please select a different lens.'}
+            </div>
+          )}
+          
           {/* Thickness Warning */}
-          {showThicknessWarning && (
+          {showThicknessWarning && !showInvalidWarning && (
             <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-              ⚠️ This lens will be thicker than the ideal index for your power. 
-              {displayRecommendedIndex && ` Recommended: ${displayRecommendedIndex} for a slimmer look.`}
+              ⚠️ {validationMessage || `This lens will be thicker than the ideal index for your power. Recommended: ${displayRecommendedIndex} for a slimmer look.`}
+            </div>
+          )}
+          
+          {/* Premium Upsell Message */}
+          {isExtraThin && !showThicknessWarning && !showInvalidWarning && validationMessage && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+              ✨ {validationMessage}
             </div>
           )}
         </div>

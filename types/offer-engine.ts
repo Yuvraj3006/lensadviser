@@ -41,9 +41,25 @@ export interface OfferApplied {
   savings: number; // how much saved by this step
 }
 
+export interface ContactLensItem {
+  type: 'CONTACT_LENS';
+  brand: string;
+  mrp: number;
+  finalPrice: number;
+  quantity?: number;
+}
+
+export interface AccessoryItem {
+  type: 'ACCESSORY';
+  brand: string;
+  mrp: number;
+  finalPrice: number;
+  quantity?: number;
+}
+
 export interface OfferCalculationInput {
-  frame: FrameInput;
-  lens: LensInput;
+  frame?: FrameInput | null; // Optional for "Only Lens" flow
+  lens?: LensInput | null; // Optional for CONTACT_LENS_ONLY mode
   customerCategory?: CustomerCategoryCode | null;
   couponCode?: string | null;
   // For second pair flow
@@ -54,6 +70,10 @@ export interface OfferCalculationInput {
     secondPairLensPrice?: number;
   } | null;
   organizationId: string; // Required for fetching rules
+  storeId?: string | null; // Optional: for store-based offer activation
+  // For CONTACT_LENS_ONLY mode
+  mode?: 'FRAME_AND_LENS' | 'ONLY_LENS' | 'CONTACT_LENS_ONLY';
+  otherItems?: (ContactLensItem | AccessoryItem)[]; // For CL and accessories
 }
 
 export interface UpsellSuggestion {
@@ -74,6 +94,7 @@ export interface OfferCalculationResult {
   couponDiscount?: OfferApplied | null;
   couponError?: string | null; // Error message if coupon validation failed
   secondPairDiscount?: OfferApplied | null;
+  bonusProduct?: OfferApplied | null; // Bonus free product (doesn't reduce price, free add-on)
   finalPayable: number;
   upsell?: UpsellSuggestion | null; // V2: Dynamic Upsell Engine
 }
