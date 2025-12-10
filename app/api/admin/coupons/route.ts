@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { handleApiError, ValidationError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
+import { authenticate } from '@/middleware/auth.middleware';
+import { serializePrismaModels, serializePrismaModel } from '@/lib/serialization';
 import { z } from 'zod';
 
 const couponSchema = z.object({
@@ -13,7 +15,7 @@ const couponSchema = z.object({
   isActive: z.boolean().default(true),
   validFrom: z.string().datetime().optional(),
   validUntil: z.string().datetime().nullable().optional(),
-  organizationId: z.string(),
+  // organizationId is not in schema - will be taken from authenticated user
 });
 
 /**
@@ -22,36 +24,26 @@ const couponSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    // Try to get user from auth, fallback to query param
-    let organizationId: string | null = null;
-    try {
-      const { authenticate } = await import('@/middleware/auth.middleware');
-      const user = await authenticate(request);
-      organizationId = user.organizationId;
-    } catch {
-      // Not authenticated, try query param
+    // Authenticate user first
+    const user = await authenticate(request);
+    
+    if (!user || !user.organizationId) {
+      throw new ValidationError('User organizationId is required');
     }
 
+    const organizationId = user.organizationId;
     const { searchParams } = new URL(request.url);
-    organizationId = organizationId || searchParams.get('organizationId');
     const isActive = searchParams.get('isActive');
-
-    if (!organizationId || organizationId.trim() === '') {
-      throw new ValidationError('organizationId is required');
-    }
-
-    // Validate organizationId is a valid ObjectID format
-    if (!/^[0-9a-fA-F]{24}$/.test(organizationId)) {
-      throw new ValidationError('Invalid organizationId format');
-    }
 
     const where: any = {
       organizationId,
     };
 
-    if (isActive !== null) {
+    if (isActive !== null && isActive !== '') {
       where.isActive = isActive === 'true';
     }
+
+    console.log('[GET /api/admin/coupons] Fetching coupons with where:', JSON.stringify(where));
 
     const coupons = await prisma.coupon.findMany({
       where,
@@ -60,11 +52,25 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    console.log('[GET /api/admin/coupons] Found coupons:', coupons.length);
+
+    // Serialize BigInt and Date fields
+    const serializedCoupons = serializePrismaModels(coupons, { 
+      bigIntFields: ['usedCount'],
+      dateFields: ['createdAt', 'updatedAt', 'validFrom', 'validUntil']
+    });
+
     return Response.json({
       success: true,
-      data: coupons,
+      data: serializedCoupons || [],
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('[GET /api/admin/coupons] Error:', {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+      code: error?.code,
+    });
     return handleApiError(error);
   }
 }
@@ -75,14 +81,38 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Authenticate user first
+    const user = await authenticate(request);
+    
+    if (!user || !user.organizationId) {
+      throw new ValidationError('User organizationId is required');
+    }
+
+    const organizationId = user.organizationId;
+
     const body = await request.json();
 
     const validationResult = couponSchema.safeParse(body);
+    
     if (!validationResult.success) {
       throw new ValidationError('Invalid input', validationResult.error.issues);
     }
 
     const data = validationResult.data;
+
+    // Check if coupon code already exists
+    const existingCoupon = await prisma.coupon.findUnique({
+      where: {
+        organizationId_code: {
+          organizationId,
+          code: data.code,
+        },
+      },
+    });
+
+    if (existingCoupon) {
+      throw new ValidationError(`Coupon code "${data.code}" already exists`);
+    }
 
     const coupon = await prisma.coupon.create({
       data: {
@@ -95,18 +125,29 @@ export async function POST(request: NextRequest) {
         isActive: data.isActive ?? true,
         validFrom: data.validFrom ? new Date(data.validFrom) : new Date(),
         validUntil: data.validUntil ? new Date(data.validUntil) : null,
-        organizationId: data.organizationId,
+        organizationId,
       },
+    });
+
+    // Serialize BigInt and Date fields
+    const serializedCoupon = serializePrismaModel(coupon, {
+      bigIntFields: ['usedCount'],
+      dateFields: ['createdAt', 'updatedAt', 'validFrom', 'validUntil']
     });
 
     return Response.json(
       {
         success: true,
-        data: coupon,
+        data: serializedCoupon,
       },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
+    console.error('[POST /api/admin/coupons] Error:', {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+    });
     return handleApiError(error);
   }
 }

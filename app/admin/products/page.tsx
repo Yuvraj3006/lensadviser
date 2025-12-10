@@ -856,14 +856,14 @@ export default function ProductsPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <span>{product.brand.name}</span>
+                          {product.brand && <span>{product.brand.name}</span>}
                           {product.subBrand && (
                             <>
-                              <span>•</span>
+                              {product.brand && <span>•</span>}
                               <span>{product.subBrand.name}</span>
                             </>
                           )}
-                          <span>•</span>
+                          {(product.brand || product.subBrand) && <span>•</span>}
                           <span className="font-medium text-slate-900">₹{product.mrp.toLocaleString()}</span>
                         </div>
                       </div>

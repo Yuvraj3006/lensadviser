@@ -10,7 +10,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { DataTable, Column } from '@/components/data-display/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Plus, Search, Edit2, Trash2, Users as UsersIcon } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Users as UsersIcon, RotateCcw } from 'lucide-react';
 import { UserRole } from '@/lib/constants';
 
 interface User {
@@ -44,6 +44,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [showDeactivated, setShowDeactivated] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<User | null>(null);
@@ -61,7 +62,7 @@ export default function UsersPage() {
   useEffect(() => {
     fetchUsers();
     fetchStores();
-  }, [search, roleFilter]);
+  }, [search, roleFilter, showDeactivated]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -70,6 +71,8 @@ export default function UsersPage() {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (roleFilter) params.append('role', roleFilter);
+      // Filter by active/deactivated status
+      params.append('isActive', showDeactivated ? 'false' : 'true');
 
       const response = await fetch(`/api/admin/users?${params}`, {
         headers: {
@@ -213,6 +216,29 @@ export default function UsersPage() {
     }
   };
 
+  const handleReactivate = async (user: User) => {
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('success', 'User reactivated successfully');
+        fetchUsers();
+      } else {
+        showToast('error', data.error?.message || 'Failed to reactivate user');
+      }
+    } catch (error) {
+      showToast('error', 'An error occurred');
+    }
+  };
+
   const getRoleBadgeColor = (role: UserRole) => {
     switch (role) {
       case UserRole.SUPER_ADMIN:
@@ -298,9 +324,19 @@ export default function UsersPage() {
           <h1 className="text-3xl font-bold text-slate-900">Users</h1>
           <p className="text-slate-600 mt-1">Manage staff members and access</p>
         </div>
-        <Button icon={<Plus size={18} />} onClick={handleCreate}>
-          Add User
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            variant={showDeactivated ? 'outline' : 'primary'}
+            onClick={() => setShowDeactivated(!showDeactivated)}
+          >
+            {showDeactivated ? 'Show Active Users' : 'Show Deactivated Users'}
+          </Button>
+          {!showDeactivated && (
+            <Button icon={<Plus size={18} />} onClick={handleCreate}>
+              Add User
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -329,12 +365,12 @@ export default function UsersPage() {
         {users.length === 0 && !loading ? (
           <EmptyState
             icon={<UsersIcon size={48} />}
-            title="No users found"
-            description="Get started by creating your first user"
-            action={{
+            title={showDeactivated ? 'No deactivated users found' : 'No users found'}
+            description={showDeactivated ? 'There are no deactivated users' : 'Get started by creating your first user'}
+            action={!showDeactivated ? {
               label: 'Add User',
               onClick: handleCreate,
-            }}
+            } : undefined}
           />
         ) : (
           <DataTable
@@ -343,23 +379,36 @@ export default function UsersPage() {
             loading={loading}
             rowActions={(user) => (
               <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<Edit2 size={14} />}
-                  onClick={() => handleEdit(user)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<Trash2 size={14} />}
-                  onClick={() => setDeleteConfirm(user)}
-                  disabled={user.id === currentUser?.id}
-                >
-                  Delete
-                </Button>
+                {showDeactivated ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={<RotateCcw size={14} />}
+                    onClick={() => handleReactivate(user)}
+                  >
+                    Reactivate
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Edit2 size={14} />}
+                      onClick={() => handleEdit(user)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Trash2 size={14} />}
+                      onClick={() => setDeleteConfirm(user)}
+                      disabled={user.id === currentUser?.id}
+                    >
+                      Delete
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           />

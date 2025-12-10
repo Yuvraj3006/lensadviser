@@ -3,33 +3,48 @@ import { handleApiError, ValidationError, NotFoundError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { UserRole } from '@/lib/constants';
+import { serializePrismaModels, serializePrismaModel } from '@/lib/serialization';
 import { z } from 'zod';
 
 // Validation schema for creating offer rules - matches Prisma OfferRule model
 // Using passthrough to allow legacy fields from frontend
 const offerRuleSchema = z.object({
   code: z.string().min(1),
-  offerType: z.enum(['YOPO', 'COMBO_PRICE', 'FREE_LENS', 'PERCENT_OFF', 'FLAT_OFF']), // Match OfferType enum
-  frameBrands: z.array(z.string()).default([]), // Array, not single string
-  frameSubCategories: z.array(z.string()).default([]), // Array, not single string
-  minFrameMRP: z.number().nullable().optional(),
-  maxFrameMRP: z.number().nullable().optional(),
-  lensBrandLines: z.array(z.string()).default([]),
+  offerType: z.enum(['YOPO', 'COMBO_PRICE', 'FREE_LENS', 'PERCENT_OFF', 'FLAT_OFF', 'BOG50', 'CATEGORY_DISCOUNT', 'BONUS_FREE_PRODUCT']), // Match OfferType enum
+  // Handle arrays that might be null/undefined - transform to empty array
+  frameBrands: z.union([z.array(z.string()), z.null(), z.undefined()]).transform(val => val || []).default([]),
+  frameSubCategories: z.union([z.array(z.string()), z.null(), z.undefined()]).transform(val => val || []).default([]),
+  lensBrandLines: z.union([z.array(z.string()), z.null(), z.undefined()]).transform(val => val || []).default([]),
+  // Handle numbers that might be strings
+  minFrameMRP: z.union([z.number(), z.string(), z.null(), z.undefined()]).transform(val => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'string' ? parseFloat(val) : val;
+  }).nullable().optional(),
+  maxFrameMRP: z.union([z.number(), z.string(), z.null(), z.undefined()]).transform(val => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'string' ? parseFloat(val) : val;
+  }).nullable().optional(),
   config: z.any().optional(), // JSON field for flexible configuration
-  upsellEnabled: z.boolean().default(true),
-  upsellThreshold: z.number().nullable().optional(),
-  upsellRewardText: z.string().nullable().optional(),
-  priority: z.number().int().default(100),
-  isActive: z.boolean().default(true),
-  organizationId: z.string(),
+  upsellEnabled: z.union([z.boolean(), z.undefined()]).default(true),
+  upsellThreshold: z.union([z.number(), z.string(), z.null(), z.undefined()]).transform(val => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'string' ? parseFloat(val) : val;
+  }).nullable().optional(),
+  upsellRewardText: z.union([z.string(), z.null(), z.undefined()]).nullable().optional(),
+  priority: z.union([z.number(), z.string(), z.undefined()]).transform(val => {
+    if (val === undefined) return 100;
+    return typeof val === 'string' ? parseInt(val, 10) : val;
+  }).default(100),
+  isActive: z.union([z.boolean(), z.undefined()]).default(true),
+  organizationId: z.union([z.string(), z.undefined()]).optional(), // Make optional, will use user's orgId if not provided
   // Legacy fields from frontend - accept but don't validate strictly
   discountType: z.string().optional(),
   discountValue: z.union([z.number(), z.string()]).optional(),
   comboPrice: z.union([z.number(), z.string(), z.null()]).optional(),
   freeProductId: z.string().nullable().optional(),
-  isSecondPairRule: z.boolean().optional(),
-  secondPairPercent: z.union([z.number(), z.string(), z.null()]).optional(),
-  lensItCodes: z.array(z.string()).optional(),
+  isSecondPairRule: z.union([z.boolean(), z.undefined()]).optional(),
+  secondPairPercent: z.union([z.number(), z.string(), z.null(), z.undefined()]).optional(),
+  lensItCodes: z.union([z.array(z.string()), z.null(), z.undefined()]).transform(val => val || []).optional(),
   frameBrand: z.string().optional(),
   frameSubCategory: z.string().optional(),
 }).passthrough();
@@ -103,8 +118,11 @@ export async function GET(request: NextRequest) {
           .join(' ');
       };
       
+      // Serialize BigInt and Date fields first
+      const serializedRule = serializePrismaModels([rule], { bigIntFields: ['priority'] })[0];
+      
       return {
-        ...rule,
+        ...serializedRule,
         // Add name field for display
         name: getDisplayName(rule.code, rule.offerType),
         // Extract discount fields from config for frontend
@@ -145,6 +163,8 @@ export async function POST(request: NextRequest) {
 
     const validationResult = offerRuleSchema.safeParse(body);
     if (!validationResult.success) {
+      // Log validation errors for debugging
+      console.error('[POST /api/admin/offers/rules] Validation errors:', JSON.stringify(validationResult.error.issues, null, 2));
       throw new ValidationError('Invalid input', validationResult.error.issues);
     }
 
@@ -182,12 +202,21 @@ export async function POST(request: NextRequest) {
     if (data.config?.visionTypeComboPrice !== undefined) ruleConfigData.visionTypeComboPrice = typeof data.config.visionTypeComboPrice === 'string' ? parseFloat(data.config.visionTypeComboPrice) : data.config.visionTypeComboPrice;
 
     // Build rule data - only include fields that exist in the model
+    // Ensure arrays are always arrays (not null/undefined)
+    const frameBrands = Array.isArray(data.frameBrands) && data.frameBrands.length > 0 
+      ? data.frameBrands 
+      : (data.frameBrand ? [data.frameBrand] : []);
+    const frameSubCategories = Array.isArray(data.frameSubCategories) && data.frameSubCategories.length > 0
+      ? data.frameSubCategories
+      : (data.frameSubCategory ? [data.frameSubCategory] : []);
+    const lensBrandLines = Array.isArray(data.lensBrandLines) ? data.lensBrandLines : [];
+
     const ruleData: any = {
       code: data.code,
       offerType: data.offerType,
-      frameBrands: data.frameBrands || (data.frameBrand ? [data.frameBrand] : []),
-      frameSubCategories: data.frameSubCategories || (data.frameSubCategory ? [data.frameSubCategory] : []),
-      lensBrandLines: data.lensBrandLines || [],
+      frameBrands,
+      frameSubCategories,
+      lensBrandLines,
       config: ruleConfigData,
       upsellEnabled: data.upsellEnabled ?? true,
       priority: typeof data.priority === 'string' ? parseInt(data.priority, 10) : (data.priority ?? 100),
@@ -201,8 +230,8 @@ export async function POST(request: NextRequest) {
     if (data.upsellThreshold !== undefined) ruleData.upsellThreshold = typeof data.upsellThreshold === 'string' ? parseFloat(data.upsellThreshold) : data.upsellThreshold;
     if (data.upsellRewardText !== undefined) ruleData.upsellRewardText = data.upsellRewardText;
 
-    // Use user's organizationId if not provided
-    if (!ruleData.organizationId) {
+    // Use user's organizationId if not provided or invalid
+    if (!ruleData.organizationId || !/^[0-9a-fA-F]{24}$/.test(ruleData.organizationId)) {
       ruleData.organizationId = user.organizationId;
     }
 
@@ -212,8 +241,11 @@ export async function POST(request: NextRequest) {
 
     // Transform rule to include discount fields from config for frontend compatibility
     const ruleConfig = rule.config as any || {};
+    // Serialize BigInt and Date fields first
+    const serializedRule = serializePrismaModels([rule], { bigIntFields: ['priority'] })[0];
+    
     const transformedRule = {
-      ...rule,
+      ...serializedRule,
       // Extract discount fields from config for frontend
       discountType: ruleConfig.discountType || null,
       discountValue: ruleConfig.discountValue || 0,

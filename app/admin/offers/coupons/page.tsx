@@ -32,6 +32,8 @@ interface Coupon {
   isActive: boolean;
   startDate?: string | null;
   endDate?: string | null;
+  validFrom?: string | null;
+  validUntil?: string | null;
   createdAt: string;
 }
 
@@ -74,15 +76,30 @@ export default function CouponsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/coupons?organizationId=${orgId}`, {
+      if (!token) {
+        showToast('error', 'Please login to access coupons');
+        setLoading(false);
+        return;
+      }
+      
+      const response = await fetch('/api/admin/coupons', {
         headers: { Authorization: `Bearer ${token}` },
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: { message: 'Failed to load coupons' } }));
+        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
       if (data.success) {
-        setCoupons(data.data);
+        setCoupons(data.data || []);
+      } else {
+        throw new Error(data.error?.message || 'Failed to load coupons');
       }
-    } catch (error) {
-      showToast('error', 'Failed to load coupons');
+    } catch (error: any) {
+      console.error('[fetchCoupons] Error:', error);
+      showToast('error', error.message || 'Failed to load coupons');
     } finally {
       setLoading(false);
     }
@@ -113,28 +130,58 @@ export default function CouponsPage() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch('/api/admin/coupons', {
-        method: 'POST',
+      if (!token) {
+        showToast('error', 'Please login to create coupons');
+        setSubmitting(false);
+        return;
+      }
+
+      // Prepare data - don't include organizationId, API will get it from authenticated user
+      const payload: any = {
+        code: formData.code,
+        discountType: formData.discountType,
+        discountValue: formData.discountValue,
+        minCartValue: formData.minCartValue || null,
+        maxDiscount: formData.maxDiscount || null,
+        usageLimit: null, // Add if needed
+        isActive: formData.isActive ?? true,
+        validFrom: formData.startDate || new Date().toISOString(),
+        validUntil: formData.endDate || null,
+      };
+
+      const url = editingCoupon
+        ? `/api/admin/coupons/${editingCoupon.id}`
+        : '/api/admin/coupons';
+      const method = editingCoupon ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          ...formData,
-          organizationId,
-        }),
+        body: JSON.stringify(payload),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: { message: 'Failed to save coupon' } }));
+        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+      }
 
       const data = await response.json();
       if (data.success) {
         showToast('success', editingCoupon ? 'Coupon updated' : 'Coupon created');
         setIsCreateOpen(false);
-        fetchCoupons(organizationId);
+        setEditingCoupon(null);
+        if (organizationId) {
+          fetchCoupons(organizationId);
+        }
       } else {
-        showToast('error', data.error?.message || 'Failed to save');
+        throw new Error(data.error?.message || 'Failed to save coupon');
       }
-    } catch (error) {
-      showToast('error', 'An error occurred');
+    } catch (error: any) {
+      console.error('[handleSubmit] Error:', error);
+      showToast('error', error.message || 'An error occurred while saving coupon');
     } finally {
       setSubmitting(false);
     }
@@ -221,7 +268,10 @@ export default function CouponsPage() {
       {/* Create/Edit Modal */}
       <Modal
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        onClose={() => {
+          setIsCreateOpen(false);
+          setEditingCoupon(null);
+        }}
         title={editingCoupon ? 'Edit Coupon' : 'Create Coupon'}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -309,10 +359,42 @@ export default function CouponsPage() {
           <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={() => {
-            setDeleteConfirm(null);
-            showToast('info', 'Delete functionality to be implemented');
-          }}>
+          <Button 
+            variant="danger" 
+            onClick={async () => {
+              if (!deleteConfirm) return;
+              
+              try {
+                const token = localStorage.getItem('lenstrack_token');
+                if (!token) {
+                  showToast('error', 'Please login to delete coupons');
+                  setDeleteConfirm(null);
+                  return;
+                }
+
+                const response = await fetch(`/api/admin/coupons/${deleteConfirm.id}`, {
+                  method: 'DELETE',
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                  showToast('success', 'Coupon deleted successfully');
+                  setDeleteConfirm(null);
+                  if (organizationId) {
+                    fetchCoupons(organizationId);
+                  }
+                } else {
+                  showToast('error', data.error?.message || 'Failed to delete coupon');
+                }
+              } catch (error: any) {
+                console.error('[handleDelete] Error:', error);
+                showToast('error', error.message || 'An error occurred while deleting coupon');
+              }
+            }}
+          >
             Delete
           </Button>
         </div>

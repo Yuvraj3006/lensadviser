@@ -562,7 +562,7 @@ export default function RecommendationsPage() {
             const brandLine = rec.brand || 'Premium';
             
             // Get 3-4 key benefits from features
-            const benefits = rec.features.slice(0, 4).map(f => f.name);
+            const benefits = rec.features?.slice(0, 4).map(f => f?.name).filter(Boolean) || [];
             
             // Check for YOPO, Combo, Free Lens eligibility
             const hasYOPO = rec.offers.some(o => o.type === 'YOPO' && o.isApplicable);
@@ -943,7 +943,7 @@ export default function RecommendationsPage() {
                         
                         {/* Features Tags */}
                         <div className="flex flex-wrap gap-1.5 mt-2">
-                          {rec.features.slice(0, 3).map((feature: any) => {
+                          {rec.features?.slice(0, 3).filter((f: any) => f && f.name).map((feature: any) => {
                             const FeatureIcon = getFeatureIcon(feature.key);
                             return (
                               <span
@@ -955,7 +955,7 @@ export default function RecommendationsPage() {
                               </span>
                             );
                           })}
-                          {rec.features.length > 3 && (
+                          {rec.features && rec.features.length > 3 && (
                             <span className="inline-flex items-center px-2.5 py-1 bg-slate-700/50 border border-slate-600 rounded-lg text-xs text-slate-400">
                               +{rec.features.length - 3} more
                             </span>
@@ -1343,7 +1343,7 @@ export default function RecommendationsPage() {
                   Full Feature Grid
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {rec.features.map((feature) => {
+                  {rec.features?.filter((f: any) => f && f.name).map((feature: any) => {
                     const FeatureIcon = getFeatureIcon(feature.key);
                     return (
                       <div key={feature.key} className="flex items-start gap-4 p-4 bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl border border-slate-200 hover:border-blue-300 transition-all group">
@@ -1418,7 +1418,7 @@ export default function RecommendationsPage() {
                 const lensIndexStr = rec.lensIndex || rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
                 const lensIndexDisplay = lensIndexStr.replace('INDEX_', '1.').replace(/^1\./, '1.');
                 const brandLine = rec.brand || 'Premium';
-                const benefits = rec.features.slice(0, 3).map(f => f.name);
+                const benefits = rec.features?.slice(0, 3).map(f => f?.name).filter(Boolean) || [];
                 const hasYOPO = rec.offers.some(o => o.type === 'YOPO' && o.isApplicable);
                 const hasCombo = rec.offers.some(o => o.type === 'COMBO' && o.isApplicable);
                 const hasFreeLens = rec.offers.some(o => o.type === 'FREE_LENS' && o.isApplicable);

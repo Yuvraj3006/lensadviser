@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { DataTable, Column } from '@/components/data-display/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Plus, Search, Edit2, Trash2, Store as StoreIcon } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Store as StoreIcon, RotateCcw } from 'lucide-react';
 
 interface Store {
   id: string;
@@ -42,6 +42,7 @@ export default function StoresPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [showDeactivated, setShowDeactivated] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Store | null>(null);
@@ -60,7 +61,7 @@ export default function StoresPage() {
 
   useEffect(() => {
     fetchStores();
-  }, []);
+  }, [showDeactivated]);
 
   // Debounce search
   useEffect(() => {
@@ -68,7 +69,7 @@ export default function StoresPage() {
       fetchStores();
     }, 300);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, showDeactivated]);
 
   const fetchStores = async () => {
     setLoading(true);
@@ -76,6 +77,8 @@ export default function StoresPage() {
       const token = localStorage.getItem('lenstrack_token');
       const params = new URLSearchParams();
       if (search) params.append('search', search);
+      // Filter by active/deactivated status
+      params.append('isActive', showDeactivated ? 'false' : 'true');
 
       const response = await fetch(`/api/admin/stores?${params}`, {
         headers: {
@@ -190,6 +193,29 @@ export default function StoresPage() {
     }
   };
 
+  const handleReactivate = async (store: Store) => {
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch(`/api/admin/stores/${store.id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('success', 'Store reactivated successfully');
+        fetchStores();
+      } else {
+        showToast('error', data.error?.message || 'Failed to reactivate store');
+      }
+    } catch (error) {
+      showToast('error', 'An error occurred');
+    }
+  };
+
   const columns: Column<Store>[] = [
     {
       key: 'code',
@@ -251,9 +277,19 @@ export default function StoresPage() {
           <h1 className="text-3xl font-bold text-slate-900">Stores</h1>
           <p className="text-slate-600 mt-1">Manage store locations and details</p>
         </div>
-        <Button icon={<Plus size={18} />} onClick={handleCreate}>
-          Add Store
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            variant={showDeactivated ? 'outline' : 'primary'}
+            onClick={() => setShowDeactivated(!showDeactivated)}
+          >
+            {showDeactivated ? 'Show Active Stores' : 'Show Deactivated Stores'}
+          </Button>
+          {!showDeactivated && (
+            <Button icon={<Plus size={18} />} onClick={handleCreate}>
+              Add Store
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -271,12 +307,12 @@ export default function StoresPage() {
         {stores.length === 0 && !loading ? (
           <EmptyState
             icon={<StoreIcon size={48} />}
-            title="No stores found"
-            description="Get started by creating your first store"
-            action={{
+            title={showDeactivated ? 'No deactivated stores found' : 'No stores found'}
+            description={showDeactivated ? 'There are no deactivated stores' : 'Get started by creating your first store'}
+            action={!showDeactivated ? {
               label: 'Add Store',
               onClick: handleCreate,
-            }}
+            } : undefined}
           />
         ) : (
           <DataTable
@@ -285,22 +321,35 @@ export default function StoresPage() {
             loading={loading}
             rowActions={(store) => (
               <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<Edit2 size={14} />}
-                  onClick={() => handleEdit(store)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<Trash2 size={14} />}
-                  onClick={() => setDeleteConfirm(store)}
-                >
-                  Delete
-                </Button>
+                {showDeactivated ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={<RotateCcw size={14} />}
+                    onClick={() => handleReactivate(store)}
+                  >
+                    Reactivate
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Edit2 size={14} />}
+                      onClick={() => handleEdit(store)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Trash2 size={14} />}
+                      onClick={() => setDeleteConfirm(store)}
+                    >
+                      Delete
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           />

@@ -3,6 +3,7 @@ import { handleApiError, ValidationError, NotFoundError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { UserRole } from '@/lib/constants';
+import { serializePrismaModel } from '@/lib/serialization';
 import { z } from 'zod';
 
 // Partial schema for updates - very lenient to accept any data from frontend
@@ -45,8 +46,11 @@ export async function GET(
 
     // Transform rule to include discount fields from config for frontend compatibility
     const config = rule.config as any || {};
+    // Serialize BigInt and Date fields first
+    const serializedRule = serializePrismaModel(rule, { bigIntFields: ['priority'] });
+    
     const transformedRule = {
-      ...rule,
+      ...serializedRule,
       // Extract discount fields from config for frontend
       discountType: config.discountType || null,
       discountValue: config.discountValue || 0,
@@ -89,14 +93,15 @@ export async function PUT(
     console.log('[PUT /api/admin/offers/rules] Request body:', JSON.stringify(body, null, 2));
 
     // Accept any data - validate critical fields manually
-    if (body.offerType && !['YOPO', 'COMBO_PRICE', 'FREE_LENS', 'PERCENT_OFF', 'FLAT_OFF'].includes(body.offerType)) {
+    const validOfferTypes = ['YOPO', 'COMBO_PRICE', 'FREE_LENS', 'PERCENT_OFF', 'FLAT_OFF', 'BOG50', 'CATEGORY_DISCOUNT', 'BONUS_FREE_PRODUCT'];
+    if (body.offerType && !validOfferTypes.includes(body.offerType)) {
       console.error('[PUT /api/admin/offers/rules] Invalid offerType:', body.offerType);
       return Response.json(
         {
           success: false,
           error: {
             code: 'VALIDATION_ERROR',
-            message: `Invalid offerType: ${body.offerType}. Must be one of: YOPO, COMBO_PRICE, FREE_LENS, PERCENT_OFF, FLAT_OFF`,
+            message: `Invalid offerType: ${body.offerType}. Must be one of: ${validOfferTypes.join(', ')}`,
           },
         },
         { status: 400 }
@@ -262,8 +267,11 @@ export async function PUT(
 
     // Transform rule to include discount fields from config for frontend compatibility
     const config = rule.config as any || {};
+    // Serialize BigInt and Date fields first
+    const serializedRule = serializePrismaModel(rule, { bigIntFields: ['priority'] });
+    
     const transformedRule = {
-      ...rule,
+      ...serializedRule,
       // Extract discount fields from config for frontend
       discountType: config.discountType || null,
       discountValue: config.discountValue || 0,

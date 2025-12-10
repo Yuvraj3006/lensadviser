@@ -206,14 +206,33 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
     setLoadingBenefits(true);
     try {
       const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch('/api/admin/benefits', {
+      // Fetch from benefit-features endpoint (unified model)
+      const response = await fetch('/api/admin/benefit-features?type=BENEFIT', {
         headers: { Authorization: `Bearer ${token}` },
       });
       
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          setBenefits(data.data || []);
+          // Map BenefitFeature to Benefit format
+          const benefitsData = (data.data || []).map((bf: any) => ({
+            id: bf.id,
+            code: bf.code,
+            name: bf.name,
+            description: bf.description,
+          }));
+          setBenefits(benefitsData);
+        }
+      } else {
+        // Fallback to old endpoint
+        const fallbackResponse = await fetch('/api/admin/benefits', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json();
+          if (fallbackData.success) {
+            setBenefits(fallbackData.data || []);
+          }
         }
       }
     } catch (error) {
@@ -289,11 +308,7 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
     e.preventDefault();
     
     // Validate required fields
-    if (!formData.key || !formData.key.trim()) {
-      alert('Question key is required');
-      return;
-    }
-    
+    // Question key is optional - backend will auto-generate if not provided
     if (!formData.textEn || !formData.textEn.trim()) {
       alert('Question text (English) is required');
       return;
@@ -349,11 +364,10 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
         
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Question Key"
-            placeholder="e.g., screen_time"
+            label="Question Key (Optional)"
+            placeholder="Auto-generated if empty"
             value={formData.key}
             onChange={(e) => handleChange('key', e.target.value)}
-            required
           />
           
           <Input
@@ -483,8 +497,8 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                       onChange={(e) => updateOption(index, 'key', e.target.value)}
                     />
                     <Input
-                      label="Icon/Emoji"
-                      placeholder="📱"
+                      label="Icon/Emoji (Optional)"
+                      placeholder="e.g., 📱 or icon name"
                       value={option.icon}
                       onChange={(e) => updateOption(index, 'icon', e.target.value)}
                     />
@@ -582,30 +596,79 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                             </div>
                             
                             {/* Benefit Points */}
-                            <div className="grid grid-cols-3 gap-4">
-                              {benefits.map((benefit) => (
-                                <div key={benefit.code} className="space-y-1">
-                                  <label className="block text-xs font-medium text-slate-600">
-                                    {benefit.code} — {benefit.name}
-                                  </label>
-                                  <input
-                                    type="number"
-                                    step="0.1"
-                                    min="0"
-                                    max="3"
-                                    value={option.benefitMapping[benefit.code] || 0}
-                                    onChange={(e) =>
-                                      updateAnswerBenefit(
-                                        index,
-                                        benefit.code,
-                                        parseFloat(e.target.value) || 0
-                                      )
-                                    }
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="0"
-                                  />
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-sm font-semibold text-slate-700">
+                                  Benefit Points (0-3 scale)
+                                </h4>
+                                <span className="text-xs text-slate-500">
+                                  {benefits.length} benefits available
+                                </span>
+                              </div>
+                              
+                              {/* Scrollable grid for benefits */}
+                              <div className="max-h-96 overflow-y-auto border border-slate-200 rounded-lg p-3 bg-slate-50">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {benefits.map((benefit) => {
+                                    const currentValue = option.benefitMapping[benefit.code] || 0;
+                                    const hasValue = currentValue > 0;
+                                    
+                                    return (
+                                      <div 
+                                        key={benefit.code} 
+                                        className={`space-y-1.5 p-2 rounded-lg border transition-colors ${
+                                          hasValue 
+                                            ? 'bg-blue-50 border-blue-300' 
+                                            : 'bg-white border-slate-200'
+                                        }`}
+                                      >
+                                        <label className="block text-xs font-semibold text-slate-700">
+                                          <span className="font-mono text-blue-600">{benefit.code}</span>
+                                          <span className="ml-1 text-slate-600">— {benefit.name}</span>
+                                        </label>
+                                        {benefit.description && (
+                                          <p className="text-xs text-slate-500 mb-1 line-clamp-1">
+                                            {benefit.description}
+                                          </p>
+                                        )}
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="number"
+                                            step="0.1"
+                                            min="0"
+                                            max="3"
+                                            value={currentValue}
+                                            onChange={(e) =>
+                                              updateAnswerBenefit(
+                                                index,
+                                                benefit.code,
+                                                parseFloat(e.target.value) || 0
+                                              )
+                                            }
+                                            className={`flex-1 rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                              hasValue 
+                                                ? 'border-blue-400 bg-white' 
+                                                : 'border-slate-300 bg-white'
+                                            }`}
+                                            placeholder="0"
+                                          />
+                                          {hasValue && (
+                                            <span className="text-xs font-medium text-blue-600 min-w-[2rem] text-right">
+                                              {currentValue}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
-                              ))}
+                              </div>
+                              
+                              {benefits.length === 0 && (
+                                <div className="text-center py-4 text-sm text-slate-500">
+                                  No benefits found. Please create benefits in the Benefits Management page first.
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}

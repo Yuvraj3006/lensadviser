@@ -67,16 +67,13 @@ export default function QuestionnaireBuilderPage() {
 
   // Note: Feature mapping functions removed - using Benefits-based flow instead
 
-  // Drag and Drop handlers - ONLY for reordering main questions (displayOrder)
+  // Drag and Drop handlers - for reordering main questions AND creating sub-questions
   const handleDragStart = (e: React.DragEvent, question: Question) => {
-    // Only allow dragging main questions (not sub-questions)
-    if (question.parentAnswerId) {
-      e.preventDefault();
-      return;
-    }
     setDraggedQuestion(question);
-    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.effectAllowed = question.parentAnswerId ? 'link' : 'move'; // 'link' for sub-questions, 'move' for main questions
     e.dataTransfer.setData('text/plain', question.id);
+    // Store question data for sub-question creation
+    e.dataTransfer.setData('application/json', JSON.stringify({ questionId: question.id, isSubQuestion: !!question.parentAnswerId }));
   };
 
   const handleDragEnd = () => {
@@ -87,10 +84,30 @@ export default function QuestionnaireBuilderPage() {
   const handleDragOver = (e: React.DragEvent, questionId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    // Only allow dropping on main questions (not sub-questions)
+    // Allow dropping on main questions for reordering
     const targetQuestion = allQuestions.find((q) => q.id === questionId);
     if (targetQuestion && !targetQuestion.parentAnswerId) {
       setDragOverOption({ questionId, optionId: '' });
+    }
+  };
+
+  // Handle drag over answer option (for creating sub-questions)
+  const handleOptionDragOver = (e: React.DragEvent, questionId: string, optionId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'link';
+    setDragOverOption({ questionId, optionId });
+  };
+
+  // Handle drag leave answer option
+  const handleOptionDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only clear if we're leaving the option area, not entering a child
+    const target = e.currentTarget as HTMLElement;
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (!target.contains(relatedTarget)) {
+      setDragOverOption(null);
     }
   };
 
@@ -160,6 +177,83 @@ export default function QuestionnaireBuilderPage() {
       }
     } catch (error) {
       showToast('error', 'An error occurred while updating question order');
+    } finally {
+      setDraggedQuestion(null);
+    }
+  };
+
+  // Handle drop on answer option (create sub-question)
+  const handleOptionDrop = async (e: React.DragEvent, questionId: string, optionId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverOption(null);
+
+    if (!draggedQuestion) return;
+
+    // Don't allow dropping question on its own option
+    if (draggedQuestion.id === questionId) {
+      showToast('error', 'Cannot make a question a sub-question of itself');
+      return;
+    }
+
+    // Don't allow creating circular references
+    if (draggedQuestion.parentAnswerId === optionId) {
+      showToast('error', 'This question is already linked to this option');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      
+      // Find the target question and option
+      const targetQuestion = allQuestions.find((q) => q.id === questionId);
+      if (!targetQuestion) {
+        showToast('error', 'Target question not found');
+        return;
+      }
+
+      const targetOption = targetQuestion.options?.find((opt: any) => opt.id === optionId);
+      if (!targetOption) {
+        showToast('error', 'Target option not found');
+        return;
+      }
+
+      // Update the option to link the dragged question as sub-question
+      const updatedOptions = targetQuestion.options.map((opt: any) => {
+        if (opt.id === optionId) {
+          return {
+            ...opt,
+            triggersSubQuestion: true,
+            subQuestionId: draggedQuestion.id,
+            nextQuestionIds: [draggedQuestion.id], // Also update new format
+          };
+        }
+        return opt;
+      });
+
+      // Update the question with modified options
+      const response = await fetch(`/api/admin/questions/${questionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...targetQuestion,
+          options: updatedOptions,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        showToast('success', `Sub-question linked successfully`);
+        fetchQuestions();
+      } else {
+        showToast('error', data.error?.message || 'Failed to link sub-question');
+      }
+    } catch (error) {
+      console.error('Error linking sub-question:', error);
+      showToast('error', 'An error occurred while linking sub-question');
     } finally {
       setDraggedQuestion(null);
     }
@@ -371,16 +465,22 @@ export default function QuestionnaireBuilderPage() {
         <div key={question.id} className="select-none">
           {/* Question Row - Draggable */}
           <div
-            draggable={!question.parentAnswerId} // Only allow dragging main questions
+            draggable={true} // Allow dragging all questions (main and sub-questions)
             onDragStart={(e) => handleDragStart(e, question)}
             onDragEnd={handleDragEnd}
-            onDragOver={(e) => !question.parentAnswerId && handleDragOver(e, question.id)}
+            onDragOver={(e) => {
+              if (!question.parentAnswerId) {
+                handleDragOver(e, question.id);
+              }
+            }}
             onDragLeave={handleDragLeave}
-            onDrop={(e) => !question.parentAnswerId && handleDrop(e, question.id)}
+            onDrop={(e) => {
+              if (!question.parentAnswerId) {
+                handleDrop(e, question.id);
+              }
+            }}
             onClick={() => handleQuestionSelect(question)}
-            className={`flex items-center gap-2 p-2 rounded transition-colors group ${
-              !question.parentAnswerId ? 'cursor-move' : 'cursor-pointer'
-            } ${
+            className={`flex items-center gap-2 p-2 rounded transition-colors group cursor-move ${
               isSelected ? 'bg-blue-100 border border-blue-300' : 'hover:bg-slate-50'
             } ${
               isDragging ? 'opacity-50' : ''
@@ -461,13 +561,24 @@ export default function QuestionnaireBuilderPage() {
                   ? [subQuestion, ...legacyChildren.filter(c => c.id !== subQuestion.id)]
                   : legacyChildren;
                 
+                const isDragOver = dragOverOption?.questionId === question.id && dragOverOption?.optionId === option.id;
+                
                 return (
                   <div
                     key={option.id}
                     className="ml-4"
                   >
-                    {/* Option Row */}
-                    <div className="p-2 rounded border border-slate-200 bg-slate-50">
+                    {/* Option Row - Drop Zone for Sub-Questions */}
+                    <div
+                      onDragOver={(e) => handleOptionDragOver(e, question.id, option.id)}
+                      onDragLeave={handleOptionDragLeave}
+                      onDrop={(e) => handleOptionDrop(e, question.id, option.id)}
+                      className={`p-2 rounded border transition-colors ${
+                        isDragOver 
+                          ? 'border-blue-500 bg-blue-50 border-2' 
+                          : 'border-slate-200 bg-slate-50'
+                      } ${draggedQuestion ? 'cursor-pointer' : ''}`}
+                    >
                       <div className="flex items-center gap-2">
                         <ChevronRight size={12} className="text-slate-400" />
                         <span className="text-xs font-medium text-slate-700">{option.textEn}</span>
@@ -480,6 +591,11 @@ export default function QuestionnaireBuilderPage() {
                         {legacyChildren.length > 0 && !hasSubQuestion && (
                           <Badge color="purple" size="sm" className="text-xs">
                             {legacyChildren.length} sub-Q (legacy)
+                          </Badge>
+                        )}
+                        {isDragOver && draggedQuestion && (
+                          <Badge color="blue" size="sm" className="text-xs animate-pulse">
+                            Drop to link sub-question
                           </Badge>
                         )}
                       </div>
@@ -606,7 +722,7 @@ export default function QuestionnaireBuilderPage() {
                   </Button>
                 </div>
                 <p className="text-xs text-slate-500">
-                  💡 Drag main questions to reorder them. Use the answer option settings (toggle + dropdown) to create sub-questions.
+                  💡 Drag main questions to reorder them. Drag any question onto an answer option to create a sub-question, or use the answer option settings (toggle + dropdown).
                 </p>
               </div>
               <div className="p-2 max-h-[600px] overflow-y-auto">

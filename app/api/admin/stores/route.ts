@@ -100,6 +100,7 @@ export async function GET(request: NextRequest) {
       gstNumber: store.gstNumber,
       isActive: store.isActive,
       staffCount: userCountMap.get(store.id) || 0,
+      sessionCount: orderCountMap.get(store.id) || 0,
       orderCount: orderCountMap.get(store.id) || 0,
       createdAt: store.createdAt instanceof Date 
         ? store.createdAt.toISOString() 

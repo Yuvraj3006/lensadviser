@@ -790,11 +790,15 @@ export class OfferEngineService {
     const second = (secondPair.secondPairFrameMRP || 0) + (secondPair.secondPairLensPrice || 0);
     const lower = Math.min(first, second);
 
-    if (rule.secondPairPercent) {
-      const savings = (lower * rule.secondPairPercent) / 100;
+    // Read secondPairPercent from config (where it's stored)
+    const config = rule.config || {};
+    const secondPairPercent = config.secondPairPercent || rule.secondPairPercent;
+
+    if (secondPairPercent) {
+      const savings = (lower * secondPairPercent) / 100;
       return {
         savings,
-        label: `Second pair ${rule.secondPairPercent}% off (lower value)`,
+        label: `Second pair ${secondPairPercent}% off (lower value)`,
       };
     }
 

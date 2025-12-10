@@ -20,16 +20,17 @@ const convertPowerSchema = z.object({
  * Convert spectacle power to contact lens power
  * 
  * Conversion rules:
- * - SPH: Apply vertex distance compensation if |SPH| > 4.00D
+ * - SPH: Apply vertex distance compensation to ALL powers
  *   Formula: CL_SPH = SPH / (1 - (vertex_distance * SPH))
  *   Default vertex distance: 12mm (0.012m)
- * - CYL: Same as SPH (cylinder power doesn't change with vertex distance)
+ *   Result rounded to nearest 0.25D
+ * - CYL: Cylinder power remains the same (no vertex conversion needed)
+ *   Result rounded to nearest 0.25D
  * - AXIS: Same (axis remains unchanged)
  * - ADD: Map to standard ranges for multifocal
- *   +1.00 to +1.50 → LOW
- *   +1.75 to +2.25 → MED
- *   +2.50+ → HIGH
- *   Then round to nearest 0.25D
+ *   +1.00 to +1.50 → LOW (1.25D)
+ *   +1.75 to +2.25 → MED (2.00D)
+ *   +2.50+ → Round to nearest 0.25D
  */
 
 // Vertex distance in meters (standard: 12mm = 0.012m)
@@ -37,21 +38,26 @@ const VERTEX_DISTANCE = 0.012;
 
 /**
  * Convert sphere power with vertex distance compensation
+ * Formula: CL_SPH = SPH / (1 - (d * SPH))
+ * where d is vertex distance in meters (12mm = 0.012m)
+ * 
+ * Note: Vertex conversion is applied to ALL powers for accuracy,
+ * though the difference is minimal for powers < 4.00D
  */
 function convertSphere(sphere: number | null | undefined): number | null {
   if (sphere === null || sphere === undefined) return null;
   
-  const absSphere = Math.abs(sphere);
-  
-  // Only apply vertex conversion if |SPH| > 4.00D
-  if (absSphere <= 4.0) {
-    return roundToQuarter(sphere);
+  // If power is 0 or very close to 0, return as is
+  if (Math.abs(sphere) < 0.01) {
+    return 0;
   }
   
-  // Vertex distance formula: CL_SPH = SPH / (1 - (d * SPH))
-  // where d is vertex distance in meters
+  // Apply vertex distance formula to all powers
+  // CL_SPH = SPH / (1 - (d * SPH))
+  // where d = 0.012m (12mm vertex distance)
   const clSphere = sphere / (1 - (VERTEX_DISTANCE * sphere));
   
+  // Round to nearest 0.25D
   return roundToQuarter(clSphere);
 }
 
@@ -213,11 +219,17 @@ export async function POST(request: NextRequest) {
       return result || 'Plano';
     };
 
+    // Calculate exact conversion values (before rounding) for display
+    const getExactConversion = (sph: number | null | undefined) => {
+      if (sph === null || sph === undefined || Math.abs(sph) < 0.01) return null;
+      return sph / (1 - (VERTEX_DISTANCE * sph));
+    };
+
     // Build conversion details
     const conversionDetails = {
       vertexConversionApplied: {
-        od: spectaclePower.odSphere !== null && spectaclePower.odSphere !== undefined && Math.abs(spectaclePower.odSphere) > 4.0,
-        os: spectaclePower.osSphere !== null && spectaclePower.osSphere !== undefined && Math.abs(spectaclePower.osSphere) > 4.0,
+        od: spectaclePower.odSphere !== null && spectaclePower.odSphere !== undefined && Math.abs(spectaclePower.odSphere) > 0.01,
+        os: spectaclePower.osSphere !== null && spectaclePower.osSphere !== undefined && Math.abs(spectaclePower.osSphere) > 0.01,
       },
       addMappingApplied: {
         od: spectaclePower.odAdd !== null && spectaclePower.odAdd !== undefined && spectaclePower.odAdd > 0,
@@ -227,6 +239,14 @@ export async function POST(request: NextRequest) {
       convertedPower: {
         od: odClPower,
         os: osClPower,
+      },
+      exactConversion: {
+        od: {
+          sphere: getExactConversion(spectaclePower.odSphere),
+        },
+        os: {
+          sphere: getExactConversion(spectaclePower.osSphere),
+        },
       },
     };
 

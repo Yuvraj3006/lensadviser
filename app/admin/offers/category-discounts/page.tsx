@@ -109,8 +109,13 @@ export default function CategoryDiscountsPage() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch('/api/admin/offers/category-discounts', {
-        method: 'POST',
+      const url = editingDiscount
+        ? `/api/admin/offers/category-discounts/${editingDiscount.id}`
+        : '/api/admin/offers/category-discounts';
+      const method = editingDiscount ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -125,6 +130,7 @@ export default function CategoryDiscountsPage() {
       if (data.success) {
         showToast('success', editingDiscount ? 'Category discount updated' : 'Category discount created');
         setIsCreateOpen(false);
+        setEditingDiscount(null);
         fetchDiscounts(organizationId);
       } else {
         showToast('error', data.error?.message || 'Failed to save');
@@ -212,7 +218,10 @@ export default function CategoryDiscountsPage() {
       {/* Create/Edit Modal */}
       <Modal
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        onClose={() => {
+          setIsCreateOpen(false);
+          setEditingDiscount(null);
+        }}
         title={editingDiscount ? 'Edit Category Discount' : 'Create Category Discount'}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -290,11 +299,33 @@ export default function CategoryDiscountsPage() {
           <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={() => {
-            // Implement delete API call
-            setDeleteConfirm(null);
-            showToast('info', 'Delete functionality to be implemented');
-          }}>
+          <Button 
+            variant="danger" 
+            onClick={async () => {
+              if (!deleteConfirm) return;
+              
+              try {
+                const token = localStorage.getItem('lenstrack_token');
+                const response = await fetch(`/api/admin/offers/category-discounts/${deleteConfirm.id}`, {
+                  method: 'DELETE',
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                  showToast('success', 'Category discount deleted successfully');
+                  setDeleteConfirm(null);
+                  fetchDiscounts(organizationId);
+                } else {
+                  showToast('error', data.error?.message || 'Failed to delete');
+                }
+              } catch (error) {
+                showToast('error', 'An error occurred');
+              }
+            }}
+          >
             Delete
           </Button>
         </div>

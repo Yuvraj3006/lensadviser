@@ -231,18 +231,7 @@ export async function POST(request: NextRequest) {
     console.log('[POST /api/admin/questions] Received body:', JSON.stringify(body, null, 2));
     
     // Validate required fields
-    if (!body.key || !body.key.trim()) {
-      return Response.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Question key is required',
-          },
-        },
-        { status: 400 }
-      );
-    }
+    // Question key is optional - will be auto-generated if not provided
     
     if (!body.textEn || !body.textEn.trim()) {
       return Response.json(

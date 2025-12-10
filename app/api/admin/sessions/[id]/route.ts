@@ -121,7 +121,7 @@ export async function GET(
         id: p.id,
         name: p.name || '',
         sku: p.sku || p.id,
-        brand: p.brand.name,
+        brand: p.brand?.name || 'Unknown',
         basePrice: p.mrp,
         imageUrl: null,
       })),
@@ -133,6 +133,8 @@ export async function GET(
     // Format recommendations with product data
     const recommendations = sessionRecommendations.map((rec) => ({
       ...rec,
+      // Convert BigInt rank to Number
+      rank: Number(rec.rank),
       product: productMap.get(rec.productId) || null,
     }));
 

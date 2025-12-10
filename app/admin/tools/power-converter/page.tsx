@@ -306,14 +306,39 @@ export default function PowerConverterPage() {
                     <CheckCircle size={24} className="text-green-600" />
                     Converted Contact Lens Power
                   </h2>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div>
                       <span className="text-sm font-semibold text-slate-700">Right Eye (OD):</span>
-                      <span className="ml-2 text-lg font-bold text-green-700">{formatPower(convertedPower.od)}</span>
+                      <div className="mt-1 text-lg font-bold text-green-700">{formatPower(convertedPower.od)}</div>
+                      {rx.odSphere && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          Original: {parseFloat(rx.odSphere) >= 0 ? '+' : ''}{parseFloat(rx.odSphere).toFixed(2)}D
+                          {convertedPower.od.sphere !== null && (
+                            <span className="ml-2">
+                              → {convertedPower.od.sphere >= 0 ? '+' : ''}{convertedPower.od.sphere.toFixed(2)}D
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <span className="text-sm font-semibold text-slate-700">Left Eye (OS):</span>
-                      <span className="ml-2 text-lg font-bold text-green-700">{formatPower(convertedPower.os)}</span>
+                      <div className="mt-1 text-lg font-bold text-green-700">{formatPower(convertedPower.os)}</div>
+                      {rx.osSphere && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          Original: {parseFloat(rx.osSphere) >= 0 ? '+' : ''}{parseFloat(rx.osSphere).toFixed(2)}D
+                          {convertedPower.os.sphere !== null && (
+                            <span className="ml-2">
+                              → {convertedPower.os.sphere >= 0 ? '+' : ''}{convertedPower.os.sphere.toFixed(2)}D
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="pt-3 border-t border-green-200">
+                      <p className="text-xs text-slate-600">
+                        <strong>Note:</strong> Vertex distance conversion (12mm) applied. Powers rounded to nearest 0.25D.
+                      </p>
                     </div>
                   </div>
                 </div>

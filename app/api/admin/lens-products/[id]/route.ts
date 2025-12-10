@@ -14,10 +14,13 @@ const updateLensProductSchema = z.object({
   type: z.enum(['SINGLE_VISION', 'PROGRESSIVE', 'BIFOCAL', 'ANTI_FATIGUE', 'MYOPIA_CONTROL']).optional(),
   index: z.enum(['INDEX_156', 'INDEX_160', 'INDEX_167', 'INDEX_174']).optional(),
   tintOption: z.enum(['CLEAR', 'TINT', 'PHOTOCHROMIC', 'TRANSITION']).optional(),
+  category: z.enum(['ECONOMY', 'STANDARD', 'PREMIUM', 'ULTRA']).optional(),
+  deliveryDays: z.number().int().min(1).optional(),
   mrp: z.number().min(0).optional(),
   offerPrice: z.number().min(0).optional(),
   baseOfferPrice: z.number().min(0).optional(),
   addOnPrice: z.number().min(0).optional().nullable(),
+  featureCodes: z.array(z.string()).optional(), // Feature codes for mapping
   // Rx ranges are handled separately via LensRxRange model
   yopoEligible: z.boolean().optional(),
   isActive: z.boolean().optional(),
@@ -98,6 +101,32 @@ export async function PUT(
       }
     }
 
+    // Handle features update if provided
+    if (validated.featureCodes !== undefined) {
+      // Delete existing features
+      await prisma.productFeature.deleteMany({
+        where: { productId: id },
+      });
+
+      // Get feature IDs from codes
+      if (validated.featureCodes.length > 0) {
+        const features = await prisma.feature.findMany({
+          where: {
+            code: { in: validated.featureCodes },
+          },
+          select: { id: true },
+        });
+
+        // Create new features
+        await prisma.productFeature.createMany({
+          data: features.map((f) => ({
+            productId: id,
+            featureId: f.id,
+          })),
+        });
+      }
+    }
+
     const updated = await prisma.lensProduct.update({
       where: { id },
       data: {
@@ -107,6 +136,8 @@ export async function PUT(
         ...(validated.type && { visionType: validated.type as VisionType }),
         ...(validated.index && { lensIndex: validated.index as LensIndex }),
         ...(validated.tintOption && { tintOption: validated.tintOption as any }),
+        ...(validated.category && { category: validated.category as any }),
+        ...(validated.deliveryDays !== undefined && { deliveryDays: validated.deliveryDays }),
         ...(validated.baseOfferPrice !== undefined && { baseOfferPrice: validated.baseOfferPrice || validated.offerPrice }),
         ...(validated.addOnPrice !== undefined && { addOnPrice: validated.addOnPrice }),
         ...(validated.yopoEligible !== undefined && { yopoEligible: validated.yopoEligible }),

@@ -143,3 +143,54 @@ export async function DELETE(
   }
 }
 
+// PATCH /api/admin/users/[id]/reactivate - Reactivate user
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const currentUser = await authenticate(request);
+    authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.STORE_MANAGER)(currentUser);
+
+    const { id } = await params;
+
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        id,
+        organizationId: currentUser.organizationId,
+      },
+    });
+
+    if (!existingUser) {
+      throw new NotFoundError('User');
+    }
+
+    // Role hierarchy validation
+    if (!canManageRole(currentUser.role, existingUser.role as UserRole)) {
+      throw new ForbiddenError('You cannot reactivate users with this role');
+    }
+
+    // Store Managers can only reactivate users in their store
+    if (currentUser.role === UserRole.STORE_MANAGER) {
+      if (existingUser.storeId !== currentUser.storeId) {
+        throw new ForbiddenError('You can only reactivate users in your store');
+      }
+    }
+
+    // Reactivate (set isActive to true)
+    const user = await prisma.user.update({
+      where: { id },
+      data: {
+        isActive: true,
+      },
+    });
+
+    return Response.json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+

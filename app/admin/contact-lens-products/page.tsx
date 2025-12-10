@@ -37,9 +37,23 @@ interface ContactLensProduct {
   isActive: boolean;
 }
 
+interface Brand {
+  id: string;
+  name: string;
+  productTypes: string[];
+  subBrands: SubBrand[];
+}
+
+interface SubBrand {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
 export default function ContactLensProductsPage() {
   const { showToast } = useToast();
   const [products, setProducts] = useState<ContactLensProduct[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -71,8 +85,31 @@ export default function ContactLensProductsPage() {
   });
 
   useEffect(() => {
+    fetchBrands();
     fetchProducts();
   }, []);
+
+  const fetchBrands = async () => {
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch('/api/admin/brands', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          // Filter brands that have CONTACT_LENS in productTypes or all brands if no productTypes filter
+          const contactLensBrands = data.data.filter((brand: Brand) => 
+            !brand.productTypes || brand.productTypes.length === 0 || brand.productTypes.includes('CONTACT_LENS')
+          );
+          setBrands(contactLensBrands || []);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch brands:', error);
+    }
+  };
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -399,22 +436,52 @@ export default function ContactLensProductsPage() {
               required
               placeholder="CL-001"
             />
-            <Input
-              label="Brand"
+            <Select
+              label="Brand *"
               value={formData.brand}
-              onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+              onChange={(e) => {
+                const selectedBrand = brands.find(b => b.name === e.target.value);
+                setFormData({ 
+                  ...formData, 
+                  brand: e.target.value,
+                  line: '' // Reset line when brand changes
+                });
+              }}
+              options={[
+                { value: '', label: 'Select Brand' },
+                ...brands.map((b) => ({ value: b.name, label: b.name })),
+                // If editing and brand doesn't exist in brands list, add it as an option
+                ...(formData.brand && !brands.find(b => b.name === formData.brand)
+                  ? [{ value: formData.brand, label: formData.brand }]
+                  : []
+                ),
+              ]}
               required
-              placeholder="Bausch & Lomb"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Line"
+            <Select
+              label="Line *"
               value={formData.line}
               onChange={(e) => setFormData({ ...formData, line: e.target.value })}
+              options={[
+                { value: '', label: 'Select Line' },
+                ...(formData.brand 
+                  ? (brands.find(b => b.name === formData.brand)?.subBrands || []).map((sb) => ({ 
+                      value: sb.name, 
+                      label: sb.name 
+                    }))
+                  : []
+                ),
+                // If editing and line doesn't exist in sub-brands, add it as an option
+                ...(formData.line && formData.brand && !brands.find(b => b.name === formData.brand)?.subBrands.find(sb => sb.name === formData.line)
+                  ? [{ value: formData.line, label: formData.line }]
+                  : []
+                ),
+              ]}
               required
-              placeholder="Acuvue Oasys"
+              disabled={!formData.brand}
             />
             <Select
               label="Modality"

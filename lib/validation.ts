@@ -98,7 +98,7 @@ export const UpdateFeatureSchema = CreateFeatureSchema.partial();
 
 // Question Schemas
 export const CreateQuestionSchema = z.object({
-  key: z.string().min(1, 'Question key is required'),
+  key: z.string().optional(), // Optional - backend will auto-generate if not provided
   textEn: z.string().min(1, 'English text is required'),
   textHi: z.string().optional(),
   textHiEn: z.string().optional(),

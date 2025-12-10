@@ -83,6 +83,28 @@ export async function POST(request: NextRequest) {
 
     const data = validationResult.data;
 
+    // Check for duplicate discount (unique constraint: organizationId, customerCategory, brandCode)
+    const existing = await prisma.categoryDiscount.findFirst({
+      where: {
+        organizationId: data.organizationId,
+        customerCategory: data.customerCategory,
+        brandCode: data.brandCode,
+      },
+    });
+
+    if (existing) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'DUPLICATE_DISCOUNT',
+            message: 'A discount with this customer category and brand code already exists',
+          },
+        },
+        { status: 409 }
+      );
+    }
+
     const discount = await prisma.categoryDiscount.create({
       data: {
         customerCategory: data.customerCategory,

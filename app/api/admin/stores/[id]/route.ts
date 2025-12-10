@@ -173,3 +173,52 @@ export async function DELETE(
   }
 }
 
+// PATCH /api/admin/stores/[id]/reactivate - Reactivate store
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await authenticate(request);
+    authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
+
+    const { id } = await params;
+
+    const existingStore = await prisma.store.findUnique({
+      where: {
+        id,
+        organizationId: user.organizationId,
+      },
+    });
+
+    if (!existingStore) {
+      throw new NotFoundError('Store');
+    }
+
+    // Reactivate (set isActive to true)
+    const store = await prisma.store.update({
+      where: {
+        id,
+        organizationId: user.organizationId,
+      },
+      data: {
+        isActive: true,
+      },
+    });
+
+    // Serialize Date objects
+    const serialized = {
+      ...store,
+      createdAt: store.createdAt.toISOString(),
+      updatedAt: store.updatedAt.toISOString(),
+    };
+
+    return Response.json({
+      success: true,
+      data: serialized,
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+

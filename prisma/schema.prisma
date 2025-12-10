@@ -78,16 +78,16 @@ type OrderLensData {
   index            String
   name             String
   price            Int
-  itCode           String?  // Lens SKU
-  visionType       String?  // SINGLE_VISION, PROGRESSIVE, etc.
-  basePrice        Int?     // Base lens price
-  finalLensPrice   Int?     // Final price after band pricing
-  powerBand        Json?    // Power band information
-  bandExtra        Int?     // Extra charge from band pricing
-  tint             Json?    // Tint selection data
-  mirror           Json?    // Mirror coating data
+  itCode           String? // Lens SKU
+  visionType       String? // SINGLE_VISION, PROGRESSIVE, etc.
+  basePrice        Int? // Base lens price
+  finalLensPrice   Int? // Final price after band pricing
+  powerBand        Json? // Power band information
+  bandExtra        Int? // Extra charge from band pricing
+  tint             Json? // Tint selection data
+  mirror           Json? // Mirror coating data
   thicknessWarning Boolean? // Thickness warning flag
-  recommendedIndex String?  // Recommended index for prescription
+  recommendedIndex String? // Recommended index for prescription
 }
 
 type OrderOfferData {
@@ -117,10 +117,10 @@ type OrderOfferDataPriceComponents {
 }
 
 model AnswerBenefit {
-  id            String  @id @default(auto()) @map("_id") @db.ObjectId
-  answerId      String  @db.ObjectId
-  benefitId     String  @db.ObjectId
-  points        Float   @default(0) // Benefit points (e.g. +1.5, +2.0, +3.0) - can be fractional
+  id             String @id @default(auto()) @map("_id") @db.ObjectId
+  answerId       String @db.ObjectId
+  benefitId      String @db.ObjectId
+  points         Float  @default(0) // Benefit points (e.g. +1.5, +2.0, +3.0) - can be fractional
   categoryWeight Float  @default(1.0) // Category weight multiplier (e.g., screen-heavy answers amplify screen benefits)
 
   answer  AnswerOption @relation(fields: [answerId], references: [id], onDelete: Cascade)
@@ -160,23 +160,23 @@ model AnswerOption {
 
 // Unified master for Benefits and Features - simple single table
 model BenefitFeature {
-  id             String           @id @default(auto()) @map("_id") @db.ObjectId
-  type           String           // 'BENEFIT' or 'FEATURE'
-  code           String           // B01..B12 for benefits, F01..F11 for features
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  type           String // 'BENEFIT' or 'FEATURE'
+  code           String // B01..B12 for benefits, F01..F11 for features
   name           String
   description    String?
   // Benefit-specific fields (null for features)
-  pointWeight    Float?           @default(1.0) // Global importance weight
-  maxScore       Float?           @default(3.0) // Usually 3
+  pointWeight    Float?   @default(1.0) // Global importance weight
+  maxScore       Float?   @default(3.0) // Usually 3
   // Feature-specific fields (null for benefits)
-  category       String?          // DURABILITY, COATING, PROTECTION, LIFESTYLE, VISION
-  displayOrder   Int?             // Order for display
+  category       String? // DURABILITY, COATING, PROTECTION, LIFESTYLE, VISION
+  displayOrder   Int? // Order for display
   // Common fields
-  isActive       Boolean          @default(true)
-  organizationId String?          @db.ObjectId // null for global features (F01-F11)
-  createdAt      DateTime         @default(now()) @db.Date
-  updatedAt      DateTime         @updatedAt @db.Date
-  
+  isActive       Boolean  @default(true)
+  organizationId String?  @db.ObjectId // null for global features (F01-F11)
+  createdAt      DateTime @default(now()) @db.Date
+  updatedAt      DateTime @updatedAt @db.Date
+
   // Relations - Note: These will be updated after migration
   // answerMappings AnswerBenefit[]
   // productMappings ProductBenefit[]
@@ -212,17 +212,17 @@ model Benefit {
 }
 
 model CategoryDiscount {
-  id                        String   @id @default(auto()) @map("_id") @db.ObjectId
-  brandCode                 String
-  createdAt                 DateTime @db.Date
-  customerCategory          String
-  discountPercent           Float
-  isActive                  Boolean
-  maxDiscount               Float
-  organizationId            String   @db.ObjectId
-  updatedAt                 DateTime @db.Date
-  categoryVerificationRequired Boolean @default(false) // If true, require ID proof upload
-  allowedIdTypes            String[] @default([]) // Array of allowed ID types: ["STUDENT_ID", "DOCTOR_ID", "TEACHER_ID", "ARMY_ID", etc.]
+  id                           String   @id @default(auto()) @map("_id") @db.ObjectId
+  brandCode                    String
+  createdAt                    DateTime @db.Date
+  customerCategory             String
+  discountPercent              Float
+  isActive                     Boolean
+  maxDiscount                  Float
+  organizationId               String   @db.ObjectId
+  updatedAt                    DateTime @db.Date
+  categoryVerificationRequired Boolean  @default(false) // If true, require ID proof upload
+  allowedIdTypes               String[] @default([]) // Array of allowed ID types: ["STUDENT_ID", "DOCTOR_ID", "TEACHER_ID", "ARMY_ID", etc.]
 
   @@unique([organizationId, customerCategory, brandCode])
   @@index([organizationId])
@@ -372,24 +372,24 @@ model OfferRule {
 }
 
 model Order {
-  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  id                String            @id @default(auto()) @map("_id") @db.ObjectId
   /// Could not determine type: the field only had null or empty values in the sample set.
   assistedByName    Json?
   /// Could not determine type: the field only had null or empty values in the sample set.
   assistedByStaffId Json?
-  createdAt         DateTime       @db.Date
+  createdAt         DateTime          @db.Date
   customerName      String?
   customerPhone     String?
   finalPrice        Float
   frameData         OrderFrameData
   lensData          OrderLensData
   offerData         OrderOfferData
-  orderType         OrderType      @default(EYEGLASSES)
+  orderType         OrderType         @default(EYEGLASSES)
   salesMode         String
   status            String
-  storeId           String         @db.ObjectId
-  updatedAt         DateTime       @db.Date
-  categoryIdProof   Json?          // ID proof upload data for category discounts
+  storeId           String            @db.ObjectId
+  updatedAt         DateTime          @db.Date
+  categoryIdProof   Json? // ID proof upload data for category discounts
   offerAudits       OrderOfferAudit[]
 
   @@index([storeId])
@@ -401,15 +401,15 @@ model Order {
 
 // Order Offer Audit - tracks all offers applied to an order
 model OrderOfferAudit {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  orderId         String   @db.ObjectId
-  offerCode       String   // Offer rule code
-  offerType       String   // YOPO, COMBO_PRICE, FREE_LENS, etc.
-  ruleSnapshot    Json     // Full snapshot of offer rule at time of application
-  discountAmount  Float    @default(0)
-  appliedAt       DateTime @default(now()) @db.Date
-  appliedBy       String?  @db.ObjectId // Staff ID who applied (if applicable)
-  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId        String   @db.ObjectId
+  offerCode      String // Offer rule code
+  offerType      String // YOPO, COMBO_PRICE, FREE_LENS, etc.
+  ruleSnapshot   Json // Full snapshot of offer rule at time of application
+  discountAmount Float    @default(0)
+  appliedAt      DateTime @default(now()) @db.Date
+  appliedBy      String?  @db.ObjectId // Staff ID who applied (if applicable)
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([offerCode])
@@ -527,8 +527,8 @@ model LensRxRange {
 model LensBandPricing {
   id          String      @id @default(auto()) @map("_id") @db.ObjectId
   lensId      String      @db.ObjectId
-  minPower    Float       // Minimum power (absolute value)
-  maxPower    Float       // Maximum power (absolute value)
+  minPower    Float // Minimum power (absolute value)
+  maxPower    Float // Maximum power (absolute value)
   extraCharge Float       @default(0) // Extra charge for this power band
   isActive    Boolean     @default(true)
   createdAt   DateTime    @default(now()) @db.Date
@@ -548,20 +548,20 @@ enum TintColorCategory {
 }
 
 model TintColor {
-  id              String                 @id @default(auto()) @map("_id") @db.ObjectId
-  code            String                 @unique
+  id              String                  @id @default(auto()) @map("_id") @db.ObjectId
+  code            String                  @unique
   name            String
   hexColor        String?
   imageUrl        String?
   category        TintColorCategory
   darknessPercent Int
-  isPolarized     Boolean                @default(false)
-  isMirror        Boolean                @default(false)
-  basePrice       Float                  @default(0) // Base price for this tint
-  isActive        Boolean                @default(true)
-  displayOrder    Int                    @default(0)
-  createdAt       DateTime               @default(now()) @db.Date
-  updatedAt       DateTime               @updatedAt @db.Date
+  isPolarized     Boolean                 @default(false)
+  isMirror        Boolean                 @default(false)
+  basePrice       Float                   @default(0) // Base price for this tint
+  isActive        Boolean                 @default(true)
+  displayOrder    Int                     @default(0)
+  createdAt       DateTime                @default(now()) @db.Date
+  updatedAt       DateTime                @updatedAt @db.Date
   lensProducts    LensProductTintColor[]
   indexPricing    TintColorIndexPricing[] // Index-based pricing rules
 

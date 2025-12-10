@@ -19,13 +19,23 @@ interface LensBrand {
   name: string;
 }
 
+interface Feature {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+}
+
 interface LensProduct {
   id: string;
   itCode: string;
   name: string;
-  lensBrand: LensBrand;
+  lensBrand?: LensBrand | null;
+  brandLine?: string; // For backward compatibility
   type: LensType;
   index: LensIndex;
+  category?: 'ECONOMY' | 'STANDARD' | 'PREMIUM' | 'ULTRA';
+  deliveryDays?: number;
   mrp: number;
   offerPrice: number;
   addOnPrice: number | null;
@@ -42,6 +52,7 @@ export default function LensProductsPage() {
   const { showToast } = useToast();
   const [products, setProducts] = useState<LensProduct[]>([]);
   const [brands, setBrands] = useState<LensBrand[]>([]);
+  const [features, setFeatures] = useState<Feature[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterBrandId, setFilterBrandId] = useState<string>('');
@@ -58,6 +69,8 @@ export default function LensProductsPage() {
     type: 'SINGLE_VISION' as LensType,
     index: 'INDEX_156' as LensIndex,
     tintOption: 'CLEAR' as 'CLEAR' | 'TINT' | 'PHOTOCHROMIC' | 'TRANSITION',
+    category: 'STANDARD' as 'ECONOMY' | 'STANDARD' | 'PREMIUM' | 'ULTRA',
+    deliveryDays: 4,
     mrp: 0,
     offerPrice: 0,
     addOnPrice: 0,
@@ -67,10 +80,12 @@ export default function LensProductsPage() {
     addMin: 0,
     addMax: 4,
     yopoEligible: false,
+    featureCodes: [] as string[],
   });
 
   useEffect(() => {
     fetchBrands();
+    fetchFeatures();
     fetchProducts();
   }, [filterBrandId, filterType, filterIndex]);
 
@@ -89,6 +104,24 @@ export default function LensProductsPage() {
       }
     } catch (error) {
       console.error('Failed to load lens brands');
+    }
+  };
+
+  const fetchFeatures = async () => {
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch('/api/admin/features?isActive=true', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setFeatures(data.data || []);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load features');
     }
   };
 
@@ -131,6 +164,8 @@ export default function LensProductsPage() {
       type: 'SINGLE_VISION',
       index: 'INDEX_156',
       tintOption: 'CLEAR',
+      category: 'STANDARD',
+      deliveryDays: 4,
       mrp: 0,
       offerPrice: 0,
       addOnPrice: 0,
@@ -140,6 +175,7 @@ export default function LensProductsPage() {
       addMin: 0,
       addMax: 4,
       yopoEligible: false,
+      featureCodes: [],
     });
     setEditingId(null);
     setIsModalOpen(true);
@@ -149,10 +185,12 @@ export default function LensProductsPage() {
     setFormData({
       itCode: product.itCode,
       name: product.name,
-      lensBrandId: product.lensBrand.id,
+      lensBrandId: product.lensBrand?.id || '',
       type: product.type,
       index: product.index,
       tintOption: (product as any).tintOption || 'CLEAR',
+      category: (product as any).category || 'STANDARD',
+      deliveryDays: (product as any).deliveryDays || 4,
       mrp: product.mrp,
       offerPrice: product.offerPrice,
       addOnPrice: product.addOnPrice || 0,
@@ -162,6 +200,7 @@ export default function LensProductsPage() {
       addMin: product.addMin || 0,
       addMax: product.addMax || 0,
       yopoEligible: product.yopoEligible,
+      featureCodes: (product as any).featureCodes || [],
     });
     setEditingId(product.id);
     setIsModalOpen(true);
@@ -192,6 +231,7 @@ export default function LensProductsPage() {
           addOnPrice: formData.addOnPrice || null,
           addMin: formData.addMin || null,
           addMax: formData.addMax || null,
+          featureCodes: formData.featureCodes || [],
         }),
       });
 
@@ -251,7 +291,7 @@ export default function LensProductsPage() {
       render: (product) => (
         <div>
           <div className="font-medium text-slate-900">{product.name}</div>
-          <div className="text-sm text-slate-500">{product.lensBrand.name}</div>
+          <div className="text-sm text-slate-500">{product.lensBrand?.name || product.brandLine || 'N/A'}</div>
         </div>
       ),
     },
@@ -480,7 +520,7 @@ export default function LensProductsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Tint Option *
@@ -495,6 +535,76 @@ export default function LensProductsPage() {
                   { value: 'TRANSITION', label: 'Transition' },
                 ]}
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Category *
+              </label>
+              <Select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+                options={[
+                  { value: 'ECONOMY', label: 'Economy' },
+                  { value: 'STANDARD', label: 'Standard' },
+                  { value: 'PREMIUM', label: 'Premium' },
+                  { value: 'ULTRA', label: 'Ultra' },
+                ]}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Delivery Days *
+              </label>
+              <Input
+                type="number"
+                min="1"
+                value={formData.deliveryDays}
+                onChange={(e) => setFormData({ ...formData, deliveryDays: parseInt(e.target.value) || 4 })}
+                placeholder="4"
+              />
+            </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Features</h3>
+            <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-200 rounded-lg p-3">
+              {features.length === 0 ? (
+                <p className="text-sm text-slate-500">Loading features...</p>
+              ) : (
+                features.map((feature) => (
+                  <label
+                    key={feature.id}
+                    className="flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.featureCodes.includes(feature.code)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setFormData({
+                            ...formData,
+                            featureCodes: [...formData.featureCodes, feature.code],
+                          });
+                        } else {
+                          setFormData({
+                            ...formData,
+                            featureCodes: formData.featureCodes.filter((c) => c !== feature.code),
+                          });
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-slate-300"
+                    />
+                    <div className="flex-1">
+                      <span className="font-medium text-slate-900 text-sm">
+                        {feature.code} - {feature.name}
+                      </span>
+                      {feature.description && (
+                        <p className="text-xs text-slate-500 mt-0.5">{feature.description}</p>
+                      )}
+                    </div>
+                  </label>
+                ))
+              )}
             </div>
           </div>
 
