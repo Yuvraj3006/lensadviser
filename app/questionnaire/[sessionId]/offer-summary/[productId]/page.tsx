@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { 
   ArrowLeft,
   ShoppingCart,
@@ -15,7 +17,9 @@ import {
   ArrowRight,
   Eye,
   X,
-  Sparkles
+  Sparkles,
+  Upload,
+  UserCheck
 } from 'lucide-react';
 import { OfferCalculationResult, OfferApplied } from '@/types/offer-engine';
 
@@ -58,12 +62,52 @@ export default function OfferSummaryPage() {
   const [showEligibleProducts, setShowEligibleProducts] = useState(false);
   const [eligibleProducts, setEligibleProducts] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [applyingCategory, setApplyingCategory] = useState(false);
+  const [appliedCategory, setAppliedCategory] = useState<string | null>(null);
+  const [categoryIdImage, setCategoryIdImage] = useState<File | null>(null);
+  const [categoryIdImagePreview, setCategoryIdImagePreview] = useState<string | null>(null);
+  const [availableCategories, setAvailableCategories] = useState<any[]>([]);
 
   useEffect(() => {
     if (sessionId && productId) {
       fetchOfferSummary();
+      fetchAvailableCategories();
+      
+      // Load saved category from localStorage
+      const savedCategory = localStorage.getItem('lenstrack_category_discount');
+      if (savedCategory) {
+        try {
+          const categoryData = JSON.parse(savedCategory);
+          setAppliedCategory(categoryData.category);
+          if (categoryData.idImage) {
+            setCategoryIdImagePreview(categoryData.idImage);
+          }
+        } catch (e) {
+          console.error('Failed to parse saved category:', e);
+        }
+      }
     }
   }, [sessionId, productId]);
+
+  const fetchAvailableCategories = async () => {
+    try {
+      const storeCode = localStorage.getItem('lenstrack_store_code');
+      if (storeCode) {
+        const response = await fetch(`/api/public/stores/verify?code=${storeCode}`);
+        const storeData = await response.json();
+        if (storeData.success && storeData.data?.organizationId) {
+          const catResponse = await fetch(`/api/admin/offers/category-discounts?organizationId=${storeData.data.organizationId}`);
+          const catData = await catResponse.json();
+          if (catData.success) {
+            setAvailableCategories(catData.data || []);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
+    }
+  };
 
   const fetchOfferSummary = async () => {
     setLoading(true);
@@ -106,6 +150,7 @@ export default function OfferSummaryPage() {
           body: JSON.stringify({
             productId: productId,
             couponCode: null,
+            customerCategory: appliedCategory || null,
             secondPair: null,
             tintSelection: tintData, // Include tint selection for mirror add-on price
           }),
@@ -199,7 +244,8 @@ export default function OfferSummaryPage() {
   const formatOffers = (offerResult: OfferCalculationResult): OfferDetail[] => {
     const offers: OfferDetail[] = [];
     
-    // Primary offers from offersApplied - these are the main discounts
+    // Only show offers that are actually applied (from offersApplied array)
+    // This ensures we only show the one offer that was selected/applied
     if (offerResult.offersApplied && offerResult.offersApplied.length > 0) {
       console.log('[OfferSummary] Processing offersApplied:', offerResult.offersApplied);
       offerResult.offersApplied.forEach((offer: OfferApplied) => {
@@ -225,63 +271,54 @@ export default function OfferSummaryPage() {
     } else {
       console.log('[OfferSummary] No offersApplied found');
     }
-    
-    // Also check priceComponents for any discounts we might have missed
-    if (offerResult.priceComponents && offerResult.priceComponents.length > 0) {
-      console.log('[OfferSummary] Processing priceComponents:', offerResult.priceComponents);
-      offerResult.priceComponents.forEach((component) => {
-        // Only process negative amounts (discounts) that aren't already in offers
-        if (component.amount < 0 && component.label !== 'Frame MRP' && component.label !== 'Lens Offer Price') {
-          const existingOffer = offers.find(o => o.title === component.label);
-          if (!existingOffer) {
-            const discountAmount = Math.abs(component.amount);
-            offers.push({
-              type: 'DISCOUNT',
-              code: component.label.substring(0, 20) || 'DISCOUNT',
-              title: component.label,
-              description: component.label,
-              discountAmount,
-              explanation: getExplanationFromLabel(component.label, discountAmount),
-            });
-          }
-        }
-      });
+
+    // Also include automatic discounts that are always applied (not user-selected)
+    // Category Discount (automatic based on customer category)
+    if (offerResult.categoryDiscount && offerResult.categoryDiscount.savings > 0) {
+      // Check if not already in offersApplied
+      const alreadyInOffers = offers.some(o => o.type === 'CATEGORY_DISCOUNT');
+      if (!alreadyInOffers) {
+        offers.push({
+          type: 'CATEGORY_DISCOUNT',
+          code: 'CATEGORY',
+          title: offerResult.categoryDiscount.description || 'Category Discount',
+          description: offerResult.categoryDiscount.description || '',
+          discountAmount: offerResult.categoryDiscount.savings || 0,
+          explanation: formatCategoryDiscountExplanation(offerResult.categoryDiscount),
+        });
+      }
     }
 
-    // Category Discount
-    if (offerResult.categoryDiscount) {
-      offers.push({
-        type: 'CATEGORY_DISCOUNT',
-        code: 'CATEGORY',
-        title: offerResult.categoryDiscount.description || 'Category Discount',
-        description: offerResult.categoryDiscount.description || '',
-        discountAmount: offerResult.categoryDiscount.savings || 0,
-        explanation: formatCategoryDiscountExplanation(offerResult.categoryDiscount),
-      });
+    // Coupon Discount (user applied)
+    if (offerResult.couponDiscount && offerResult.couponDiscount.savings > 0) {
+      // Check if not already in offersApplied
+      const alreadyInOffers = offers.some(o => o.type === 'COUPON' || o.code === offerResult.couponDiscount?.ruleCode);
+      if (!alreadyInOffers) {
+        offers.push({
+          type: 'COUPON',
+          code: offerResult.couponDiscount.ruleCode || '',
+          title: offerResult.couponDiscount.description || 'Coupon Discount',
+          description: offerResult.couponDiscount.description || '',
+          discountAmount: offerResult.couponDiscount.savings || 0,
+          explanation: offerResult.couponDiscount.description || 'Coupon applied',
+        });
+      }
     }
 
-    // Coupon Discount
-    if (offerResult.couponDiscount) {
-      offers.push({
-        type: 'COUPON',
-        code: offerResult.couponDiscount.ruleCode || '',
-        title: offerResult.couponDiscount.description || 'Coupon Discount',
-        description: offerResult.couponDiscount.description || '',
-        discountAmount: offerResult.couponDiscount.savings || 0,
-        explanation: offerResult.couponDiscount.description || 'Coupon applied',
-      });
-    }
-
-    // Second Pair Discount (BOGO50)
-    if (offerResult.secondPairDiscount) {
-      offers.push({
-        type: 'BOGO50',
-        code: offerResult.secondPairDiscount.ruleCode || 'BOGO50',
-        title: offerResult.secondPairDiscount.description || 'Second Pair Discount',
-        description: offerResult.secondPairDiscount.description || '',
-        discountAmount: offerResult.secondPairDiscount.savings || 0,
-        explanation: 'Second pair discount applied',
-      });
+    // Second Pair Discount (user enabled)
+    if (offerResult.secondPairDiscount && offerResult.secondPairDiscount.savings > 0) {
+      // Check if not already in offersApplied
+      const alreadyInOffers = offers.some(o => o.type === 'BOGO50' || o.code === 'BOGO50');
+      if (!alreadyInOffers) {
+        offers.push({
+          type: 'BOGO50',
+          code: offerResult.secondPairDiscount.ruleCode || 'BOGO50',
+          title: offerResult.secondPairDiscount.description || 'Second Pair Discount',
+          description: offerResult.secondPairDiscount.description || '',
+          discountAmount: offerResult.secondPairDiscount.savings || 0,
+          explanation: 'Second pair discount applied',
+        });
+      }
     }
 
     return offers;
@@ -579,6 +616,236 @@ export default function OfferSummaryPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Category Discount Section */}
+        <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-500/30">
+              <UserCheck className="text-blue-400" size={18} />
+            </div>
+            <h2 className="text-xl font-semibold text-white">Category Discount</h2>
+          </div>
+          
+          {!appliedCategory ? (
+            <div className="space-y-4">
+              <Select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                options={[
+                  { value: '', label: 'Select Category' },
+                  ...availableCategories
+                    .filter(cat => cat.isActive)
+                    .map(cat => ({
+                      value: cat.customerCategory,
+                      label: `${cat.customerCategory} - ${cat.discountPercent}% off${cat.maxDiscount ? ` (max ₹${cat.maxDiscount})` : ''}`,
+                    })),
+                ]}
+                className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
+              />
+              
+              {selectedCategory && availableCategories.find(c => c.customerCategory === selectedCategory && c.categoryVerificationRequired) && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Upload ID Proof <span className="text-red-400">*</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex-1 cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setCategoryIdImage(file);
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setCategoryIdImagePreview(reader.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-slate-600 bg-slate-700/50 hover:border-blue-500 transition-colors">
+                          <Upload size={18} className="text-slate-400" />
+                          <span className="text-sm text-slate-300">
+                            {categoryIdImage ? categoryIdImage.name : 'Click to upload ID proof'}
+                          </span>
+                        </div>
+                      </label>
+                      {categoryIdImagePreview && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCategoryIdImage(null);
+                            setCategoryIdImagePreview(null);
+                          }}
+                          className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg"
+                        >
+                          <X size={18} />
+                        </button>
+                      )}
+                    </div>
+                    {categoryIdImagePreview && (
+                      <div className="mt-2">
+                        <img
+                          src={categoryIdImagePreview}
+                          alt="ID Preview"
+                          className="max-w-full h-32 object-contain rounded-lg border border-slate-600"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              <Button
+                onClick={async () => {
+                  if (!selectedCategory || !productId) return;
+                  const selectedCat = availableCategories.find(c => c.customerCategory === selectedCategory);
+                  if (selectedCat?.categoryVerificationRequired && !categoryIdImage) {
+                    showToast('error', 'Please upload ID proof for this category');
+                    return;
+                  }
+                  
+                  setApplyingCategory(true);
+                  try {
+                    // Convert image to base64 if exists
+                    let idImageBase64 = null;
+                    if (categoryIdImage) {
+                      idImageBase64 = await new Promise<string>((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result as string);
+                        reader.readAsDataURL(categoryIdImage);
+                      });
+                    }
+                    
+                    // Recalculate offers with category
+                    const offersResponse = await fetch(
+                      `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                      {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          productId: productId,
+                          couponCode: null,
+                          customerCategory: selectedCategory,
+                          secondPair: null,
+                        }),
+                      }
+                    );
+                    
+                    const offersData = await offersResponse.json();
+                    if (offersData.success && offersData.data) {
+                      if (offersData.data.categoryDiscount) {
+                        setAppliedCategory(selectedCategory);
+                        // Update data with new offer result
+                        setData(prev => prev ? {
+                          ...prev,
+                          offerResult: offersData.data,
+                        } : null);
+                        // Save to localStorage
+                        localStorage.setItem('lenstrack_category_discount', JSON.stringify({
+                          category: selectedCategory,
+                          idImage: idImageBase64,
+                        }));
+                        const discountAmount = offersData.data.categoryDiscount.savings || 0;
+                        showToast('success', `Category discount applied! You saved ₹${Math.round(discountAmount).toLocaleString()}`);
+                      } else {
+                        showToast('warning', 'No discount available for this category');
+                      }
+                    } else {
+                      showToast('error', offersData.error?.message || 'Failed to apply category discount');
+                    }
+                  } catch (error) {
+                    showToast('error', 'Failed to apply category discount');
+                  } finally {
+                    setApplyingCategory(false);
+                  }
+                }}
+                disabled={!selectedCategory || applyingCategory}
+                loading={applyingCategory}
+                className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold shadow-lg"
+              >
+                Apply Category Discount
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-green-500/20 border border-green-500/40 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="text-green-400" size={20} />
+                  <div>
+                    <p className="text-sm font-semibold text-green-300">{appliedCategory} Discount Applied</p>
+                    {data.offerResult.categoryDiscount && (
+                      <p className="text-xs text-green-400">
+                        Saving ₹{Math.round(data.offerResult.categoryDiscount.savings).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  onClick={async () => {
+                    if (!productId) return;
+                    setApplyingCategory(true);
+                    try {
+                      // Recalculate offers without category
+                      const offersResponse = await fetch(
+                        `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                        {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            productId: productId,
+                            couponCode: null,
+                            customerCategory: null,
+                            secondPair: null,
+                          }),
+                        }
+                      );
+                      
+                      const offersData = await offersResponse.json();
+                      if (offersData.success && offersData.data) {
+                        setAppliedCategory(null);
+                        setSelectedCategory('');
+                        setCategoryIdImage(null);
+                        setCategoryIdImagePreview(null);
+                        // Update data with new offer result
+                        setData(prev => prev ? {
+                          ...prev,
+                          offerResult: offersData.data,
+                        } : null);
+                        localStorage.removeItem('lenstrack_category_discount');
+                        showToast('success', 'Category discount removed');
+                      }
+                    } catch (error) {
+                      showToast('error', 'Failed to remove category discount');
+                    } finally {
+                      setApplyingCategory(false);
+                    }
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                >
+                  <X size={16} className="mr-1" />
+                  Remove
+                </Button>
+              </div>
+              {categoryIdImagePreview && (
+                <div className="p-2 bg-slate-700/50 rounded-lg">
+                  <p className="text-xs text-slate-400 mb-1">Uploaded ID Proof:</p>
+                  <img
+                    src={categoryIdImagePreview}
+                    alt="ID Proof"
+                    className="max-w-full h-24 object-contain rounded border border-slate-600"
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Price Breakdown Card */}

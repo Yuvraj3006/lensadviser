@@ -631,32 +631,33 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                                             {benefit.description}
                                           </p>
                                         )}
-                                        <div className="flex items-center gap-2">
-                                          <input
-                                            type="number"
-                                            step="0.1"
-                                            min="0"
-                                            max="3"
-                                            value={currentValue}
-                                            onChange={(e) =>
-                                              updateAnswerBenefit(
-                                                index,
-                                                benefit.code,
-                                                parseFloat(e.target.value) || 0
-                                              )
-                                            }
-                                            className={`flex-1 rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                              hasValue 
-                                                ? 'border-blue-400 bg-white' 
-                                                : 'border-slate-300 bg-white'
-                                            }`}
-                                            placeholder="0"
-                                          />
-                                          {hasValue && (
-                                            <span className="text-xs font-medium text-blue-600 min-w-[2rem] text-right">
-                                              {currentValue}
+                                        <div className="space-y-2">
+                                          <div className="flex items-center gap-2">
+                                            <input
+                                              type="range"
+                                              min="0"
+                                              max="3"
+                                              step="0.1"
+                                              value={currentValue}
+                                              onChange={(e) =>
+                                                updateAnswerBenefit(
+                                                  index,
+                                                  benefit.code,
+                                                  parseFloat(e.target.value) || 0
+                                                )
+                                              }
+                                              className="flex-1 h-2 rounded-lg appearance-none cursor-pointer bg-slate-200 accent-blue-600"
+                                            />
+                                            <span className="text-sm font-semibold text-blue-600 min-w-[3rem] text-right">
+                                              {currentValue.toFixed(1)}
                                             </span>
-                                          )}
+                                          </div>
+                                          <div className="flex justify-between text-xs text-slate-500 px-1">
+                                            <span>0</span>
+                                            <span>1</span>
+                                            <span>2</span>
+                                            <span>3</span>
+                                          </div>
                                         </div>
                                       </div>
                                     );

@@ -18,6 +18,7 @@ const OfferRuleType = {
   PERCENT_OFF: 'PERCENT_OFF',
   FLAT_OFF: 'FLAT_OFF',
   BOG50: 'BOG50',
+  BOGO: 'BOGO',
   CATEGORY_DISCOUNT: 'CATEGORY_DISCOUNT',
   BONUS_FREE_PRODUCT: 'BONUS_FREE_PRODUCT',
 } as const;
@@ -354,7 +355,8 @@ export default function OfferRulesPage() {
                 { value: 'FREE_LENS', label: 'FREE_LENS' },
                 { value: 'PERCENT_OFF', label: 'PERCENT_OFF' },
                 { value: 'FLAT_OFF', label: 'FLAT_OFF' },
-                { value: 'BOG50', label: 'BOG50' },
+                { value: 'BOG50', label: 'BOG50 (Buy One Get 50% Off)' },
+                { value: 'BOGO', label: 'BOGO (Buy One Get One Free)' },
                 { value: 'CATEGORY_DISCOUNT', label: 'CATEGORY_DISCOUNT' },
                 { value: 'BONUS_FREE_PRODUCT', label: 'BONUS_FREE_PRODUCT' },
               ]}
@@ -638,6 +640,53 @@ export default function OfferRulesPage() {
                   placeholder="e.g., BLUEXPERT (leave empty for any lens)"
                 />
               )}
+            </div>
+          )}
+
+          {(formData.offerType === 'BOG50' || formData.offerType === 'BOGO') && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800 mb-2">
+                  <strong>Second Pair Offer:</strong> {formData.offerType === 'BOGO' 
+                    ? 'Buy One Get One Free - Second pair will be completely free (100% off on lower value)'
+                    : 'Buy One Get 50% Off - Second pair will get discount based on percentage below'}
+                </p>
+              </div>
+              {formData.offerType === 'BOG50' && (
+                <Input
+                  label="Second Pair Discount %"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={formData.secondPairPercent || 50}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    secondPairPercent: e.target.value ? parseFloat(e.target.value) : 50
+                  })}
+                  placeholder="50"
+                />
+              )}
+              {formData.offerType === 'BOGO' && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-sm text-green-800">
+                    <strong>Note:</strong> BOGO automatically applies 100% discount on the lower value of first and second pair.
+                  </p>
+                </div>
+              )}
+              <Input
+                label="Eligible Brands (comma-separated, or * for all)"
+                value={((formData as any).config?.eligibleBrands || []).join(', ')}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  config: {
+                    ...(formData as any).config || {},
+                    eligibleBrands: e.target.value 
+                      ? e.target.value.split(',').map(b => b.trim()).filter(b => b)
+                      : []
+                  }
+                })}
+                placeholder="e.g., LENSTRACK, RAYBAN or * for all"
+              />
             </div>
           )}
 

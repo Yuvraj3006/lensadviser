@@ -168,18 +168,19 @@ export class IndexRecommendationService {
    * Get index display name
    */
   getIndexDisplayName(index: string): string {
-    switch (index) {
-      case '1.56':
-        return '1.56';
-      case '1.60':
-        return '1.60';
-      case '1.67':
-        return '1.67';
-      case '1.74':
-        return '1.74';
-      default:
-        return '1.56';
-    }
+    // Handle both formats: 'INDEX_156' and '1.56'
+    const indexMap: Record<string, string> = {
+      'INDEX_156': '1.56',
+      'INDEX_160': '1.60',
+      'INDEX_167': '1.67',
+      'INDEX_174': '1.74',
+      '1.56': '1.56',
+      '1.60': '1.60',
+      '1.67': '1.67',
+      '1.74': '1.74',
+    };
+    
+    return indexMap[index] || index.replace('INDEX_', '1.').replace(/^1\./, '1.') || '1.56';
   }
 
   /**

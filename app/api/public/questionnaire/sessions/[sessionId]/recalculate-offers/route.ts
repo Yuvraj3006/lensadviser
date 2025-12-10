@@ -5,6 +5,39 @@ import { offerEngineService } from '@/services/offer-engine.service';
 import { FrameInput, LensInput } from '@/types/offer-engine';
 
 /**
+ * Deep serialize an object to remove BigInt, Date, and other non-serializable types
+ */
+function deepSerialize(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  if (typeof obj === 'bigint') {
+    return Number(obj);
+  }
+  
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => deepSerialize(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const serialized: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        serialized[key] = deepSerialize(obj[key]);
+      }
+    }
+    return serialized;
+  }
+  
+  return obj;
+}
+
+/**
  * POST /api/public/questionnaire/sessions/[sessionId]/recalculate-offers
  * Recalculate offers for a product with coupon code
  */
@@ -26,7 +59,7 @@ export async function POST(
       throw new ValidationError('Invalid JSON in request body');
     }
 
-    const { productId, couponCode, secondPair } = body;
+    const { productId, couponCode, secondPair, customerCategory } = body;
 
     if (!productId) {
       throw new ValidationError('Product ID is required');
@@ -144,18 +177,24 @@ export async function POST(
     };
 
     // Calculate offers using offer engine (frame is optional for lens-only flow)
+    // Use customerCategory from request body if provided, otherwise from session
+    const finalCustomerCategory = customerCategory || (session.customerCategory as any) || null;
+    
     const offerResult = await offerEngineService.calculateOffers({
       frame: frameInput, // null for lens-only flow
       lens: lensInput,
-      customerCategory: (session.customerCategory as any) || null,
+      customerCategory: finalCustomerCategory,
       couponCode: couponCode || null,
       secondPair: secondPair || null,
       organizationId,
     });
 
+    // Serialize the offer result to handle any BigInt or Date fields
+    const serializedOfferResult = deepSerialize(offerResult);
+
     return Response.json({
       success: true,
-      data: offerResult,
+      data: serializedOfferResult,
     });
   } catch (error: any) {
     console.error('[recalculate-offers] Error:', error);

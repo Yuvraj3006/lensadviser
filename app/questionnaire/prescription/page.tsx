@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLensAdvisorStore } from '@/stores/lens-advisor-store';
 import { useSessionStore } from '@/stores/session-store';
 import { PrescriptionForm } from '@/components/lens-advisor/PrescriptionForm';
 import { Button } from '@/components/ui/Button';
-import { ArrowLeft } from 'lucide-react';
+import { Input } from '@/components/ui/Input';
+import { ArrowLeft, Ticket } from 'lucide-react';
 
 export default function PrescriptionPage() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function PrescriptionPage() {
   const setRx = useLensAdvisorStore((state) => state.setRx);
   const language = useSessionStore((state) => state.language);
   const hasLoadedRef = useRef(false); // Track if we've already loaded from localStorage
+  const [couponCode, setCouponCode] = useState('');
 
   useEffect(() => {
     // Check if language is selected, redirect if not
@@ -70,6 +72,11 @@ export default function PrescriptionPage() {
     // Save to localStorage
     localStorage.setItem('lenstrack_prescription', JSON.stringify(rx));
     
+    // Save coupon code if entered
+    if (couponCode) {
+      localStorage.setItem('lenstrack_coupon_code', couponCode);
+    }
+    
     // Navigate to frame page (session will be created there, then redirect to tint selection if Power Sunglasses)
     router.push('/questionnaire/frame');
   };
@@ -86,6 +93,25 @@ export default function PrescriptionPage() {
           {/* Use enhanced PrescriptionForm component */}
           <div className="bg-white rounded-xl p-6">
             <PrescriptionForm hideNextButton={true} onNext={handleNext} onSkip={handleSkip} />
+          </div>
+
+          {/* Coupon Code Section */}
+          <div className="mt-6 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-xl p-5 border border-yellow-500/20">
+            <div className="flex items-center gap-3 mb-3">
+              <Ticket className="text-yellow-500" size={20} />
+              <h3 className="text-lg font-semibold text-slate-200">Have a Coupon Code?</h3>
+            </div>
+            <div className="flex gap-3">
+              <Input
+                type="text"
+                placeholder="Enter coupon code (e.g., WELCOME10)"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                className="flex-1 !bg-slate-700/80 !border-2 !border-slate-600 !text-white !placeholder:text-slate-500 focus:!border-yellow-500 focus:!ring-yellow-500/50"
+                style={{ backgroundColor: 'rgba(51, 65, 85, 0.8)', color: 'white' }}
+              />
+            </div>
+            <p className="text-xs text-slate-400 mt-2">You can apply this coupon code later during checkout</p>
           </div>
 
           {/* Custom Navigation */}

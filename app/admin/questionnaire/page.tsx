@@ -231,25 +231,45 @@ export default function QuestionnaireBuilderPage() {
         return opt;
       });
 
-      // Update the question with modified options
-      const response = await fetch(`/api/admin/questions/${questionId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...targetQuestion,
-          options: updatedOptions,
+      // Update both: the target question's option AND the dragged question's parentAnswerId
+      const [optionUpdateResponse, questionUpdateResponse] = await Promise.all([
+        // Update the target question with modified options
+        fetch(`/api/admin/questions/${questionId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            ...targetQuestion,
+            options: updatedOptions,
+          }),
         }),
-      });
+        // Update the dragged question to set parentAnswerId
+        fetch(`/api/admin/questions/${draggedQuestion.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            ...draggedQuestion,
+            parentAnswerId: optionId,
+          }),
+        }),
+      ]);
 
-      const data = await response.json();
-      if (data.success) {
+      const [optionData, questionData] = await Promise.all([
+        optionUpdateResponse.json(),
+        questionUpdateResponse.json(),
+      ]);
+
+      if (optionData.success && questionData.success) {
         showToast('success', `Sub-question linked successfully`);
         fetchQuestions();
       } else {
-        showToast('error', data.error?.message || 'Failed to link sub-question');
+        const errorMsg = optionData.error?.message || questionData.error?.message || 'Failed to link sub-question';
+        showToast('error', errorMsg);
       }
     } catch (error) {
       console.error('Error linking sub-question:', error);

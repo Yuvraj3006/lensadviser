@@ -3,6 +3,39 @@ import { prisma } from '@/lib/prisma';
 import { handleApiError, ValidationError } from '@/lib/errors';
 import { z } from 'zod';
 
+/**
+ * Deep serialize an object to remove BigInt, Date, and other non-serializable types
+ */
+function deepSerialize(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  if (typeof obj === 'bigint') {
+    return Number(obj);
+  }
+  
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => deepSerialize(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const serialized: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        serialized[key] = deepSerialize(obj[key]);
+      }
+    }
+    return serialized;
+  }
+  
+  return obj;
+}
+
 const createOrderSchema = z.object({
   storeId: z.string(),
   salesMode: z.enum(['SELF_SERVICE', 'STAFF_ASSISTED']),
@@ -75,28 +108,45 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('finalPrice must be greater than 0');
     }
 
+    // Serialize data to remove BigInt, Date, and other non-serializable types
+    const serializedFrameData = deepSerialize(validated.frameData);
+    const serializedLensData = deepSerialize(validated.lensData);
+    const serializedOfferData = deepSerialize(validated.offerData);
+    
+    // Handle assistedByStaffId and assistedByName - schema expects Json type
+    const assistedByStaffIdJson = validated.assistedByStaffId 
+      ? (typeof validated.assistedByStaffId === 'string' ? validated.assistedByStaffId : JSON.stringify(validated.assistedByStaffId))
+      : null;
+    const assistedByNameJson = validated.assistedByName 
+      ? (typeof validated.assistedByName === 'string' ? validated.assistedByName : JSON.stringify(validated.assistedByName))
+      : null;
+
+    const now = new Date();
     const order = await prisma.order.create({
       data: {
         storeId: validated.storeId,
         salesMode: validated.salesMode,
-        assistedByStaffId: validated.assistedByStaffId || null,
-        assistedByName: validated.assistedByName || null,
+        assistedByStaffId: assistedByStaffIdJson as any,
+        assistedByName: assistedByNameJson as any,
         customerName: validated.customerName || null,
         customerPhone: validated.customerPhone || null,
-        frameData: validated.frameData,
-        lensData: validated.lensData,
-        offerData: validated.offerData,
+        frameData: serializedFrameData as any,
+        lensData: serializedLensData as any,
+        offerData: serializedOfferData as any,
         orderType: validated.orderType || 'EYEGLASSES',
         finalPrice: validated.finalPrice,
         status: 'DRAFT',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: now,
+        updatedAt: now,
       },
     });
 
+    // Serialize the order response to handle BigInt and Date fields
+    const serializedOrder = deepSerialize(order);
+
     return Response.json({
       success: true,
-      data: order,
+      data: serializedOrder,
     });
   } catch (error: any) {
     console.error('[order/create] Error:', error);

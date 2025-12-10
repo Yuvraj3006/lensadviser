@@ -27,6 +27,7 @@ const OfferType = {
   COMBO_PRICE: 'COMBO_PRICE',
   YOPO: 'YOPO',
   BOG50: 'BOG50',
+  BOGO: 'BOGO',
 } as const;
 
 // CustomerCategory is a string field, not an enum in Prisma
@@ -526,8 +527,8 @@ export class OfferEngineService {
     // Free Lens must define ruleType in config
     if (rule.offerType === 'FREE_LENS' && !config.ruleType) return false;
 
-    // BOG50 requires brand or category
-    if (rule.offerType === 'BOG50' && (!config.eligibleBrands && !config.eligibleCategories)) {
+    // BOG50 and BOGO require brand or category
+    if ((rule.offerType === 'BOG50' || rule.offerType === 'BOGO') && (!config.eligibleBrands && !config.eligibleCategories)) {
       return false;
     }
 
@@ -720,6 +721,10 @@ export class OfferEngineService {
         // Handled separately in second pair logic
         return { newTotal: baseTotal, savings: 0, label: 'BOG50 (second pair)' };
 
+      case 'BOGO':
+        // Handled separately in second pair logic (Buy One Get One Free)
+        return { newTotal: baseTotal, savings: 0, label: 'BOGO (Buy One Get One Free)' };
+
       case 'CATEGORY_DISCOUNT':
         // Handled separately in category discount logic
         return { newTotal: baseTotal, savings: 0, label: 'Category Discount' };
@@ -734,7 +739,7 @@ export class OfferEngineService {
   }
 
   /**
-   * V2: Find applicable second pair rule (BOG50)
+   * V2: Find applicable second pair rule (BOG50 or BOGO)
    */
   private async findApplicableSecondPairRule(
     input: OfferCalculationInput
@@ -746,7 +751,7 @@ export class OfferEngineService {
       where: {
         organizationId,
         isActive: true,
-        offerType: 'BOG50',
+        offerType: { in: ['BOG50', 'BOGO'] },
       } as any,
       orderBy: {
         priority: 'asc',
@@ -790,9 +795,18 @@ export class OfferEngineService {
     const second = (secondPair.secondPairFrameMRP || 0) + (secondPair.secondPairLensPrice || 0);
     const lower = Math.min(first, second);
 
+    // BOGO: Buy One Get One Free (100% off on second pair)
+    if (rule.offerType === 'BOGO') {
+      return {
+        savings: lower,
+        label: 'Buy One Get One Free (second pair free)',
+      };
+    }
+
+    // BOG50: Buy One Get 50% Off
     // Read secondPairPercent from config (where it's stored)
     const config = rule.config || {};
-    const secondPairPercent = config.secondPairPercent || rule.secondPairPercent;
+    const secondPairPercent = config.secondPairPercent || rule.secondPairPercent || 50; // Default to 50% for BOG50
 
     if (secondPairPercent) {
       const savings = (lower * secondPairPercent) / 100;

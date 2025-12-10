@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { 
   CheckCircle, 
   Star, 
@@ -28,7 +29,10 @@ import {
   BadgePercent,
   Ticket,
   CircleDollarSign,
-  Calculator
+  Calculator,
+  Upload,
+  X,
+  UserCheck
 } from 'lucide-react';
 
 interface Feature {
@@ -191,9 +195,18 @@ export default function RecommendationsPage() {
   const [couponCode, setCouponCode] = useState('');
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [applyingCategory, setApplyingCategory] = useState(false);
+  const [appliedCategory, setAppliedCategory] = useState<string | null>(null);
+  const [categoryIdImage, setCategoryIdImage] = useState<File | null>(null);
+  const [categoryIdImagePreview, setCategoryIdImagePreview] = useState<string | null>(null);
+  const [availableCategories, setAvailableCategories] = useState<any[]>([]);
   const [secondPairEnabled, setSecondPairEnabled] = useState(false);
   const [secondPairFrameMRP, setSecondPairFrameMRP] = useState('');
+  const [secondPairLensId, setSecondPairLensId] = useState('');
   const [secondPairLensPrice, setSecondPairLensPrice] = useState('');
+  const [availableLenses, setAvailableLenses] = useState<any[]>([]);
+  const [loadingLenses, setLoadingLenses] = useState(false);
   const [recalculatedOffers, setRecalculatedOffers] = useState<Record<string, any>>({});
   const [showKnowMoreModal, setShowKnowMoreModal] = useState<string | null>(null);
   const [showViewAllModal, setShowViewAllModal] = useState(false);
@@ -202,8 +215,65 @@ export default function RecommendationsPage() {
   useEffect(() => {
     if (sessionId) {
       fetchRecommendations();
+      fetchAvailableLenses();
+      fetchAvailableCategories();
+      
+      // Load saved coupon code from localStorage
+      const savedCoupon = localStorage.getItem('lenstrack_coupon_code');
+      if (savedCoupon) {
+        setCouponCode(savedCoupon);
+      }
+      
+      // Load saved category from localStorage
+      const savedCategory = localStorage.getItem('lenstrack_category_discount');
+      if (savedCategory) {
+        try {
+          const categoryData = JSON.parse(savedCategory);
+          setAppliedCategory(categoryData.category);
+          if (categoryData.idImage) {
+            setCategoryIdImagePreview(categoryData.idImage);
+          }
+        } catch (e) {
+          console.error('Failed to parse saved category:', e);
+        }
+      }
     }
   }, [sessionId]);
+
+  const fetchAvailableCategories = async () => {
+    try {
+      // Get organizationId from session or store
+      const storeCode = localStorage.getItem('lenstrack_store_code');
+      if (storeCode) {
+        const response = await fetch(`/api/public/stores/verify?code=${storeCode}`);
+        const storeData = await response.json();
+        if (storeData.success && storeData.data?.organizationId) {
+          const catResponse = await fetch(`/api/admin/offers/category-discounts?organizationId=${storeData.data.organizationId}`);
+          const catData = await catResponse.json();
+          if (catData.success) {
+            setAvailableCategories(catData.data || []);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
+    }
+  };
+
+  const fetchAvailableLenses = async () => {
+    setLoadingLenses(true);
+    try {
+      const response = await fetch('/api/products/lenses');
+      const result = await response.json();
+      if (result.success) {
+        setAvailableLenses(result.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch lenses:', error);
+    } finally {
+      setLoadingLenses(false);
+    }
+  };
 
   const fetchRecommendations = async () => {
     setLoading(true);
@@ -289,7 +359,42 @@ export default function RecommendationsPage() {
         
         setData(result.data);
         if (result.data.recommendations && result.data.recommendations.length > 0) {
-          setSelectedProduct(result.data.recommendations[0].id);
+          const firstProductId = result.data.recommendations[0].id;
+          setSelectedProduct(firstProductId);
+          
+          // If category discount is already applied, recalculate offers for first product
+          const savedCategory = localStorage.getItem('lenstrack_category_discount');
+          if (savedCategory) {
+            try {
+              const categoryData = JSON.parse(savedCategory);
+              if (categoryData.category) {
+                // Recalculate with category discount
+                const recalcResponse = await fetch(
+                  `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      productId: firstProductId,
+                      couponCode: null,
+                      customerCategory: categoryData.category,
+                      secondPair: null,
+                    }),
+                  }
+                );
+                const recalcResult = await recalcResponse.json();
+                if (recalcResult.success) {
+                  setRecalculatedOffers(prev => ({
+                    ...prev,
+                    [firstProductId]: recalcResult.data,
+                  }));
+                }
+              }
+            } catch (e) {
+              console.error('Failed to apply saved category:', e);
+            }
+          }
+          
           // Set default offer for each product
           const defaultOffers: Record<string, string> = {};
           result.data.recommendations.forEach((rec: Recommendation) => {
@@ -338,7 +443,7 @@ export default function RecommendationsPage() {
   };
 
   const calculatePriceWithOffer = (rec: Recommendation, offerCode?: string) => {
-    // Check if we have recalculated offers (with coupon/second pair)
+    // Check if we have recalculated offers (with coupon/category/second pair)
     const recalculated = recalculatedOffers[rec.id];
     if (recalculated) {
       return {
@@ -692,8 +797,43 @@ export default function RecommendationsPage() {
                   {/* Primary CTA */}
                   <Button
                     fullWidth
-                    onClick={() => {
+                    onClick={async () => {
                       setSelectedProduct(rec.id);
+                      
+                      // If category discount is applied, recalculate offers for this product
+                      if (appliedCategory) {
+                        try {
+                          const response = await fetch(
+                            `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                            {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                productId: rec.id,
+                                couponCode: appliedCouponCode || null,
+                                customerCategory: appliedCategory,
+                                secondPair: secondPairEnabled ? {
+                                  enabled: true,
+                                  firstPairTotal: rec.pricing.subtotal || 0,
+                                  secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
+                                  secondPairLensPrice: secondPairLensId 
+                                    ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
+                                    : (parseFloat(secondPairLensPrice) || 0),
+                                } : null,
+                              }),
+                            }
+                          );
+                          const result = await response.json();
+                          if (result.success) {
+                            setRecalculatedOffers(prev => ({
+                              ...prev,
+                              [rec.id]: result.data,
+                            }));
+                          }
+                        } catch (error) {
+                          console.error('Failed to recalculate on product selection:', error);
+                        }
+                      }
                       
                       // Check if this is Power Sunglasses flow
                       const lensType = localStorage.getItem('lenstrack_lens_type');
@@ -774,11 +914,14 @@ export default function RecommendationsPage() {
                             body: JSON.stringify({
                               productId: selectedProduct,
                               couponCode: couponCode,
+                              customerCategory: appliedCategory || null,
                               secondPair: secondPairEnabled ? {
                                 enabled: true,
                                 firstPairTotal: selectedRec?.pricing.subtotal || 0,
                                 secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
-                                secondPairLensPrice: parseFloat(secondPairLensPrice) || 0,
+                                secondPairLensPrice: secondPairLensId 
+                                  ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
+                                  : (parseFloat(secondPairLensPrice) || 0),
                               } : null,
                             }),
                           }
@@ -836,6 +979,251 @@ export default function RecommendationsPage() {
             </div>
           </div>
 
+          {/* Category Discount Section */}
+          {selectedProduct && (
+            <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur rounded-xl p-5 border-2 border-slate-700/50 shadow-lg">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center border border-blue-500/30">
+                  <UserCheck size={24} className="text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-semibold text-slate-200 mb-2">
+                    Category Discount
+                  </label>
+                  <p className="text-xs text-slate-400">Select your category to get special discounts</p>
+                </div>
+              </div>
+              
+              {!appliedCategory ? (
+                <div className="space-y-4">
+                  <Select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    options={[
+                      { value: '', label: 'Select Category' },
+                      ...availableCategories
+                        .filter(cat => cat.isActive)
+                        .map(cat => ({
+                          value: cat.customerCategory,
+                          label: `${cat.customerCategory} - ${cat.discountPercent}% off${cat.maxDiscount ? ` (max ₹${cat.maxDiscount})` : ''}`,
+                        })),
+                    ]}
+                    className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
+                  />
+                  
+                  {selectedCategory && availableCategories.find(c => c.customerCategory === selectedCategory && c.categoryVerificationRequired) && (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Upload ID Proof <span className="text-red-400">*</span>
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <label className="flex-1 cursor-pointer">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  setCategoryIdImage(file);
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setCategoryIdImagePreview(reader.result as string);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                            <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-slate-600 bg-slate-700/50 hover:border-blue-500 transition-colors">
+                              <Upload size={18} className="text-slate-400" />
+                              <span className="text-sm text-slate-300">
+                                {categoryIdImage ? categoryIdImage.name : 'Click to upload ID proof'}
+                              </span>
+                            </div>
+                          </label>
+                          {categoryIdImagePreview && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCategoryIdImage(null);
+                                setCategoryIdImagePreview(null);
+                              }}
+                              className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg"
+                            >
+                              <X size={18} />
+                            </button>
+                          )}
+                        </div>
+                        {categoryIdImagePreview && (
+                          <div className="mt-2">
+                            <img
+                              src={categoryIdImagePreview}
+                              alt="ID Preview"
+                              className="max-w-full h-32 object-contain rounded-lg border border-slate-600"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <Button
+                    onClick={async () => {
+                      if (!selectedCategory || !selectedProduct) return;
+                      const selectedCat = availableCategories.find(c => c.customerCategory === selectedCategory);
+                      if (selectedCat?.categoryVerificationRequired && !categoryIdImage) {
+                        showToast('error', 'Please upload ID proof for this category');
+                        return;
+                      }
+                      
+                      setApplyingCategory(true);
+                      try {
+                        // Convert image to base64 if exists
+                        let idImageBase64 = null;
+                        if (categoryIdImage) {
+                          idImageBase64 = await new Promise<string>((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result as string);
+                            reader.readAsDataURL(categoryIdImage);
+                          });
+                        }
+                        
+                        const response = await fetch(
+                          `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                          {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              productId: selectedProduct,
+                              couponCode: appliedCouponCode || null,
+                              customerCategory: selectedCategory,
+                              secondPair: secondPairEnabled ? {
+                                enabled: true,
+                                firstPairTotal: selectedRec?.pricing.subtotal || 0,
+                                secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
+                                secondPairLensPrice: secondPairLensId 
+                                  ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
+                                  : (parseFloat(secondPairLensPrice) || 0),
+                              } : null,
+                            }),
+                          }
+                        );
+                        const result = await response.json();
+                        if (result.success) {
+                          if (result.data.categoryDiscount) {
+                            setAppliedCategory(selectedCategory);
+                            setRecalculatedOffers(prev => ({
+                              ...prev,
+                              [selectedProduct]: result.data,
+                            }));
+                            // Save to localStorage
+                            localStorage.setItem('lenstrack_category_discount', JSON.stringify({
+                              category: selectedCategory,
+                              idImage: idImageBase64,
+                            }));
+                            const discountAmount = result.data.categoryDiscount.savings || 0;
+                            showToast('success', `Category discount applied! You saved ₹${Math.round(discountAmount).toLocaleString()}`);
+                          } else {
+                            showToast('warning', 'No discount available for this category');
+                          }
+                        } else {
+                          showToast('error', result.error?.message || 'Failed to apply category discount');
+                        }
+                      } catch (error) {
+                        showToast('error', 'Failed to apply category discount');
+                      } finally {
+                        setApplyingCategory(false);
+                      }
+                    }}
+                    disabled={!selectedCategory || applyingCategory}
+                    loading={applyingCategory}
+                    className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold shadow-lg"
+                  >
+                    Apply Category Discount
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-green-500/20 border border-green-500/40 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="text-green-400" size={20} />
+                      <div>
+                        <p className="text-sm font-semibold text-green-300">{appliedCategory} Discount Applied</p>
+                        {selectedPricing?.categoryDiscount && (
+                          <p className="text-xs text-green-400">
+                            Saving ₹{Math.round(selectedPricing.categoryDiscount.savings).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      onClick={async () => {
+                        if (!selectedProduct) return;
+                        setApplyingCategory(true);
+                        try {
+                          const response = await fetch(
+                            `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                            {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                productId: selectedProduct,
+                                couponCode: appliedCouponCode || null,
+                                customerCategory: null, // Remove category
+                                secondPair: secondPairEnabled ? {
+                                  enabled: true,
+                                  firstPairTotal: selectedRec?.pricing.subtotal || 0,
+                                  secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
+                                  secondPairLensPrice: secondPairLensId 
+                                    ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
+                                    : (parseFloat(secondPairLensPrice) || 0),
+                                } : null,
+                              }),
+                            }
+                          );
+                          const result = await response.json();
+                          if (result.success) {
+                            setAppliedCategory(null);
+                            setSelectedCategory('');
+                            setCategoryIdImage(null);
+                            setCategoryIdImagePreview(null);
+                            setRecalculatedOffers(prev => ({
+                              ...prev,
+                              [selectedProduct]: result.data,
+                            }));
+                            localStorage.removeItem('lenstrack_category_discount');
+                            showToast('success', 'Category discount removed');
+                          }
+                        } catch (error) {
+                          showToast('error', 'Failed to remove category discount');
+                        } finally {
+                          setApplyingCategory(false);
+                        }
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                    >
+                      <X size={16} className="mr-1" />
+                      Remove
+                    </Button>
+                  </div>
+                  {categoryIdImagePreview && (
+                    <div className="p-2 bg-slate-700/50 rounded-lg">
+                      <p className="text-xs text-slate-400 mb-1">Uploaded ID Proof:</p>
+                      <img
+                        src={categoryIdImagePreview}
+                        alt="ID Proof"
+                        className="max-w-full h-24 object-contain rounded border border-slate-600"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Second Pair Toggle */}
           {selectedProduct && (
             <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur rounded-xl p-5 border-2 border-slate-700/50 shadow-lg">
@@ -844,7 +1232,43 @@ export default function RecommendationsPage() {
                   <input
                     type="checkbox"
                     checked={secondPairEnabled}
-                    onChange={(e) => setSecondPairEnabled(e.target.checked)}
+                    onChange={async (e) => {
+                      setSecondPairEnabled(e.target.checked);
+                      // Auto-recalculate when second pair is toggled
+                      if (selectedProduct && (e.target.checked || !e.target.checked)) {
+                        try {
+                          const response = await fetch(
+                            `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                            {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                productId: selectedProduct,
+                                couponCode: appliedCouponCode || null,
+                                customerCategory: appliedCategory || null,
+                                secondPair: e.target.checked ? {
+                                  enabled: true,
+                                  firstPairTotal: selectedRec?.pricing.subtotal || 0,
+                                  secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
+                                  secondPairLensPrice: secondPairLensId 
+                                    ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
+                                    : (parseFloat(secondPairLensPrice) || 0),
+                                } : null,
+                              }),
+                            }
+                          );
+                          const result = await response.json();
+                          if (result.success) {
+                            setRecalculatedOffers(prev => ({
+                              ...prev,
+                              [selectedProduct]: result.data,
+                            }));
+                          }
+                        } catch (error) {
+                          console.error('Failed to recalculate on second pair toggle:', error);
+                        }
+                      }
+                    }}
                     className="w-6 h-6 rounded border-2 border-slate-600 bg-slate-700 text-emerald-500 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-800 cursor-pointer"
                   />
                   {secondPairEnabled && (
@@ -864,25 +1288,157 @@ export default function RecommendationsPage() {
                 <div className="mt-5 pt-4 border-t border-slate-700/50">
                   <p className="text-sm text-slate-300 mb-3 font-medium">Enter Second Pair Details:</p>
                   <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      label="Second Pair Frame MRP"
-                      type="number"
-                      placeholder="e.g., 1500"
-                      value={secondPairFrameMRP}
-                      onChange={(e) => setSecondPairFrameMRP(e.target.value)}
-                      className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white !placeholder:text-slate-500 focus:!border-purple-500 focus:!ring-purple-500/50 [&_input]:!bg-slate-700/80 [&_input]:!text-white"
-                      style={{ backgroundColor: 'rgba(51, 65, 85, 0.8)' }}
-                    />
-                    <Input
-                      label="Second Pair Lens Price"
-                      type="number"
-                      placeholder="e.g., 2000"
-                      value={secondPairLensPrice}
-                      onChange={(e) => setSecondPairLensPrice(e.target.value)}
-                      className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white !placeholder:text-slate-500 focus:!border-purple-500 focus:!ring-purple-500/50 [&_input]:!bg-slate-700/80 [&_input]:!text-white"
-                      style={{ backgroundColor: 'rgba(51, 65, 85, 0.8)' }}
-                    />
+                      <Input
+                        label="Second Pair Frame MRP"
+                        type="number"
+                        placeholder="e.g., 1500"
+                        value={secondPairFrameMRP}
+                        onChange={async (e) => {
+                          setSecondPairFrameMRP(e.target.value);
+                          
+                          // Auto-recalculate when frame MRP is entered and second pair is enabled
+                          if (selectedProduct && secondPairEnabled && e.target.value && parseFloat(e.target.value) > 0) {
+                            try {
+                              const response = await fetch(
+                                `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                                {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    productId: selectedProduct,
+                                    couponCode: appliedCouponCode || null,
+                                    customerCategory: appliedCategory || null,
+                                    secondPair: {
+                                      enabled: true,
+                                      firstPairTotal: selectedRec?.pricing.subtotal || 0,
+                                      secondPairFrameMRP: parseFloat(e.target.value) || 0,
+                                      secondPairLensPrice: secondPairLensId 
+                                        ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
+                                        : (parseFloat(secondPairLensPrice) || 0),
+                                    },
+                                  }),
+                                }
+                              );
+                              const result = await response.json();
+                              if (result.success) {
+                                setRecalculatedOffers(prev => ({
+                                  ...prev,
+                                  [selectedProduct]: result.data,
+                                }));
+                              }
+                            } catch (error) {
+                              console.error('Failed to recalculate on frame MRP change:', error);
+                            }
+                          }
+                        }}
+                        className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white !placeholder:text-slate-500 focus:!border-purple-500 focus:!ring-purple-500/50 [&_input]:!bg-slate-700/80 [&_input]:!text-white"
+                        style={{ backgroundColor: 'rgba(51, 65, 85, 0.8)' }}
+                      />
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                        Second Pair Lens
+                      </label>
+                      <Select
+                        value={secondPairLensId}
+                        onChange={async (e) => {
+                          const selectedLens = availableLenses.find(l => l.id === e.target.value);
+                          setSecondPairLensId(e.target.value);
+                          const newPrice = selectedLens ? selectedLens.price.toString() : '';
+                          setSecondPairLensPrice(newPrice);
+                          
+                          // Auto-recalculate when lens is selected and second pair is enabled
+                          if (selectedProduct && secondPairEnabled && e.target.value) {
+                            try {
+                              const response = await fetch(
+                                `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                                {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    productId: selectedProduct,
+                                    couponCode: appliedCouponCode || null,
+                                    customerCategory: appliedCategory || null,
+                                    secondPair: {
+                                      enabled: true,
+                                      firstPairTotal: selectedRec?.pricing.subtotal || 0,
+                                      secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
+                                      secondPairLensPrice: selectedLens ? selectedLens.price : 0,
+                                    },
+                                  }),
+                                }
+                              );
+                              const result = await response.json();
+                              if (result.success) {
+                                setRecalculatedOffers(prev => ({
+                                  ...prev,
+                                  [selectedProduct]: result.data,
+                                }));
+                              }
+                            } catch (error) {
+                              console.error('Failed to recalculate on lens selection:', error);
+                            }
+                          }
+                        }}
+                        options={[
+                          { value: '', label: 'Select Lens' },
+                          ...availableLenses.map((lens) => ({
+                            value: lens.id,
+                            label: `${lens.name} - ₹${lens.price.toLocaleString()}`,
+                          })),
+                        ]}
+                        className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
+                      />
+                    </div>
                   </div>
+                  {!secondPairLensId && (
+                    <div className="mt-2">
+                      <Input
+                        label="Or Enter Lens Price Manually"
+                        type="number"
+                        placeholder="e.g., 2000"
+                        value={secondPairLensPrice}
+                        onChange={async (e) => {
+                          setSecondPairLensId(''); // Clear selected lens when manual entry
+                          setSecondPairLensPrice(e.target.value);
+                          
+                          // Auto-recalculate when price is entered and second pair is enabled
+                          if (selectedProduct && secondPairEnabled && e.target.value && parseFloat(e.target.value) > 0) {
+                            try {
+                              const response = await fetch(
+                                `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                                {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    productId: selectedProduct,
+                                    couponCode: appliedCouponCode || null,
+                                    customerCategory: appliedCategory || null,
+                                    secondPair: {
+                                      enabled: true,
+                                      firstPairTotal: selectedRec?.pricing.subtotal || 0,
+                                      secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
+                                      secondPairLensPrice: parseFloat(e.target.value) || 0,
+                                    },
+                                  }),
+                                }
+                              );
+                              const result = await response.json();
+                              if (result.success) {
+                                setRecalculatedOffers(prev => ({
+                                  ...prev,
+                                  [selectedProduct]: result.data,
+                                }));
+                              }
+                            } catch (error) {
+                              console.error('Failed to recalculate on price change:', error);
+                            }
+                          }
+                        }}
+                        className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white !placeholder:text-slate-500 focus:!border-purple-500 focus:!ring-purple-500/50 [&_input]:!bg-slate-700/80 [&_input]:!text-white"
+                        style={{ backgroundColor: 'rgba(51, 65, 85, 0.8)' }}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -903,7 +1459,43 @@ export default function RecommendationsPage() {
               return (
                 <div
                   key={rec.id}
-                  onClick={() => setSelectedProduct(rec.id)}
+                  onClick={async () => {
+                    setSelectedProduct(rec.id);
+                    // If category discount is applied, recalculate offers for this product
+                    if (appliedCategory) {
+                      try {
+                        const response = await fetch(
+                          `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                          {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              productId: rec.id,
+                              couponCode: appliedCouponCode || null,
+                              customerCategory: appliedCategory,
+                              secondPair: secondPairEnabled ? {
+                                enabled: true,
+                                firstPairTotal: rec.pricing.subtotal || 0,
+                                secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
+                                secondPairLensPrice: secondPairLensId 
+                                  ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
+                                  : (parseFloat(secondPairLensPrice) || 0),
+                              } : null,
+                            }),
+                          }
+                        );
+                        const result = await response.json();
+                        if (result.success) {
+                          setRecalculatedOffers(prev => ({
+                            ...prev,
+                            [rec.id]: result.data,
+                          }));
+                        }
+                      } catch (error) {
+                        console.error('Failed to recalculate on product selection:', error);
+                      }
+                    }
+                  }}
                   className={`relative cursor-pointer rounded-2xl transition-all duration-300 overflow-hidden shadow-lg ${
                     isSelected
                       ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-900 scale-[1.02] shadow-emerald-500/20'
@@ -996,8 +1588,8 @@ export default function RecommendationsPage() {
                         </div>
                       )}
 
-                      {/* Available Offers Toggle */}
-                      {rec.offers && rec.offers.filter((o: any) => o.isApplicable).length > 0 && (
+                      {/* Available Offers Toggle - Only show if there are eligible offers (not already applied) */}
+                      {rec.offers && rec.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[rec.id]).length > 0 && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1007,7 +1599,7 @@ export default function RecommendationsPage() {
                         >
                           <span className="flex items-center gap-2 font-medium">
                             <Ticket size={16} className="text-yellow-400" />
-                            {rec.offers.filter((o: any) => o.isApplicable).length} offers available
+                            {rec.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[rec.id]).length} eligible offers
                           </span>
                           {expandedOffers === rec.id ? (
                             <ChevronUp size={18} className="text-yellow-400" />
@@ -1017,10 +1609,10 @@ export default function RecommendationsPage() {
                         </button>
                       )}
 
-                      {/* Offers List */}
-                      {expandedOffers === rec.id && rec.offers && rec.offers.filter((o: any) => o.isApplicable).length > 0 && (
+                      {/* Offers List - Only show eligible offers (not already applied) */}
+                      {expandedOffers === rec.id && rec.offers && rec.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[rec.id]).length > 0 && (
                         <div className="mt-3 space-y-2">
-                          {rec.offers.filter((o: any) => o.isApplicable).map((offer: any) => (
+                          {rec.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[rec.id]).map((offer: any) => (
                             <button
                               key={offer.code}
                               onClick={(e) => {
@@ -1168,47 +1760,92 @@ export default function RecommendationsPage() {
                           </div>
                         </div>
                         
-                        {/* Primary Offer */}
-                        {selectedPricing!.offer && (
-                          <div className="flex justify-between items-center text-sm bg-green-500/20 border border-green-500/40 rounded-lg px-3 py-2 text-green-300">
-                            <span className="flex items-center gap-2 font-medium">
-                              <Tag size={14} className="text-green-400" />
-                              {selectedPricing!.offer.title || selectedPricing!.offer.description}
-                            </span>
-                            <span className="font-bold text-green-400">-₹{Math.round(selectedPricing!.offer.savings || selectedPricing!.savings).toLocaleString()}</span>
-                          </div>
-                        )}
+                        {/* Applied Offers Section - Automatic Offers */}
+                        <div className="mt-3 space-y-2">
+                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Applied Offers</p>
+                          
+                          {/* Primary Offer (Automatic) */}
+                          {selectedPricing!.offer && (
+                            <div className="flex justify-between items-center text-sm bg-green-500/20 border border-green-500/40 rounded-lg px-3 py-2 text-green-300">
+                              <span className="flex items-center gap-2 font-medium">
+                                <Tag size={14} className="text-green-400" />
+                                {selectedPricing!.offer.title || selectedPricing!.offer.description}
+                              </span>
+                              <span className="font-bold text-green-400">-₹{Math.round(selectedPricing!.offer.savings || selectedPricing!.savings).toLocaleString()}</span>
+                            </div>
+                          )}
 
-                        {/* Category Discount */}
-                        {selectedPricing!.categoryDiscount && (
-                          <div className="flex justify-between items-center text-sm bg-blue-500/20 border border-blue-500/40 rounded-lg px-3 py-2 text-blue-300">
-                            <span className="flex items-center gap-2 font-medium">
-                              <Percent size={14} className="text-blue-400" />
-                              {selectedPricing!.categoryDiscount.description}
-                            </span>
-                            <span className="font-bold text-blue-400">-₹{Math.round(selectedPricing!.categoryDiscount.savings).toLocaleString()}</span>
-                          </div>
-                        )}
+                          {/* Category Discount (Automatic) */}
+                          {selectedPricing!.categoryDiscount && (
+                            <div className="flex justify-between items-center text-sm bg-blue-500/20 border border-blue-500/40 rounded-lg px-3 py-2 text-blue-300">
+                              <span className="flex items-center gap-2 font-medium">
+                                <Percent size={14} className="text-blue-400" />
+                                {selectedPricing!.categoryDiscount.description}
+                              </span>
+                              <span className="font-bold text-blue-400">-₹{Math.round(selectedPricing!.categoryDiscount.savings).toLocaleString()}</span>
+                            </div>
+                          )}
 
-                        {/* Coupon Discount */}
-                        {selectedPricing!.couponDiscount && (
-                          <div className="flex justify-between items-center text-sm bg-yellow-500/20 border border-yellow-500/40 rounded-lg px-3 py-2 text-yellow-300">
-                            <span className="flex items-center gap-2 font-medium">
-                              <Ticket size={14} className="text-yellow-400" />
-                              {selectedPricing!.couponDiscount.description}
-                            </span>
-                            <span className="font-bold text-yellow-400">-₹{Math.round(selectedPricing!.couponDiscount.savings).toLocaleString()}</span>
-                          </div>
-                        )}
+                          {/* Coupon Discount (Applied) */}
+                          {selectedPricing!.couponDiscount && (
+                            <div className="flex justify-between items-center text-sm bg-yellow-500/20 border border-yellow-500/40 rounded-lg px-3 py-2 text-yellow-300">
+                              <span className="flex items-center gap-2 font-medium">
+                                <Ticket size={14} className="text-yellow-400" />
+                                {selectedPricing!.couponDiscount.description}
+                              </span>
+                              <span className="font-bold text-yellow-400">-₹{Math.round(selectedPricing!.couponDiscount.savings).toLocaleString()}</span>
+                            </div>
+                          )}
 
-                        {/* Second Pair Discount */}
-                        {selectedPricing!.secondPairDiscount && (
-                          <div className="flex justify-between items-center text-sm bg-purple-500/20 border border-purple-500/40 rounded-lg px-3 py-2 text-purple-300">
-                            <span className="flex items-center gap-2 font-medium">
-                              <Package size={14} className="text-purple-400" />
-                              {selectedPricing!.secondPairDiscount.description}
-                            </span>
-                            <span className="font-bold text-purple-400">-₹{Math.round(selectedPricing!.secondPairDiscount.savings).toLocaleString()}</span>
+                          {/* Second Pair Discount (Applied) */}
+                          {selectedPricing!.secondPairDiscount && (
+                            <div className="flex justify-between items-center text-sm bg-purple-500/20 border border-purple-500/40 rounded-lg px-3 py-2 text-purple-300">
+                              <span className="flex items-center gap-2 font-medium">
+                                <Package size={14} className="text-purple-400" />
+                                {selectedPricing!.secondPairDiscount.description}
+                              </span>
+                              <span className="font-bold text-purple-400">-₹{Math.round(selectedPricing!.secondPairDiscount.savings).toLocaleString()}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Eligible Offers Section - User Can Select */}
+                        {selectedRec!.offers && selectedRec!.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[selectedRec!.id]).length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-slate-600/50">
+                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Eligible Offers</p>
+                            <div className="space-y-2">
+                              {selectedRec!.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[selectedRec!.id]).map((offer: any) => (
+                                <button
+                                  key={offer.code}
+                                  onClick={() => handleSelectOffer(selectedRec!.id, offer.code)}
+                                  className="w-full text-left p-3 rounded-lg border-2 border-slate-600 bg-slate-700/40 hover:border-yellow-500/50 hover:bg-yellow-500/5 transition-all"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <p className="text-sm font-semibold text-white">{offer.title || offer.description}</p>
+                                      {offer.description && offer.title && (
+                                        <p className="text-xs text-slate-400 mt-0.5">{offer.description}</p>
+                                      )}
+                                    </div>
+                                    {offer.discountAmount && offer.discountAmount > 0 && (
+                                      <span className="text-base font-bold text-green-400 whitespace-nowrap ml-3">
+                                        -₹{Math.round(offer.discountAmount).toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <span className="text-xs bg-slate-600/80 text-slate-200 px-2.5 py-1 rounded-md font-medium border border-slate-500">
+                                      Code: {offer.code}
+                                    </span>
+                                    {offer.minPurchase && (
+                                      <span className="text-xs text-slate-400 bg-slate-700/50 px-2 py-1 rounded">
+                                        Min: ₹{offer.minPurchase.toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         )}
 
@@ -1532,9 +2169,38 @@ export default function RecommendationsPage() {
                         </div>
                       </div>
                       <Button
-                        onClick={() => {
+                        onClick={async () => {
                           setSelectedProduct(rec.id);
                           setShowViewAllModal(false);
+                          
+                          // If category discount is applied, recalculate offers for this product
+                          if (appliedCategory) {
+                            try {
+                              const response = await fetch(
+                                `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                                {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    productId: rec.id,
+                                    couponCode: appliedCouponCode || null,
+                                    customerCategory: appliedCategory,
+                                    secondPair: null,
+                                  }),
+                                }
+                              );
+                              const result = await response.json();
+                              if (result.success) {
+                                setRecalculatedOffers(prev => ({
+                                  ...prev,
+                                  [rec.id]: result.data,
+                                }));
+                              }
+                            } catch (error) {
+                              console.error('Failed to recalculate on product selection:', error);
+                            }
+                          }
+                          
                           // Navigate to offer summary page
                           router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);
                         }}
