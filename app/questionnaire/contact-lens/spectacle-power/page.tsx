@@ -16,7 +16,6 @@ export default function SpectaclePowerPage() {
   const [loading, setLoading] = useState(false);
   const [convertedPower, setConvertedPower] = useState<any>(null);
   const [converting, setConverting] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   useEffect(() => {
     // Verify method selection
@@ -34,7 +33,9 @@ export default function SpectaclePowerPage() {
     }
   }, [setRx, router]);
 
-  // Real-time validation
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  // Real-time validation function
   const validateInput = () => {
     const errors: string[] = [];
 
@@ -87,6 +88,12 @@ export default function SpectaclePowerPage() {
     return errors.length === 0;
   };
 
+  // Real-time validation - runs automatically when rx values change
+  useEffect(() => {
+    validateInput();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rx.odSphere, rx.odCylinder, rx.odAxis, rx.odAdd, rx.osSphere, rx.osCylinder, rx.osAxis, rx.osAdd]);
+
   const handleConvert = async () => {
     // Validate prescription
     if (!validateInput()) {
@@ -126,8 +133,25 @@ export default function SpectaclePowerPage() {
         localStorage.setItem('lenstrack_cl_converted_power', JSON.stringify(data.data.contactLensPower));
         showToast('success', 'Power converted successfully');
       } else {
-        const errorMsg = data.error?.details?.[0] || data.error?.message || 'Failed to convert power';
-        setValidationErrors(data.error?.details || [errorMsg]);
+        // Extract error messages from details array (which might contain Zod error objects)
+        let errorMessages: string[] = [];
+        if (data.error?.details && Array.isArray(data.error.details)) {
+          errorMessages = data.error.details.map((detail: any) => {
+            if (typeof detail === 'string') {
+              return detail;
+            } else if (detail && typeof detail === 'object') {
+              // Handle Zod error issue objects
+              return detail.message || detail.path?.join('.') || JSON.stringify(detail);
+            }
+            return String(detail);
+          });
+        }
+        
+        const errorMsg = errorMessages[0] || data.error?.message || 'Failed to convert power';
+        if (errorMessages.length === 0) {
+          errorMessages = [errorMsg];
+        }
+        setValidationErrors(errorMessages);
         showToast('error', errorMsg);
       }
     } catch (error) {
@@ -144,9 +168,9 @@ export default function SpectaclePowerPage() {
       return;
     }
 
-    // Save and proceed to product selection
+    // Save and proceed to questionnaire
     localStorage.setItem('lenstrack_cl_final_power', JSON.stringify(convertedPower.contactLensPower));
-    router.push('/questionnaire/contact-lens');
+    router.push('/questionnaire/contact-lens/questionnaire');
   };
 
   return (
@@ -264,7 +288,11 @@ export default function SpectaclePowerPage() {
                 <h4 className="font-semibold text-red-900 mb-2">⚠️ Validation Errors:</h4>
                 <ul className="list-disc list-inside space-y-1">
                   {validationErrors.map((error, idx) => (
-                    <li key={idx} className="text-sm text-red-700">{error}</li>
+                    <li key={idx} className="text-sm text-red-700">
+                      {typeof error === 'string' ? error : typeof error === 'object' && error !== null
+                        ? (error as any).message || JSON.stringify(error)
+                        : String(error)}
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -280,37 +308,110 @@ export default function SpectaclePowerPage() {
 
             {/* Converted Power Display */}
             {convertedPower && (
-              <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-                <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                  <CheckCircle size={20} className="text-blue-600" />
-                  Your Contact Lens Power:
-                </h4>
-                <div className="space-y-3">
-                  <div className="bg-white rounded p-3">
-                    <div className="font-medium text-slate-700 mb-1">Right Eye (OD):</div>
-                    <div className="text-lg font-semibold text-blue-700">{convertedPower.formatted.od}</div>
-                    {convertedPower.conversionDetails?.vertexConversionApplied.od && (
-                      <div className="text-xs text-slate-500 mt-1">
-                        Vertex distance conversion applied (|SPH| &gt; 4.00D)
+              <div className="space-y-4">
+                <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+                  <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                    <CheckCircle size={20} className="text-blue-600" />
+                    Your Contact Lens Power:
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="bg-white rounded p-3">
+                      <div className="font-medium text-slate-700 mb-1">Right Eye (OD):</div>
+                      <div className="text-lg font-semibold text-blue-700">{convertedPower.formatted.od}</div>
+                      <div className="text-xs text-slate-500 mt-2 space-y-1">
+                        {convertedPower.conversionDetails?.conversionInfo.od.isToric && (
+                          <div>✓ Toric lens (|CYL| ≥ 0.75)</div>
+                        )}
+                        {convertedPower.conversionDetails?.conversionInfo.od.usedSphericalEquivalent && (
+                          <div>✓ Spherical equivalent used (|CYL| ≤ 0.50)</div>
+                        )}
+                        {convertedPower.conversionDetails?.vertexConversionApplied.od && (
+                          <div>✓ Vertex distance conversion applied (|SPH| ≥ 4.00D)</div>
+                        )}
+                        {convertedPower.conversionDetails?.addMappingApplied.od && (
+                          <div>✓ Multifocal ADD mapped: {convertedPower.conversionDetails?.conversionInfo.od.addCategory || 'N/A'}</div>
+                        )}
                       </div>
-                    )}
-                    {convertedPower.conversionDetails?.addMappingApplied.od && (
-                      <div className="text-xs text-slate-500 mt-1">
-                        Multifocal ADD mapped to standard range
+                    </div>
+                    <div className="bg-white rounded p-3">
+                      <div className="font-medium text-slate-700 mb-1">Left Eye (OS):</div>
+                      <div className="text-lg font-semibold text-blue-700">{convertedPower.formatted.os}</div>
+                      <div className="text-xs text-slate-500 mt-2 space-y-1">
+                        {convertedPower.conversionDetails?.conversionInfo.os.isToric && (
+                          <div>✓ Toric lens (|CYL| ≥ 0.75)</div>
+                        )}
+                        {convertedPower.conversionDetails?.conversionInfo.os.usedSphericalEquivalent && (
+                          <div>✓ Spherical equivalent used (|CYL| ≤ 0.50)</div>
+                        )}
+                        {convertedPower.conversionDetails?.vertexConversionApplied.os && (
+                          <div>✓ Vertex distance conversion applied (|SPH| ≥ 4.00D)</div>
+                        )}
+                        {convertedPower.conversionDetails?.addMappingApplied.os && (
+                          <div>✓ Multifocal ADD mapped: {convertedPower.conversionDetails?.conversionInfo.os.addCategory || 'N/A'}</div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
-                  <div className="bg-white rounded p-3">
-                    <div className="font-medium text-slate-700 mb-1">Left Eye (OS):</div>
-                    <div className="text-lg font-semibold text-blue-700">{convertedPower.formatted.os}</div>
-                    {convertedPower.conversionDetails?.vertexConversionApplied.os && (
-                      <div className="text-xs text-slate-500 mt-1">
-                        Vertex distance conversion applied (|SPH| &gt; 4.00D)
+                </div>
+
+                {/* Compatibility Summary */}
+                <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+                  <h4 className="font-semibold text-green-900 mb-3">Compatibility Summary</h4>
+                  <div className="space-y-2 text-sm">
+                    {/* Right Eye Summary */}
+                    {convertedPower.contactLensPower.od.sphere !== null && (
+                      <div className="bg-white rounded p-3">
+                        <div className="font-medium text-slate-700 mb-2">Right Eye (OD):</div>
+                        <div className="space-y-1 text-xs">
+                          {convertedPower.conversionDetails?.conversionInfo.od.isToric && (
+                            <>
+                              <div className="text-green-700">✓ Toric lenses required (CYL {convertedPower.contactLensPower.od.cylinder !== null ? convertedPower.contactLensPower.od.cylinder.toFixed(2) : 'N/A'})</div>
+                              {convertedPower.contactLensPower.od.axis !== null && (
+                                <div className="text-green-700">✓ Axis {convertedPower.contactLensPower.od.axis}° → Supported</div>
+                              )}
+                            </>
+                          )}
+                          {convertedPower.conversionDetails?.conversionInfo.od.usedSphericalEquivalent && (
+                            <div className="text-green-700">✓ Spherical lenses (SE applied)</div>
+                          )}
+                          {!convertedPower.conversionDetails?.conversionInfo.od.isToric && !convertedPower.conversionDetails?.conversionInfo.od.usedSphericalEquivalent && (
+                            <div className="text-green-700">✓ Spherical lenses</div>
+                          )}
+                          <div className="text-green-700">✓ Recommended CL Sphere: {convertedPower.contactLensPower.od.sphere >= 0 ? '+' : ''}{convertedPower.contactLensPower.od.sphere.toFixed(2)}</div>
+                          {convertedPower.contactLensPower.od.add !== null && convertedPower.contactLensPower.od.add > 0 ? (
+                            <div className="text-green-700">✓ ADD Category: {convertedPower.conversionDetails?.conversionInfo.od.addCategory || 'N/A'}</div>
+                          ) : (
+                            <div className="text-slate-600">✓ ADD: Not required</div>
+                          )}
+                        </div>
                       </div>
                     )}
-                    {convertedPower.conversionDetails?.addMappingApplied.os && (
-                      <div className="text-xs text-slate-500 mt-1">
-                        Multifocal ADD mapped to standard range
+                    {/* Left Eye Summary */}
+                    {convertedPower.contactLensPower.os.sphere !== null && (
+                      <div className="bg-white rounded p-3">
+                        <div className="font-medium text-slate-700 mb-2">Left Eye (OS):</div>
+                        <div className="space-y-1 text-xs">
+                          {convertedPower.conversionDetails?.conversionInfo.os.isToric && (
+                            <>
+                              <div className="text-green-700">✓ Toric lenses required (CYL {convertedPower.contactLensPower.os.cylinder !== null ? convertedPower.contactLensPower.os.cylinder.toFixed(2) : 'N/A'})</div>
+                              {convertedPower.contactLensPower.os.axis !== null && (
+                                <div className="text-green-700">✓ Axis {convertedPower.contactLensPower.os.axis}° → Supported</div>
+                              )}
+                            </>
+                          )}
+                          {convertedPower.conversionDetails?.conversionInfo.os.usedSphericalEquivalent && (
+                            <div className="text-green-700">✓ Spherical lenses (SE applied)</div>
+                          )}
+                          {!convertedPower.conversionDetails?.conversionInfo.os.isToric && !convertedPower.conversionDetails?.conversionInfo.os.usedSphericalEquivalent && (
+                            <div className="text-green-700">✓ Spherical lenses</div>
+                          )}
+                          <div className="text-green-700">✓ Recommended CL Sphere: {convertedPower.contactLensPower.os.sphere >= 0 ? '+' : ''}{convertedPower.contactLensPower.os.sphere.toFixed(2)}</div>
+                          {convertedPower.contactLensPower.os.add !== null && convertedPower.contactLensPower.os.add > 0 ? (
+                            <div className="text-green-700">✓ ADD Category: {convertedPower.conversionDetails?.conversionInfo.os.addCategory || 'N/A'}</div>
+                          ) : (
+                            <div className="text-slate-600">✓ ADD: Not required</div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

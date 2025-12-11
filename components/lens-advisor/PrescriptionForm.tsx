@@ -356,26 +356,6 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
           </p>
         </div>
 
-      {/* Vision Type Suggestion */}
-      <div>
-        <Select
-          label="Vision Type (auto-suggested, can override)"
-          value={rx.visionType || getVisionType() || ''}
-          onChange={(e) => handleVisionTypeChange(e.target.value)}
-          options={[
-            { value: '', label: 'Auto-detect' },
-            { value: 'SINGLE_VISION', label: 'Single Vision' },
-            { value: 'BIFOCAL', label: 'Bifocal' },
-            { value: 'PROGRESSIVE', label: 'Progressive' },
-          ]}
-        />
-        {!showAddFields && (
-          <p className="text-sm text-slate-500 mt-1">
-            ℹ️ ADD field is not available for Single Vision. Switch to Bifocal or Progressive to enter ADD values.
-          </p>
-        )}
-      </div>
-
         {/* Vision Type Suggestion */}
         <div>
           <Select

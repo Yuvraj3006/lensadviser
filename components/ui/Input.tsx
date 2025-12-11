@@ -66,7 +66,9 @@ export const Input = forwardRef<HTMLInputElement | HTMLTextAreaElement, InputPro
 
         {error && (
           <p id={`${props.id}-error`} className="mt-1.5 text-sm text-red-600" role="alert">
-            {error}
+            {typeof error === 'string' ? error : typeof error === 'object' && error !== null
+              ? (error as any).message || JSON.stringify(error)
+              : String(error)}
           </p>
         )}
 

@@ -193,6 +193,20 @@ export default function ContactLensAddOnsPage() {
 
   const selectedAddOnsList = addOns.filter(a => selectedAddOns.has(a.id));
   const addOnsTotal = selectedAddOnsList.reduce((sum, a) => sum + a.price, 0);
+  
+  // Check for combo offers
+  const hasSolution = selectedAddOnsList.some(a => a.category === 'SOLUTION');
+  const hasCL = contactLensData !== null;
+  const comboDiscount = (hasSolution && hasCL) ? 150 : 0;
+  const finalAddOnsTotal = addOnsTotal - comboDiscount;
+
+  // Group add-ons by category
+  const groupedAddOns = {
+    SOLUTION: addOns.filter(a => a.category === 'SOLUTION'),
+    DROPS: addOns.filter(a => a.category === 'DROPS'),
+    CASE: addOns.filter(a => a.category === 'CASE'),
+    KIT: addOns.filter(a => a.category === 'KIT'),
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
@@ -204,48 +218,210 @@ export default function ContactLensAddOnsPage() {
           </h1>
           <p className="text-slate-300 mb-6">Enhance your contact lens experience</p>
 
-          <div className="bg-white rounded-xl p-6 space-y-4 mb-6">
-            {addOns.map((addOn) => {
-              const isSelected = selectedAddOns.has(addOn.id);
-              return (
-                <button
-                  key={addOn.id}
-                  type="button"
-                  onClick={() => toggleAddOn(addOn.id)}
-                  className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                    isSelected
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleAddOn(addOn.id)}
-                          className="w-5 h-5 text-blue-500"
-                        />
-                        <h3 className="font-semibold text-slate-900">{addOn.name}</h3>
-                      </div>
-                      <p className="text-sm text-slate-600 ml-8">{addOn.description}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-slate-900">₹{addOn.price}</div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+          {/* Combo Offer Banner */}
+          {hasCL && (
+            <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={20} />
+                <span className="font-semibold">Special Offer: Contact Lens + Solution → ₹150 OFF</span>
+              </div>
+              <p className="text-sm mt-1 opacity-90">Add a solution to your order to unlock this discount!</p>
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl p-6 space-y-6 mb-6">
+            {/* Contact Lens Solution */}
+            {groupedAddOns.SOLUTION.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 mb-3">Contact Lens Solution</h2>
+                <div className="space-y-3">
+                  {groupedAddOns.SOLUTION.map((addOn) => {
+                    const isSelected = selectedAddOns.has(addOn.id);
+                    return (
+                      <button
+                        key={addOn.id}
+                        type="button"
+                        onClick={() => toggleAddOn(addOn.id)}
+                        className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-1">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleAddOn(addOn.id)}
+                                className="w-5 h-5 text-blue-500"
+                              />
+                              <h3 className="font-semibold text-slate-900">{addOn.name}</h3>
+                              {hasCL && isSelected && (
+                                <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded">
+                                  Combo Offer Applied
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-slate-600 ml-8">{addOn.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-slate-900">₹{addOn.price}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Eye Drops */}
+            {groupedAddOns.DROPS.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 mb-3">Lubricating Eye Drops</h2>
+                <div className="space-y-3">
+                  {groupedAddOns.DROPS.map((addOn) => {
+                    const isSelected = selectedAddOns.has(addOn.id);
+                    return (
+                      <button
+                        key={addOn.id}
+                        type="button"
+                        onClick={() => toggleAddOn(addOn.id)}
+                        className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-1">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleAddOn(addOn.id)}
+                                className="w-5 h-5 text-blue-500"
+                              />
+                              <h3 className="font-semibold text-slate-900">{addOn.name}</h3>
+                            </div>
+                            <p className="text-sm text-slate-600 ml-8">{addOn.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-slate-900">₹{addOn.price}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Lens Cases */}
+            {groupedAddOns.CASE.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 mb-3">Lens Cases</h2>
+                <div className="space-y-3">
+                  {groupedAddOns.CASE.map((addOn) => {
+                    const isSelected = selectedAddOns.has(addOn.id);
+                    return (
+                      <button
+                        key={addOn.id}
+                        type="button"
+                        onClick={() => toggleAddOn(addOn.id)}
+                        className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-1">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleAddOn(addOn.id)}
+                                className="w-5 h-5 text-blue-500"
+                              />
+                              <h3 className="font-semibold text-slate-900">{addOn.name}</h3>
+                            </div>
+                            <p className="text-sm text-slate-600 ml-8">{addOn.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-slate-900">₹{addOn.price}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Travel Kits */}
+            {groupedAddOns.KIT.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 mb-3">Travel Kits</h2>
+                <div className="space-y-3">
+                  {groupedAddOns.KIT.map((addOn) => {
+                    const isSelected = selectedAddOns.has(addOn.id);
+                    return (
+                      <button
+                        key={addOn.id}
+                        type="button"
+                        onClick={() => toggleAddOn(addOn.id)}
+                        className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-1">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleAddOn(addOn.id)}
+                                className="w-5 h-5 text-blue-500"
+                              />
+                              <h3 className="font-semibold text-slate-900">{addOn.name}</h3>
+                            </div>
+                            <p className="text-sm text-slate-600 ml-8">{addOn.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-slate-900">₹{addOn.price}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Summary */}
           {selectedAddOnsList.length > 0 && (
             <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200 mb-6">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-700 font-medium">Add-ons Total:</span>
-                <span className="text-xl font-bold text-blue-700">₹{addOnsTotal.toLocaleString()}</span>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-700 font-medium">Add-ons Subtotal:</span>
+                  <span className="text-lg font-semibold text-slate-900">₹{addOnsTotal.toLocaleString()}</span>
+                </div>
+                {comboDiscount > 0 && (
+                  <div className="flex justify-between items-center text-green-600">
+                    <span className="font-medium">Combo Discount:</span>
+                    <span className="font-semibold">-₹{comboDiscount.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-2 border-t border-blue-200">
+                  <span className="text-slate-700 font-semibold">Add-ons Total:</span>
+                  <span className="text-xl font-bold text-blue-700">₹{finalAddOnsTotal.toLocaleString()}</span>
+                </div>
               </div>
             </div>
           )}

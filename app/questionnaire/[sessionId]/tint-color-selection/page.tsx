@@ -166,12 +166,13 @@ export default function TintColorSelectionPage() {
     const savedLensType = localStorage.getItem('lenstrack_lens_type');
     const isPowerSunglasses = savedLensType === 'SUNGLASSES';
     
-    if (isPowerSunglasses && !selectedLens) {
-      // After prescription → tint selection → frame entry
-      router.push('/questionnaire/frame');
-    } else if (selectedLens) {
+    if (selectedLens) {
       // After lens selection → tint selection → offer summary
       router.push(`/questionnaire/${sessionId}/offer-summary/${selectedLens.id}`);
+    } else if (isPowerSunglasses && !selectedLens) {
+      // After prescription → frame entry → tint selection → recommendations
+      // Frame has already been entered, so go directly to recommendations
+      router.push(`/questionnaire/${sessionId}/recommendations`);
     } else {
       router.push(`/questionnaire/${sessionId}/recommendations`);
     }

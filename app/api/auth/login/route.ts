@@ -104,8 +104,8 @@ export async function POST(request: NextRequest) {
       storeId: user.storeId,
     });
 
-    // Return user data and token
-    return Response.json({
+    // Return user data and token with cookie
+    const response = Response.json({
       success: true,
       data: {
         token,
@@ -120,6 +120,15 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Set token in cookie for direct browser access support
+    // Cookie expires in 7 days (same as JWT expiry)
+    response.headers.set(
+      'Set-Cookie',
+      `lenstrack_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`
+    );
+
+    return response;
   } catch (error) {
     console.error('Login API Error:', error);
     if (error instanceof Error) {

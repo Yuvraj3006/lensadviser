@@ -59,7 +59,7 @@ export async function POST(
       throw new ValidationError('Invalid JSON in request body');
     }
 
-    const { productId, couponCode, secondPair, customerCategory } = body;
+    const { productId, couponCode, secondPair, customerCategory, accessories } = body;
 
     if (!productId) {
       throw new ValidationError('Product ID is required');
@@ -152,6 +152,21 @@ export async function POST(
     const frameData = sessionNotes?.frame;
     const isOnlyLens = !frameData || !frameData.brand || frameData.mrp === 0;
 
+    // Extract prescription data from session
+    // Prescription can be in sessionNotes.prescription or from request body
+    const prescriptionData = body.prescription || sessionNotes?.prescription;
+    let prescriptionInput = null;
+    if (prescriptionData) {
+      // Convert from odSphere/osSphere format to rSph/lSph format
+      prescriptionInput = {
+        rSph: prescriptionData.rSph ?? prescriptionData.odSphere ?? null,
+        rCyl: prescriptionData.rCyl ?? prescriptionData.odCylinder ?? null,
+        lSph: prescriptionData.lSph ?? prescriptionData.osSphere ?? null,
+        lCyl: prescriptionData.lCyl ?? prescriptionData.osCylinder ?? null,
+        add: prescriptionData.add ?? prescriptionData.odAdd ?? prescriptionData.osAdd ?? null,
+      };
+    }
+
     // Prepare inputs for Offer Engine
     // For "Only Lens" flow, frame is optional/null
     let frameInput: FrameInput | null = null;
@@ -180,13 +195,20 @@ export async function POST(
     // Use customerCategory from request body if provided, otherwise from session
     const finalCustomerCategory = customerCategory || (session.customerCategory as any) || null;
     
+    // Prepare otherItems with accessories if provided
+    const otherItems = accessories && Array.isArray(accessories) && accessories.length > 0
+      ? accessories
+      : undefined;
+
     const offerResult = await offerEngineService.calculateOffers({
       frame: frameInput, // null for lens-only flow
       lens: lensInput,
+      prescription: prescriptionInput,
       customerCategory: finalCustomerCategory,
       couponCode: couponCode || null,
       secondPair: secondPair || null,
       organizationId,
+      otherItems, // Include accessories in offer calculation
     });
 
     // Serialize the offer result to handle any BigInt or Date fields

@@ -1,14 +1,21 @@
 import { NextRequest } from 'next/server';
-import { verifyToken, extractTokenFromHeader, TokenPayload } from '@/lib/auth';
+import { verifyToken, extractTokenFromHeader, extractTokenFromCookie, TokenPayload } from '@/lib/auth';
 import { AuthError, ForbiddenError } from '@/lib/errors';
 import { UserRole } from '@/lib/constants';
 
 export async function authenticate(request: NextRequest): Promise<TokenPayload> {
+  // Try to get token from Authorization header first
   const authHeader = request.headers.get('Authorization');
-  const token = extractTokenFromHeader(authHeader);
+  let token = extractTokenFromHeader(authHeader);
+
+  // If no token in header, try to get from cookie
+  if (!token) {
+    const cookieHeader = request.headers.get('Cookie');
+    token = extractTokenFromCookie(cookieHeader);
+  }
 
   if (!token) {
-    throw new AuthError('No token provided');
+    throw new AuthError('No token provided. Please ensure you are logged in and the token is included in the Authorization header or cookie.');
   }
 
   try {

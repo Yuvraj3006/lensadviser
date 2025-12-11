@@ -1,13 +1,35 @@
 import { PrismaClient } from '@prisma/client';
 
+// #region agent log
+console.log('[DEBUG] lib/prisma.ts: Module loading started', { hasDatabaseUrl: !!process.env.DATABASE_URL });
+// #endregion
+
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 // Enhanced Prisma client with better connection handling
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
+// Standard Next.js Prisma pattern
+// #region agent log
+console.log('[DEBUG] lib/prisma.ts: Before PrismaClient creation', { hasGlobalPrisma: !!globalForPrisma.prisma });
+// #endregion
+
+let prismaInstance: PrismaClient;
+try {
+  prismaInstance = globalForPrisma.prisma || new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
+  // #region agent log
+  console.log('[DEBUG] lib/prisma.ts: PrismaClient created successfully', { isNew: !globalForPrisma.prisma });
+  // #endregion
+} catch (error: any) {
+  // #region agent log
+  console.error('[DEBUG] lib/prisma.ts: PrismaClient creation failed', { error: error?.message, stack: error?.stack });
+  // #endregion
+  throw error;
+}
+
+export const prisma = prismaInstance;
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 // Connection health check with retry
 let connectionRetries = 0;
@@ -32,13 +54,13 @@ async function ensureConnection() {
 }
 
 // Try to establish connection on startup
-if (process.env.NODE_ENV !== 'production') {
-  ensureConnection().catch(() => {
-    // Connection will be retried on first query
-  });
-}
+// Disabled to prevent blocking module load - connection will be established on first query
+// if (process.env.NODE_ENV !== 'production') {
+//   ensureConnection().catch(() => {
+//     // Connection will be retried on first query
+//   });
+// }
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 // Export connection helper
 export { ensureConnection };

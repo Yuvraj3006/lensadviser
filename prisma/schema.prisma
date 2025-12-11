@@ -84,6 +84,8 @@ type OrderLensData {
   finalLensPrice   Int? // Final price after band pricing
   powerBand        Json? // Power band information
   bandExtra        Int? // Extra charge from band pricing
+  rxAddOnBreakdown Json? // Array of applied RX add-on charges with details
+  totalRxAddOn     Int? // Total RX add-on charge
   tint             Json? // Tint selection data
   mirror           Json? // Mirror coating data
   thicknessWarning Boolean? // Thickness warning flag
@@ -484,6 +486,7 @@ model LensProduct {
   visionType     VisionType
   lensIndex      LensIndex
   tintOption     TintOption
+  mrp            Float?                     // MRP (Maximum Retail Price) - optional for backward compatibility
   baseOfferPrice Float
   addOnPrice     Float?
   category       LensCategory
@@ -499,6 +502,7 @@ model LensProduct {
   tintColors     LensProductTintColor[]
   mirrorCoatings LensProductMirrorCoating[]
   bandPricing    LensBandPricing[]
+  powerAddOnPricing LensPowerAddOnPricing[]
 
   @@index([brandLine])
   @@index([visionType])
@@ -537,6 +541,24 @@ model LensBandPricing {
 
   @@index([lensId])
   @@index([isActive])
+}
+
+// Combined RX Add-On Pricing - SPH + CYL + ADD based pricing
+model LensPowerAddOnPricing {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  lensId      String      @db.ObjectId
+  sphMin      Float?      // SPH minimum (null = ANY)
+  sphMax      Float?      // SPH maximum (null = ANY)
+  cylMin      Float?      // CYL minimum (null = ANY)
+  cylMax      Float?      // CYL maximum (null = ANY)
+  addMin      Float?      // ADD minimum (null = ANY, optional)
+  addMax      Float?      // ADD maximum (null = ANY, optional)
+  extraCharge Int         // Extra charge in ₹
+  createdAt   DateTime    @default(now()) @db.Date
+  updatedAt   DateTime    @updatedAt @db.Date
+  lens        LensProduct @relation(fields: [lensId], references: [id], onDelete: Cascade)
+
+  @@index([lensId])
 }
 
 enum TintColorCategory {
@@ -664,6 +686,7 @@ model ContactLensProduct {
   addMax       Float?
   isColorLens  Boolean             @default(false)
   colorOptions String? // JSON array of color names
+  benefitScores String? // JSON object: { "B01": 2.5, "B02": 3.0 } - Benefit code to score mapping (0-3 scale)
   isActive     Boolean             @default(true)
   createdAt    DateTime            @default(now()) @db.Date
   updatedAt    DateTime            @updatedAt @db.Date

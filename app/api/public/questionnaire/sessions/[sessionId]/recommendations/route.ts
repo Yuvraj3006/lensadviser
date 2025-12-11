@@ -40,9 +40,28 @@ export async function GET(
     }
 
     // Check if session has answers before generating recommendations
+    // For ACCESSORIES category, answers are not required
     const answerCount = await prisma.sessionAnswer.count({
       where: { sessionId },
     });
+
+    // If ACCESSORIES category, return empty recommendations (accessories are handled separately)
+    // Check both exact match and case-insensitive match
+    const sessionCategory = String(session.category || '').toUpperCase();
+    if (sessionCategory === 'ACCESSORIES') {
+      console.log(`[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] ACCESSORIES category detected, returning empty recommendations`);
+      return Response.json({
+        success: true,
+        data: {
+          recommendations: [],
+          benefitScores: {},
+          generatedAt: new Date().toISOString(),
+          store: store,
+          sessionStatus: session.status,
+          message: 'Accessories are available on the accessories page.',
+        },
+      });
+    }
 
     if (answerCount === 0) {
       return Response.json({

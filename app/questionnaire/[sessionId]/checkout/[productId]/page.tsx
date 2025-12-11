@@ -80,6 +80,7 @@ export default function CheckoutPage() {
   const [checkoutData, setCheckoutData] = useState<CheckoutData | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [accessories, setAccessories] = useState<any[]>([]);
   
   // Form fields
   const [customerName, setCustomerName] = useState('');
@@ -142,7 +143,21 @@ export default function CheckoutPage() {
       // Get frame data from localStorage
       const frameData = JSON.parse(localStorage.getItem('lenstrack_frame') || '{}');
       
-      // Calculate offers using offer engine
+      // Load accessories if any
+      const savedAccessories = localStorage.getItem(`lenstrack_accessories_${sessionId}`);
+      const accessoriesList = savedAccessories ? JSON.parse(savedAccessories) : [];
+      setAccessories(accessoriesList);
+      
+      // Prepare otherItems with accessories for offer calculation
+      const otherItems = accessoriesList.map((acc: any) => ({
+        type: 'ACCESSORY' as const,
+        brand: acc.brand?.name || acc.name,
+        mrp: acc.mrp || acc.price,
+        finalPrice: acc.price,
+        quantity: 1,
+      }));
+      
+      // Calculate offers using offer engine (include accessories)
       const offersResponse = await fetch(
         `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
         {
@@ -152,6 +167,7 @@ export default function CheckoutPage() {
             productId: productId,
             couponCode: null,
             secondPair: null,
+            accessories: otherItems.length > 0 ? otherItems : undefined,
           }),
         }
       );
@@ -244,6 +260,24 @@ export default function CheckoutPage() {
 
     setCreating(true);
     try {
+      // Include RX add-on breakdown in lensData
+      const lensDataWithAddOn = {
+        ...checkoutData.selectedLens,
+        rxAddOnBreakdown: checkoutData.offerResult.rxAddOnBreakdown || null,
+        totalRxAddOn: checkoutData.offerResult.totalRxAddOn || null,
+      };
+
+      // Include accessories in offerData if any
+      const offerDataWithAccessories = {
+        ...checkoutData.offerResult,
+        accessories: accessories.length > 0 ? accessories.map((acc: any) => ({
+          id: acc.id,
+          name: acc.name,
+          price: acc.price,
+          mrp: acc.mrp || acc.price,
+        })) : undefined,
+      };
+
       const response = await fetch('/api/order/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -255,8 +289,8 @@ export default function CheckoutPage() {
           customerName: customerName || null,
           customerPhone: customerPhone || null,
           frameData: checkoutData.selectedFrame,
-          lensData: checkoutData.selectedLens,
-          offerData: checkoutData.offerResult,
+          lensData: lensDataWithAddOn,
+          offerData: offerDataWithAccessories,
           finalPrice: checkoutData.offerResult.finalPayable,
         }),
       });
@@ -273,7 +307,7 @@ export default function CheckoutPage() {
           status: data.data.status,
           createdAt: data.data.createdAt,
           frameData: checkoutData.selectedFrame,
-          lensData: checkoutData.selectedLens,
+          lensData: lensDataWithAddOn,
           offerData: checkoutData.offerResult, // Save complete offer data
           customerName: customerName || null,
           customerPhone: customerPhone || null,
@@ -399,6 +433,18 @@ export default function CheckoutPage() {
                   <span className="text-slate-400">Lens Price</span>
                   <span className="text-white font-medium">₹{Math.round(checkoutData.offerResult.lensPrice).toLocaleString()}</span>
                 </div>
+                {/* Accessories */}
+                {accessories.length > 0 && (
+                  <>
+                    {accessories.map((acc: any) => (
+                      <div key={acc.id} className="flex justify-between text-sm">
+                        <span className="text-slate-400">+ {acc.name}</span>
+                        <span className="text-white font-medium">₹{Math.round(acc.price || 0).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+                
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400">Subtotal</span>
                   <span className="text-white font-medium">₹{Math.round(checkoutData.offerResult.baseTotal).toLocaleString()}</span>

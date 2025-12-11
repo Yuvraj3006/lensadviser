@@ -12,7 +12,9 @@ import {
   UpsellSuggestion,
   ContactLensItem,
   AccessoryItem,
+  RxAddOnBreakdown,
 } from '@/types/offer-engine';
+import { rxAddOnPricingService } from './rx-addon-pricing.service';
 // DiscountType and OfferType are string fields, not enums in Prisma
 const DiscountType = {
   PERCENTAGE: 'PERCENTAGE',
@@ -48,7 +50,15 @@ export class OfferEngineService {
     
     const frameMRP = frame?.mrp || 0; // Default to 0 for lens-only flow
     const lensPrice = lens?.price || 0;
-    const baseTotal = frameMRP + lensPrice;
+    
+    // Add accessories to base total if provided
+    const accessoriesTotal = otherItems 
+      ? otherItems
+          .filter(item => item.type === 'ACCESSORY')
+          .reduce((sum, item) => sum + item.finalPrice, 0)
+      : 0;
+    
+    const baseTotal = frameMRP + lensPrice + accessoriesTotal;
     const isLensOnly = !frame || frameMRP === 0;
 
     // Initialize result structure
@@ -57,6 +67,18 @@ export class OfferEngineService {
       priceComponents.push({ label: 'Frame MRP', amount: frameMRP });
     }
     priceComponents.push({ label: 'Lens Offer Price', amount: lensPrice });
+    
+    // Add accessories to price components
+    if (otherItems) {
+      otherItems
+        .filter(item => item.type === 'ACCESSORY')
+        .forEach(item => {
+          priceComponents.push({ 
+            label: `Accessory - ${item.brand}`, 
+            amount: item.finalPrice 
+          });
+        });
+    }
 
     let effectiveBase = baseTotal;
     const offersApplied: OfferApplied[] = [];
@@ -309,9 +331,49 @@ export class OfferEngineService {
       console.warn('[OfferEngine] Bonus product query failed:', bonusError?.message);
     }
 
-    const finalPayable = Math.max(0, Math.round(effectiveBase));
+    // 6. RX ADD-ON PRICING (Non-discountable)
+    // Calculate RX add-on charges based on combined SPH + CYL + ADD ranges
+    // These charges are added AFTER discounts and are NOT discountable
+    let rxAddOnBreakdown: RxAddOnBreakdown[] = [];
+    let totalRxAddOn = 0;
+    
+    if (input.prescription && input.lens?.itCode) {
+      try {
+        // Get lens product to find lensId
+        const lensProduct = await prisma.lensProduct.findUnique({
+          where: { itCode: input.lens.itCode },
+        });
 
-    // 6. DYNAMIC UPSELL ENGINE (DUE) - Evaluates AFTER all discounts
+        if (lensProduct) {
+          const rxAddOnResult = await rxAddOnPricingService.calculateRxAddOnPricing(
+            lensProduct.id,
+            input.prescription,
+            'HIGHEST_ONLY' // Business rule: Apply only highest matching band
+          );
+
+          if (rxAddOnResult.addOnApplied && rxAddOnResult.totalAddOn > 0) {
+            totalRxAddOn = rxAddOnResult.totalAddOn;
+            rxAddOnBreakdown = rxAddOnResult.breakdown;
+
+            // Add to price components (for display)
+            rxAddOnResult.breakdown.forEach((item) => {
+              priceComponents.push({
+                label: item.label,
+                amount: item.charge,
+              });
+            });
+          }
+        }
+      } catch (rxAddOnError: any) {
+        console.warn('[OfferEngine] RX add-on pricing calculation failed:', rxAddOnError?.message);
+      }
+    }
+
+    // Calculate final payable: effectiveBase (after discounts) + RX add-on charges
+    // RX add-on charges are NOT discountable
+    const finalPayable = Math.max(0, Math.round(effectiveBase + totalRxAddOn));
+
+    // 7. DYNAMIC UPSELL ENGINE (DUE) - Evaluates AFTER all discounts
     // Does not modify totals, only suggests upsell opportunities
     const upsell = await this.evaluateUpsellEngine(
       organizationId,
@@ -332,6 +394,8 @@ export class OfferEngineService {
       couponError: couponError || null,
       secondPairDiscount,
       bonusProduct, // Bonus free product (if applicable)
+      rxAddOnBreakdown: rxAddOnBreakdown.length > 0 ? rxAddOnBreakdown : undefined,
+      totalRxAddOn: totalRxAddOn > 0 ? totalRxAddOn : undefined,
       finalPayable,
       upsell, // V3: Dynamic Upsell Engine result
     };
@@ -1045,6 +1109,37 @@ export class OfferEngineService {
             break; // Apply only first applicable combo
           }
         }
+      }
+    }
+    
+    // 1.5. APPLY QUANTITY-BASED OFFERS (Buy 2 boxes → 15% OFF, Buy 4+ boxes → 10% OFF)
+    const totalCLQuantity = clItems.reduce((sum, cl) => sum + (cl.quantity || 1), 0);
+    if (totalCLQuantity >= 2) {
+      const clTotal = clItems.reduce((sum, cl) => sum + cl.finalPrice, 0);
+      let quantityDiscount = 0;
+      let discountDescription = '';
+      
+      if (totalCLQuantity >= 4) {
+        // Buy 4+ boxes → 10% OFF
+        quantityDiscount = clTotal * 0.10;
+        discountDescription = 'Buy 4+ Boxes - 10% OFF';
+      } else if (totalCLQuantity >= 2) {
+        // Buy 2 boxes → 15% OFF
+        quantityDiscount = clTotal * 0.15;
+        discountDescription = 'Buy 2 Boxes - 15% OFF';
+      }
+      
+      if (quantityDiscount > 0) {
+        effectiveBase -= quantityDiscount;
+        offersApplied.push({
+          ruleCode: 'CL_QUANTITY_OFFER',
+          description: discountDescription,
+          savings: quantityDiscount,
+        });
+        priceComponents.push({
+          label: discountDescription,
+          amount: -quantityDiscount,
+        });
       }
     }
     

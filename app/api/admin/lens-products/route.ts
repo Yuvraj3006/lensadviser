@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
           tintOption: product.tintOption,
           category: product.category,
           deliveryDays: product.deliveryDays,
-          mrp: product.baseOfferPrice, // Map baseOfferPrice to mrp for frontend compatibility
+          mrp: product.mrp || product.baseOfferPrice, // Use actual MRP if available
           offerPrice: product.baseOfferPrice,
           baseOfferPrice: product.baseOfferPrice,
           addOnPrice: product.addOnPrice,
@@ -190,6 +190,7 @@ export async function POST(request: NextRequest) {
 
     // Create lens product
     const baseOfferPrice = validated.baseOfferPrice || validated.offerPrice || 0;
+    const mrp = validated.mrp || baseOfferPrice; // Use MRP if provided, otherwise use baseOfferPrice as MRP
     const lens = await prisma.lensProduct.create({
       data: {
         itCode: validated.itCode,
@@ -198,6 +199,7 @@ export async function POST(request: NextRequest) {
         visionType: validated.type as VisionType,
         lensIndex: validated.index as LensIndex,
         tintOption: validated.tintOption as any,
+        mrp: mrp || null, // Save MRP
         baseOfferPrice: baseOfferPrice,
         addOnPrice: validated.addOnPrice || null,
         category: validated.category as any || 'STANDARD',
@@ -232,6 +234,7 @@ export async function POST(request: NextRequest) {
         lensIndex: lens.lensIndex,
         tintOption: lens.tintOption,
         category: lens.category,
+        mrp: lens.mrp,
         baseOfferPrice: lens.baseOfferPrice,
         addOnPrice: lens.addOnPrice,
         yopoEligible: lens.yopoEligible,

@@ -4,14 +4,14 @@ import { z } from 'zod';
 
 const convertPowerSchema = z.object({
   spectaclePower: z.object({
-    odSphere: z.number().optional(),
-    odCylinder: z.number().optional(),
-    odAxis: z.number().optional(),
-    odAdd: z.number().optional(),
-    osSphere: z.number().optional(),
-    osCylinder: z.number().optional(),
-    osAxis: z.number().optional(),
-    osAdd: z.number().optional(),
+    odSphere: z.number().nullable().optional(),
+    odCylinder: z.number().nullable().optional(),
+    odAxis: z.number().nullable().optional(),
+    odAdd: z.number().nullable().optional(),
+    osSphere: z.number().nullable().optional(),
+    osCylinder: z.number().nullable().optional(),
+    osAxis: z.number().nullable().optional(),
+    osAdd: z.number().nullable().optional(),
   }),
 });
 
@@ -19,47 +19,41 @@ const convertPowerSchema = z.object({
  * POST /api/contact-lens/convert-power
  * Convert spectacle power to contact lens power
  * 
- * Conversion rules:
- * - SPH: Apply vertex distance compensation to ALL powers
- *   Formula: CL_SPH = SPH / (1 - (vertex_distance * SPH))
- *   Default vertex distance: 12mm (0.012m)
- *   Result rounded to nearest 0.25D
- * - CYL: Cylinder power remains the same (no vertex conversion needed)
- *   Result rounded to nearest 0.25D
- * - AXIS: Same (axis remains unchanged)
- * - ADD: Map to standard ranges for multifocal
- *   +1.00 to +1.50 → LOW (1.25D)
- *   +1.75 to +2.25 → MED (2.00D)
- *   +2.50+ → Round to nearest 0.25D
+ * Updated Conversion Rules (V2):
+ * 
+ * A. Spherical vs Toric Decision:
+ *    - If |CYL| ≤ 0.50 → Spherical lens (use Spherical Equivalent)
+ *    - If |CYL| ≥ 0.75 → Toric lens (keep cylinder, convert sphere only)
+ * 
+ * B. Spherical Equivalent (for non-toric):
+ *    - SE = SPH + (CYL / 2)
+ *    - CYL_CL = 0
+ *    - AXIS_CL = null
+ * 
+ * C. Vertex Conversion (spectacle → CL):
+ *    - If |SPH| < 4.00 D → no vertex (CL = spectacle power)
+ *    - If |SPH| ≥ 4.00 D → F_cl = F_s / (1 - 0.012 * F_s)
+ *    - Always round CL sphere to nearest 0.25 D
+ * 
+ * D. Toric Logic:
+ *    - Do NOT convert cylinder (keep CYL same)
+ *    - Vertex-convert sphere only
+ *    - Keep AXIS same (later snap to nearest product axis)
+ * 
+ * E. Multifocal (ADD) Logic:
+ *    - Do NOT vertex-convert ADD
+ *    - Map ADD to categories:
+ *      • 0.75–1.50 → LOW
+ *      • 1.75–2.25 → MEDIUM
+ *      • 2.50+ → HIGH
+ *    - Or map to discrete values: +1.25, +1.75, +2.25, +2.75
  */
 
 // Vertex distance in meters (standard: 12mm = 0.012m)
 const VERTEX_DISTANCE = 0.012;
-
-/**
- * Convert sphere power with vertex distance compensation
- * Formula: CL_SPH = SPH / (1 - (d * SPH))
- * where d is vertex distance in meters (12mm = 0.012m)
- * 
- * Note: Vertex conversion is applied to ALL powers for accuracy,
- * though the difference is minimal for powers < 4.00D
- */
-function convertSphere(sphere: number | null | undefined): number | null {
-  if (sphere === null || sphere === undefined) return null;
-  
-  // If power is 0 or very close to 0, return as is
-  if (Math.abs(sphere) < 0.01) {
-    return 0;
-  }
-  
-  // Apply vertex distance formula to all powers
-  // CL_SPH = SPH / (1 - (d * SPH))
-  // where d = 0.012m (12mm vertex distance)
-  const clSphere = sphere / (1 - (VERTEX_DISTANCE * sphere));
-  
-  // Round to nearest 0.25D
-  return roundToQuarter(clSphere);
-}
+const TORIC_THRESHOLD = 0.75;
+const SPHERICAL_EQ_THRESHOLD = 0.50;
+const VERTEX_THRESHOLD = 4.00;
 
 /**
  * Round to nearest 0.25D
@@ -69,25 +63,172 @@ function roundToQuarter(value: number): number {
 }
 
 /**
- * Map ADD power to standard multifocal ranges
+ * Check if prescription requires toric lens
+ * Toric CLs start at -0.75 cyl, so if |CYL| >= 0.75 → Toric
  */
-function mapMultifocalAdd(add: number | null | undefined): number | null {
-  if (add === null || add === undefined || add <= 0) return null;
+function isToric(cyl: number | null | undefined): boolean {
+  if (cyl === null || cyl === undefined) return false;
+  return Math.abs(cyl) >= TORIC_THRESHOLD;
+}
+
+/**
+ * Check if should use spherical equivalent
+ * If |CYL| <= 0.50 → use Spherical Equivalent
+ */
+function useSphericalEquivalent(cyl: number | null | undefined): boolean {
+  if (cyl === null || cyl === undefined) return false;
+  const absCyl = Math.abs(cyl);
+  return absCyl > 0 && absCyl <= SPHERICAL_EQ_THRESHOLD;
+}
+
+/**
+ * Vertex convert sphere power
+ * Only applies if |SPH| ≥ 4.00 D
+ */
+function vertexConvertSphere(sph: number): number {
+  const absSph = Math.abs(sph);
   
-  // Map to standard ranges
-  if (add >= 1.0 && add <= 1.5) {
-    // LOW range: use midpoint
-    return roundToQuarter(1.25);
-  } else if (add >= 1.75 && add <= 2.25) {
-    // MED range: use midpoint
-    return roundToQuarter(2.0);
-  } else if (add >= 2.5) {
-    // HIGH range: round to nearest 0.25
-    return roundToQuarter(add);
-  } else {
-    // Below 1.0, round to nearest 0.25
-    return roundToQuarter(add);
+  // No vertex conversion below 4.00 D
+  if (absSph < VERTEX_THRESHOLD) {
+    return roundToQuarter(sph);
   }
+  
+  // Apply vertex formula: F_cl = F_s / (1 - d * F_s)
+  const clSphere = sph / (1 - VERTEX_DISTANCE * sph);
+  
+  // Round to nearest 0.25 D
+  return roundToQuarter(clSphere);
+}
+
+/**
+ * Map ADD to category or discrete value
+ * Returns both category and numeric value
+ */
+function mapMultifocalAdd(add: number | null | undefined): {
+  value: number | null;
+  category: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+} {
+  if (add === null || add === undefined || add <= 0.5) {
+    return { value: null, category: null };
+  }
+  
+  // Map to discrete values and categories
+  // Rule: Do NOT vertex-convert ADD (effect is negligible)
+  // Mapping:
+  //   0.75–1.50 → +1.25 (LOW)
+  //   1.75–2.00 → +1.75 (MEDIUM)
+  //   2.00–2.25 → +2.25 (MEDIUM)
+  //   2.50+ → +2.75 (HIGH)
+  //   >3.00 → use highest available +2.75 (with warning)
+  
+  let value: number;
+  let category: 'LOW' | 'MEDIUM' | 'HIGH';
+  
+  if (add <= 1.50) {
+    // 0.75–1.50 → LOW
+    value = 1.25;
+    category = 'LOW';
+  } else if (add < 1.75) {
+    // 1.50–1.75: map to nearest (1.75)
+    value = 1.75;
+    category = 'MEDIUM';
+  } else if (add <= 2.00) {
+    // 1.75–2.00 → MEDIUM
+    value = 1.75;
+    category = 'MEDIUM';
+  } else if (add <= 2.25) {
+    // 2.00–2.25 → MEDIUM
+    value = 2.25;
+    category = 'MEDIUM';
+  } else if (add < 2.50) {
+    // 2.25–2.50: map to nearest (2.25)
+    value = 2.25;
+    category = 'MEDIUM';
+  } else {
+    // 2.50+ → HIGH
+    value = 2.75;
+    category = 'HIGH';
+  }
+  
+  return { value, category };
+}
+
+/**
+ * Convert single eye prescription to contact lens power
+ */
+function convertEyeToContactLens(eye: {
+  sph: number | null | undefined;
+  cyl: number | null | undefined;
+  axis: number | null | undefined;
+  add?: number | null | undefined;
+}): {
+  sphere: number | null;
+  cylinder: number | null;
+  axis: number | null;
+  add: number | null;
+  addCategory: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+  isToric: boolean;
+  usedSphericalEquivalent: boolean;
+} {
+  if (eye.sph === null || eye.sph === undefined) {
+    return {
+      sphere: null,
+      cylinder: null,
+      axis: null,
+      add: null,
+      addCategory: null,
+      isToric: false,
+      usedSphericalEquivalent: false,
+    };
+  }
+  
+  let sphSpec = eye.sph;
+  let cylSpec = eye.cyl ?? 0;
+  let axisSpec = eye.axis ?? null;
+  const isToricLens = isToric(cylSpec);
+  const isSphericalEq = useSphericalEquivalent(cylSpec);
+  let usedSphericalEquivalent = false;
+  
+  // 1) Decide spherical vs toric
+  // Rule: If |CYL| <= 0.50 → Spherical lens (use Spherical Equivalent)
+  //       If |CYL| >= 0.75 → Toric lens (keep cylinder, convert sphere only)
+  if (!isToricLens) {
+    // Not toric: use spherical equivalent if CYL exists (|CYL| <= 0.50)
+    if (Math.abs(cylSpec) > 0.01) {
+      // Spherical equivalent flow: SE = SPH + (CYL / 2)
+      sphSpec = sphSpec + cylSpec / 2;
+      cylSpec = 0;
+      axisSpec = null;
+      usedSphericalEquivalent = true;
+    }
+    // If CYL is 0 or very small, keep sphere as-is (no SE needed)
+  }
+  // If toric (|CYL| >= 0.75), keep cylinder and axis as-is, only convert sphere
+  
+  // 2) Vertex convert sphere (or SE if spherical equivalent was used)
+  // Rule: If |SPH| < 4.00 D → no vertex (CL = spectacle power)
+  //       If |SPH| >= 4.00 D → F_cl = F_s / (1 - 0.012 * F_s)
+  //       Always round CL sphere to nearest 0.25 D
+  const clSphere = vertexConvertSphere(sphSpec);
+  
+  // 3) Toric cylinder / axis
+  // Rule: For toric (|CYL| >= 0.75), keep CYL same, keep AXIS same
+  //       For spherical (|CYL| <= 0.50), CYL = 0, AXIS = null
+  const clCyl = isToricLens ? cylSpec : 0;
+  const clAxis = isToricLens ? axisSpec : null;
+  
+  // 4) Multifocal add mapping
+  const addMapping = mapMultifocalAdd(eye.add);
+  
+  return {
+    sphere: clSphere,
+    cylinder: clCyl !== 0 ? roundToQuarter(clCyl) : null,
+    axis: clAxis,
+    add: addMapping.value,
+    addCategory: addMapping.category,
+    isToric: isToricLens,
+    usedSphericalEquivalent,
+  };
 }
 
 /**
@@ -159,7 +300,13 @@ function validatePower(power: {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      throw new ValidationError('Invalid JSON in request body');
+    }
+
     const validated = convertPowerSchema.parse(body);
 
     const { spectaclePower } = validated;
@@ -177,27 +324,38 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert right eye (OD)
-    const odClPower = {
-      sphere: convertSphere(spectaclePower.odSphere),
-      cylinder: spectaclePower.odCylinder !== undefined && spectaclePower.odCylinder !== null
-        ? roundToQuarter(spectaclePower.odCylinder)
-        : null,
-      axis: spectaclePower.odAxis ?? null,
-      add: mapMultifocalAdd(spectaclePower.odAdd),
-    };
+    const odConversion = convertEyeToContactLens({
+      sph: spectaclePower.odSphere,
+      cyl: spectaclePower.odCylinder,
+      axis: spectaclePower.odAxis,
+      add: spectaclePower.odAdd,
+    });
 
     // Convert left eye (OS)
+    const osConversion = convertEyeToContactLens({
+      sph: spectaclePower.osSphere,
+      cyl: spectaclePower.osCylinder,
+      axis: spectaclePower.osAxis,
+      add: spectaclePower.osAdd,
+    });
+
+    // Format for backward compatibility
+    const odClPower = {
+      sphere: odConversion.sphere,
+      cylinder: odConversion.cylinder,
+      axis: odConversion.axis,
+      add: odConversion.add,
+    };
+
     const osClPower = {
-      sphere: convertSphere(spectaclePower.osSphere),
-      cylinder: spectaclePower.osCylinder !== undefined && spectaclePower.osCylinder !== null
-        ? roundToQuarter(spectaclePower.osCylinder)
-        : null,
-      axis: spectaclePower.osAxis ?? null,
-      add: mapMultifocalAdd(spectaclePower.osAdd),
+      sphere: osConversion.sphere,
+      cylinder: osConversion.cylinder,
+      axis: osConversion.axis,
+      add: osConversion.add,
     };
 
     // Format for display
-    const formatPower = (power: typeof odClPower) => {
+    const formatPower = (power: typeof odClPower, conversionInfo?: { addCategory?: 'LOW' | 'MEDIUM' | 'HIGH' | null }) => {
       if (power.sphere === null && power.cylinder === null) return 'Plano';
       
       let result = '';
@@ -213,7 +371,12 @@ export async function POST(request: NextRequest) {
       }
       
       if (power.add !== null && power.add > 0) {
-        result += ` ADD +${power.add.toFixed(2)}`;
+        const addCategory = conversionInfo?.addCategory;
+        if (addCategory) {
+          result += ` ADD +${power.add.toFixed(2)} (${addCategory})`;
+        } else {
+          result += ` ADD +${power.add.toFixed(2)}`;
+        }
       }
       
       return result || 'Plano';
@@ -222,23 +385,37 @@ export async function POST(request: NextRequest) {
     // Calculate exact conversion values (before rounding) for display
     const getExactConversion = (sph: number | null | undefined) => {
       if (sph === null || sph === undefined || Math.abs(sph) < 0.01) return null;
-      return sph / (1 - (VERTEX_DISTANCE * sph));
+      const absSph = Math.abs(sph);
+      if (absSph < VERTEX_THRESHOLD) return sph;
+      return sph / (1 - VERTEX_DISTANCE * sph);
     };
 
     // Build conversion details
     const conversionDetails = {
       vertexConversionApplied: {
-        od: spectaclePower.odSphere !== null && spectaclePower.odSphere !== undefined && Math.abs(spectaclePower.odSphere) > 0.01,
-        os: spectaclePower.osSphere !== null && spectaclePower.osSphere !== undefined && Math.abs(spectaclePower.osSphere) > 0.01,
+        od: spectaclePower.odSphere !== null && spectaclePower.odSphere !== undefined && Math.abs(spectaclePower.odSphere) >= VERTEX_THRESHOLD,
+        os: spectaclePower.osSphere !== null && spectaclePower.osSphere !== undefined && Math.abs(spectaclePower.osSphere) >= VERTEX_THRESHOLD,
       },
       addMappingApplied: {
-        od: spectaclePower.odAdd !== null && spectaclePower.odAdd !== undefined && spectaclePower.odAdd > 0,
-        os: spectaclePower.osAdd !== null && spectaclePower.osAdd !== undefined && spectaclePower.osAdd > 0,
+        od: spectaclePower.odAdd !== null && spectaclePower.odAdd !== undefined && spectaclePower.odAdd > 0.5,
+        os: spectaclePower.osAdd !== null && spectaclePower.osAdd !== undefined && spectaclePower.osAdd > 0.5,
       },
       originalPower: spectaclePower,
       convertedPower: {
         od: odClPower,
         os: osClPower,
+      },
+      conversionInfo: {
+        od: {
+          isToric: odConversion.isToric,
+          usedSphericalEquivalent: odConversion.usedSphericalEquivalent,
+          addCategory: odConversion.addCategory,
+        },
+        os: {
+          isToric: osConversion.isToric,
+          usedSphericalEquivalent: osConversion.usedSphericalEquivalent,
+          addCategory: osConversion.addCategory,
+        },
       },
       exactConversion: {
         od: {
@@ -258,8 +435,8 @@ export async function POST(request: NextRequest) {
           os: osClPower,
         },
         formatted: {
-          od: formatPower(odClPower),
-          os: formatPower(osClPower),
+          od: formatPower(odClPower, { addCategory: odConversion.addCategory }),
+          os: formatPower(osClPower, { addCategory: osConversion.addCategory }),
         },
         conversionApplied: true,
         conversionDetails,
@@ -267,6 +444,22 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('[contact-lens/convert-power] Error:', error);
+    
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            details: error.issues,
+          },
+        },
+        { status: 400 }
+      );
+    }
+    
     return handleApiError(error);
   }
 }

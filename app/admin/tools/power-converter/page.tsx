@@ -47,6 +47,7 @@ export default function PowerConverterPage() {
   });
   
   const [convertedPower, setConvertedPower] = useState<ConvertedPower | null>(null);
+  const [conversionDetails, setConversionDetails] = useState<any>(null);
   const [compatibleProducts, setCompatibleProducts] = useState<ContactLensProduct[]>([]);
   const [converting, setConverting] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -83,6 +84,7 @@ export default function PowerConverterPage() {
       
       if (data.success) {
         setConvertedPower(data.data.contactLensPower);
+        setConversionDetails(data.data.conversionDetails);
         // Fetch compatible products
         await fetchCompatibleProducts(data.data.contactLensPower);
       } else {
@@ -320,6 +322,26 @@ export default function PowerConverterPage() {
                           )}
                         </div>
                       )}
+                      {conversionDetails?.conversionInfo?.od?.isToric && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          ✓ Toric lens (|CYL| ≥ 0.75)
+                        </div>
+                      )}
+                      {conversionDetails?.conversionInfo?.od?.usedSphericalEquivalent && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          ✓ Spherical equivalent used (|CYL| ≤ 0.50)
+                        </div>
+                      )}
+                      {conversionDetails?.vertexConversionApplied?.od && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          ✓ Vertex conversion applied (|SPH| ≥ 4.00D)
+                        </div>
+                      )}
+                      {conversionDetails?.addMappingApplied?.od && conversionDetails?.conversionInfo?.od?.addCategory && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          ✓ ADD mapped: {conversionDetails.conversionInfo.od.addCategory}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <span className="text-sm font-semibold text-slate-700">Left Eye (OS):</span>
@@ -334,11 +356,26 @@ export default function PowerConverterPage() {
                           )}
                         </div>
                       )}
-                    </div>
-                    <div className="pt-3 border-t border-green-200">
-                      <p className="text-xs text-slate-600">
-                        <strong>Note:</strong> Vertex distance conversion (12mm) applied. Powers rounded to nearest 0.25D.
-                      </p>
+                      {conversionDetails?.conversionInfo?.os?.isToric && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          ✓ Toric lens (|CYL| ≥ 0.75)
+                        </div>
+                      )}
+                      {conversionDetails?.conversionInfo?.os?.usedSphericalEquivalent && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          ✓ Spherical equivalent used (|CYL| ≤ 0.50)
+                        </div>
+                      )}
+                      {conversionDetails?.vertexConversionApplied?.os && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          ✓ Vertex conversion applied (|SPH| ≥ 4.00D)
+                        </div>
+                      )}
+                      {conversionDetails?.addMappingApplied?.os && conversionDetails?.conversionInfo?.os?.addCategory && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          ✓ ADD mapped: {conversionDetails.conversionInfo.os.addCategory}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

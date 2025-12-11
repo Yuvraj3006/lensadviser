@@ -478,6 +478,19 @@ export default function OrderSuccessPage() {
           <span class="item-label">Lens Price (${order.lensData.name}${order.lensData.index ? ` - Index ${order.lensData.index}` : ''}${order.lensData.brandLine ? ` - ${order.lensData.brandLine}` : ''})</span>
           <span class="item-value">₹${Math.round(lensPrice).toLocaleString()}</span>
         </div>
+        ${(order.lensData as any).rxAddOnBreakdown && Array.isArray((order.lensData as any).rxAddOnBreakdown) && (order.lensData as any).rxAddOnBreakdown.length > 0 ? 
+          (order.lensData as any).rxAddOnBreakdown.map((addOn: any) => `
+            <div class="item-row">
+              <span class="item-label">${addOn.label || 'High Power Add-On'}</span>
+              <span class="item-value">+₹${Math.round(addOn.charge || 0).toLocaleString()}</span>
+            </div>
+          `).join('') : ''}
+        ${(order.lensData as any).totalRxAddOn && (order.lensData as any).totalRxAddOn > 0 && (!(order.lensData as any).rxAddOnBreakdown || !Array.isArray((order.lensData as any).rxAddOnBreakdown) || (order.lensData as any).rxAddOnBreakdown.length === 0) ? `
+          <div class="item-row">
+            <span class="item-label">RX Add-On Charge</span>
+            <span class="item-value">+₹${Math.round((order.lensData as any).totalRxAddOn).toLocaleString()}</span>
+          </div>
+        ` : ''}
         <div class="item-row">
           <span class="item-label"><strong>Subtotal</strong></span>
           <span class="item-value"><strong>₹${Math.round(baseTotal).toLocaleString()}</strong></span>

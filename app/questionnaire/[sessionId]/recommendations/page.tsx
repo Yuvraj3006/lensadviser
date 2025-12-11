@@ -10,29 +10,14 @@ import {
   CheckCircle, 
   Star, 
   Sparkles, 
-  Tag, 
   ShoppingBag, 
   Phone, 
   ArrowRight,
   RefreshCw,
-  Gift,
-  Flame,
-  Crown,
-  Percent,
-  Package,
   Eye,
   Shield,
   Zap,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  BadgePercent,
-  Ticket,
-  CircleDollarSign,
-  Calculator,
-  Upload,
-  X,
-  UserCheck
+  CircleDollarSign
 } from 'lucide-react';
 
 interface Feature {
@@ -86,6 +71,7 @@ interface Recommendation {
   description?: string | null;
   brand?: string | null;
   basePrice: number;
+  mrp?: number; // MRP (Maximum Retail Price) for lens
   imageUrl?: string | null;
   category: string;
   matchScore: number;
@@ -190,90 +176,37 @@ export default function RecommendationsPage() {
   const [data, setData] = useState<RecommendationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-  const [expandedOffers, setExpandedOffers] = useState<string | null>(null);
-  const [selectedOffer, setSelectedOffer] = useState<Record<string, string>>({});
-  const [couponCode, setCouponCode] = useState('');
-  const [applyingCoupon, setApplyingCoupon] = useState(false);
-  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [applyingCategory, setApplyingCategory] = useState(false);
-  const [appliedCategory, setAppliedCategory] = useState<string | null>(null);
-  const [categoryIdImage, setCategoryIdImage] = useState<File | null>(null);
-  const [categoryIdImagePreview, setCategoryIdImagePreview] = useState<string | null>(null);
-  const [availableCategories, setAvailableCategories] = useState<any[]>([]);
-  const [secondPairEnabled, setSecondPairEnabled] = useState(false);
-  const [secondPairFrameMRP, setSecondPairFrameMRP] = useState('');
-  const [secondPairLensId, setSecondPairLensId] = useState('');
-  const [secondPairLensPrice, setSecondPairLensPrice] = useState('');
-  const [availableLenses, setAvailableLenses] = useState<any[]>([]);
-  const [loadingLenses, setLoadingLenses] = useState(false);
-  const [recalculatedOffers, setRecalculatedOffers] = useState<Record<string, any>>({});
   const [showKnowMoreModal, setShowKnowMoreModal] = useState<string | null>(null);
   const [showViewAllModal, setShowViewAllModal] = useState(false);
   const [sortBy, setSortBy] = useState<'price-high' | 'price-low' | 'match' | 'index'>('price-high');
 
   useEffect(() => {
     if (sessionId) {
-      fetchRecommendations();
-      fetchAvailableLenses();
-      fetchAvailableCategories();
-      
-      // Load saved coupon code from localStorage
-      const savedCoupon = localStorage.getItem('lenstrack_coupon_code');
-      if (savedCoupon) {
-        setCouponCode(savedCoupon);
-      }
-      
-      // Load saved category from localStorage
-      const savedCategory = localStorage.getItem('lenstrack_category_discount');
-      if (savedCategory) {
-        try {
-          const categoryData = JSON.parse(savedCategory);
-          setAppliedCategory(categoryData.category);
-          if (categoryData.idImage) {
-            setCategoryIdImagePreview(categoryData.idImage);
-          }
-        } catch (e) {
-          console.error('Failed to parse saved category:', e);
-        }
-      }
+      // Check if this is an ACCESSORIES session - redirect to accessories page
+      checkSessionCategory();
     }
   }, [sessionId]);
 
-  const fetchAvailableCategories = async () => {
+  const checkSessionCategory = async () => {
     try {
-      // Get organizationId from session or store
-      const storeCode = localStorage.getItem('lenstrack_store_code');
-      if (storeCode) {
-        const response = await fetch(`/api/public/stores/verify?code=${storeCode}`);
-        const storeData = await response.json();
-        if (storeData.success && storeData.data?.organizationId) {
-          const catResponse = await fetch(`/api/admin/offers/category-discounts?organizationId=${storeData.data.organizationId}`);
-          const catData = await catResponse.json();
-          if (catData.success) {
-            setAvailableCategories(catData.data || []);
-          }
+      const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json();
+        if (sessionData.success && sessionData.data?.category === 'ACCESSORIES') {
+          // Redirect to accessories page for ACCESSORIES category
+          router.push(`/questionnaire/${sessionId}/accessories`);
+          return;
         }
       }
+      // If not ACCESSORIES, fetch recommendations
+      fetchRecommendations();
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
+      console.error('Failed to check session category:', error);
+      // Continue with recommendations fetch
+      fetchRecommendations();
     }
   };
 
-  const fetchAvailableLenses = async () => {
-    setLoadingLenses(true);
-    try {
-      const response = await fetch('/api/products/lenses');
-      const result = await response.json();
-      if (result.success) {
-        setAvailableLenses(result.data || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch lenses:', error);
-    } finally {
-      setLoadingLenses(false);
-    }
-  };
 
   const fetchRecommendations = async () => {
     setLoading(true);
@@ -303,6 +236,14 @@ export default function RecommendationsPage() {
         const statusText = response.statusText || 'Unknown';
         const errorText = await response.text();
         
+        // Check if response is HTML (Next.js error page)
+        if (errorText.trim().startsWith('<!') || errorText.trim().startsWith('<html')) {
+          console.error('[fetchRecommendations] Server returned HTML error page instead of JSON');
+          showToast('error', `Server error (${status}): The server returned an error page. Please try again.`);
+          router.push('/questionnaire');
+          return;
+        }
+        
         // Log each value separately to avoid object serialization issues
         console.error('[fetchRecommendations] Response not OK');
         console.error('Status:', status);
@@ -319,13 +260,23 @@ export default function RecommendationsPage() {
             console.error('Parsed Error Data:', errorData);
             
             // Extract error message from various possible structures
-            errorMessage = 
-              errorData?.error?.message || 
-              errorData?.message || 
-              errorData?.error?.code ||
-              errorData?.error ||
-              errorText.substring(0, 100) ||
-              errorMessage;
+            // Ensure we never assign an object to errorMessage
+            if (errorData?.error?.message && typeof errorData.error.message === 'string') {
+              errorMessage = errorData.error.message;
+            } else if (errorData?.message && typeof errorData.message === 'string') {
+              errorMessage = errorData.message;
+            } else if (errorData?.error?.code && typeof errorData.error.code === 'string') {
+              errorMessage = `Error: ${errorData.error.code}`;
+            } else if (errorData?.error && typeof errorData.error === 'object') {
+              // If error is an object, try to extract a message or stringify it
+              if ('message' in errorData.error && typeof errorData.error.message === 'string') {
+                errorMessage = errorData.error.message;
+              } else {
+                errorMessage = 'Validation error occurred';
+              }
+            } else if (errorText) {
+              errorMessage = errorText.substring(0, 100);
+            }
           } catch (parseError) {
             console.error('[fetchRecommendations] Failed to parse error JSON:', parseError);
             console.error('Raw error text:', errorText.substring(0, 500));
@@ -349,7 +300,51 @@ export default function RecommendationsPage() {
         return;
       }
 
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        // Check if it's HTML
+        if (text.trim().startsWith('<!') || text.trim().startsWith('<html')) {
+          console.error('[fetchRecommendations] Server returned HTML instead of JSON');
+          showToast('error', 'Server returned an error page. Please try again.');
+          router.push('/questionnaire');
+          return;
+        }
+        console.error('[fetchRecommendations] Non-JSON response:', contentType, text.substring(0, 200));
+        showToast('error', 'Invalid response format from server');
+        router.push('/questionnaire');
+        return;
+      }
+
       const result = await response.json();
+      
+      // Debug: Log recommendations data to verify MRP is present
+      console.log('[fetchRecommendations] Full API Response:', JSON.stringify(result, null, 2));
+      
+      if (result?.data?.recommendations && result.data.recommendations.length > 0) {
+        console.log('[fetchRecommendations] First recommendation MRP check:', {
+          totalRecommendations: result.data.recommendations.length,
+          firstRec: {
+            id: result.data.recommendations[0].id,
+            name: result.data.recommendations[0].name,
+            mrp: result.data.recommendations[0].mrp,
+            basePrice: result.data.recommendations[0].basePrice,
+            hasMRP: 'mrp' in result.data.recommendations[0],
+            mrpType: typeof result.data.recommendations[0].mrp,
+            allKeys: Object.keys(result.data.recommendations[0]),
+          },
+        });
+        
+        // Check all recommendations for MRP
+        const mrpStatus = result.data.recommendations.map((rec: any, idx: number) => ({
+          index: idx,
+          name: rec.name,
+          mrp: rec.mrp,
+          hasMRP: 'mrp' in rec,
+        }));
+        console.log('[fetchRecommendations] All recommendations MRP status:', mrpStatus);
+      }
 
       if (result.success) {
         // Convert generatedAt from Date string to Date object if needed
@@ -361,51 +356,6 @@ export default function RecommendationsPage() {
         if (result.data.recommendations && result.data.recommendations.length > 0) {
           const firstProductId = result.data.recommendations[0].id;
           setSelectedProduct(firstProductId);
-          
-          // If category discount is already applied, recalculate offers for first product
-          const savedCategory = localStorage.getItem('lenstrack_category_discount');
-          if (savedCategory) {
-            try {
-              const categoryData = JSON.parse(savedCategory);
-              if (categoryData.category) {
-                // Recalculate with category discount
-                const recalcResponse = await fetch(
-                  `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
-                  {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      productId: firstProductId,
-                      couponCode: null,
-                      customerCategory: categoryData.category,
-                      secondPair: null,
-                    }),
-                  }
-                );
-                const recalcResult = await recalcResponse.json();
-                if (recalcResult.success) {
-                  setRecalculatedOffers(prev => ({
-                    ...prev,
-                    [firstProductId]: recalcResult.data,
-                  }));
-                }
-              }
-            } catch (e) {
-              console.error('Failed to apply saved category:', e);
-            }
-          }
-          
-          // Set default offer for each product
-          const defaultOffers: Record<string, string> = {};
-          result.data.recommendations.forEach((rec: Recommendation) => {
-            if (rec.offers && rec.offers.length > 0) {
-              const bestOffer = rec.offers.find(o => o.isApplicable && (o.discountAmount || 0) > 0);
-              if (bestOffer) {
-                defaultOffers[rec.id] = bestOffer.code;
-              }
-            }
-          });
-          setSelectedOffer(defaultOffers);
         } else {
           showToast('error', 'No recommendations found');
         }
@@ -424,11 +374,15 @@ export default function RecommendationsPage() {
       console.error('Error stack:', error?.stack);
       console.error('Error name:', error?.name);
       
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : typeof error === 'string'
-          ? error
-          : 'An error occurred while loading recommendations';
+      // Check if it's a JSON parsing error (HTML response)
+      let errorMessage = 'An error occurred while loading recommendations';
+      if (error instanceof SyntaxError && error.message.includes('JSON')) {
+        errorMessage = 'Server returned an invalid response. Please try again.';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
       
       console.error('[fetchRecommendations] Showing error toast:', errorMessage);
       showToast('error', errorMessage);
@@ -438,39 +392,9 @@ export default function RecommendationsPage() {
     }
   };
 
-  const handleSelectOffer = (productId: string, offerCode: string) => {
-    setSelectedOffer(prev => ({ ...prev, [productId]: offerCode }));
-  };
-
-  const calculatePriceWithOffer = (rec: Recommendation, offerCode?: string) => {
-    // Check if we have recalculated offers (with coupon/category/second pair)
-    const recalculated = recalculatedOffers[rec.id];
-    if (recalculated) {
-      return {
-        finalPrice: recalculated.finalPayable,
-        savings: recalculated.baseTotal - recalculated.finalPayable,
-        offer: recalculated.offersApplied[0] || null,
-        categoryDiscount: recalculated.categoryDiscount,
-        couponDiscount: recalculated.couponDiscount,
-        secondPairDiscount: recalculated.secondPairDiscount,
-        priceComponents: recalculated.priceComponents,
-      };
-    }
-
-    // Use original offers
-    const offer = rec.offers.find(o => o.code === offerCode);
-    if (offer && offer.discountAmount) {
-      return {
-        finalPrice: rec.pricing.subtotal - offer.discountAmount,
-        savings: offer.discountAmount,
-        offer,
-      };
-    }
-    return {
-      finalPrice: rec.pricing.finalPrice,
-      savings: rec.pricing.savings,
-      offer: rec.offers.find(o => o.isApplicable && (o.discountAmount || 0) > 0),
-    };
+  // Simple price calculation - just return lens price (no discounts/offers)
+  const getLensPrice = (rec: Recommendation) => {
+    return rec.pricing.lensPrice.totalLensPrice;
   };
 
   if (loading) {
@@ -524,12 +448,8 @@ export default function RecommendationsPage() {
     );
   }
 
-  const selectedRec = data.recommendations.find((r) => r.id === selectedProduct);
-  const selectedPricing = selectedRec ? calculatePriceWithOffer(selectedRec, selectedOffer[selectedRec.id]) : null;
-
-  // Helper function to extract index value for sorting (thinnest first = higher index number)
+  // Helper to get index numeric value for sorting
   const getIndexValue = (rec: Recommendation): number => {
-    // Try to get from lensIndex field first
     if (rec.lensIndex) {
       const indexMap: Record<string, number> = {
         'INDEX_156': 1.56,
@@ -539,20 +459,20 @@ export default function RecommendationsPage() {
         'INDEX_150': 1.50,
         'INDEX_PC': 1.59,
       };
-      return indexMap[rec.lensIndex] || 1.50;
+      return indexMap[rec.lensIndex] || 1.56;
     }
     // Fallback: extract from name
     const match = rec.name.match(/\d+\.\d+/);
-    return match ? parseFloat(match[0]) : 1.50;
+    return match ? parseFloat(match[0]) : 1.56;
   };
 
   // Sort recommendations based on sortBy, then get first 4
   const sortedForDisplay = [...data.recommendations].sort((a, b) => {
     switch (sortBy) {
       case 'price-high':
-        return calculatePriceWithOffer(b, selectedOffer[b.id]).finalPrice - calculatePriceWithOffer(a, selectedOffer[a.id]).finalPrice;
+        return getLensPrice(b) - getLensPrice(a);
       case 'price-low':
-        return calculatePriceWithOffer(a, selectedOffer[a.id]).finalPrice - calculatePriceWithOffer(b, selectedOffer[b.id]).finalPrice;
+        return getLensPrice(a) - getLensPrice(b);
       case 'match':
         return b.matchScore - a.matchScore;
       case 'index':
@@ -567,21 +487,19 @@ export default function RecommendationsPage() {
   const topFourRecommendations = sortedForDisplay.slice(0, 4);
 
   // Get tag for each recommendation based on rank
-  const getRoleTag = (rank: number, allRecs: typeof data.recommendations): 'BEST_MATCH' | 'RECOMMENDED_INDEX' | 'PREMIUM' | 'ANTI_WALKOUT' => {
-    if (rank === 1) return 'BEST_MATCH';
-    if (rank === 2) return 'RECOMMENDED_INDEX';
-    if (rank === 3) return 'PREMIUM';
-    // Rank 4 or lowest price option = Anti-Walkout
-    return 'ANTI_WALKOUT';
+  const getRoleTag = (rank: number, allRecs: typeof data.recommendations): 'BEST_RECOMMENDED' | 'CAN_TRY' => {
+    if (rank === 1) return 'BEST_RECOMMENDED';
+    // All others are "Can Try"
+    return 'CAN_TRY';
   };
 
   // Sort all recommendations for View All modal
   const sortedRecommendations = [...data.recommendations].sort((a, b) => {
     switch (sortBy) {
       case 'price-high':
-        return calculatePriceWithOffer(b, selectedOffer[b.id]).finalPrice - calculatePriceWithOffer(a, selectedOffer[a.id]).finalPrice;
+        return getLensPrice(b) - getLensPrice(a);
       case 'price-low':
-        return calculatePriceWithOffer(a, selectedOffer[a.id]).finalPrice - calculatePriceWithOffer(b, selectedOffer[b.id]).finalPrice;
+        return getLensPrice(a) - getLensPrice(b);
       case 'match':
         return b.matchScore - a.matchScore;
       case 'index':
@@ -642,22 +560,18 @@ export default function RecommendationsPage() {
           </div>
         </div>
 
-        {/* LA-05: 4-Card Layout - Vertical scroll on mobile */}
-        <div className="space-y-6 mb-10">
+        {/* LA-05: 4-Card Layout - Grid layout for parallel cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           {topFourRecommendations.map((rec) => {
             const roleTag = getRoleTag(rec.rank, data.recommendations);
             const tagConfig = {
-              BEST_MATCH: { label: 'Best Match', color: 'bg-blue-600 text-white' },
-              RECOMMENDED_INDEX: { label: 'Recommended Index', color: 'bg-green-600 text-white' },
-              PREMIUM: { label: 'Premium Upgrade', color: 'bg-purple-600 text-white' },
-              ANTI_WALKOUT: { label: 'Anti-Walkout (Lowest Price)', color: 'bg-orange-600 text-white' },
+              BEST_RECOMMENDED: { label: 'Best Recommended', color: 'bg-blue-600 text-white' },
+              CAN_TRY: { label: 'Can Try', color: 'bg-green-600 text-white' },
             }[roleTag];
             
-            const priceInfo = calculatePriceWithOffer(rec, selectedOffer[rec.id]);
-            const lensPrice = rec.pricing.lensPrice.totalLensPrice;
-            
-            // Check if coupon is applied for this product
-            const hasCouponDiscount = priceInfo.couponDiscount && priceInfo.couponDiscount.savings > 0;
+            const lensPrice = getLensPrice(rec);
+            // Get MRP - only use if explicitly set (not null/undefined)
+            const lensMRP = (rec.mrp && rec.mrp > 0) ? rec.mrp : null;
             
             // Extract lens index from product name or use default
             const lensIndex = rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
@@ -668,11 +582,6 @@ export default function RecommendationsPage() {
             
             // Get 3-4 key benefits from features
             const benefits = rec.features?.slice(0, 4).map(f => f?.name).filter(Boolean) || [];
-            
-            // Check for YOPO, Combo, Free Lens eligibility
-            const hasYOPO = rec.offers.some(o => o.type === 'YOPO' && o.isApplicable);
-            const hasCombo = rec.offers.some(o => o.type === 'COMBO' && o.isApplicable);
-            const hasFreeLens = rec.offers.some(o => o.type === 'FREE_LENS' && o.isApplicable);
 
             return (
               <div
@@ -732,108 +641,25 @@ export default function RecommendationsPage() {
                     </div>
                   )}
 
-                  {/* Price Row */}
+                  {/* Price Row - MRP with strikethrough and Offer Price */}
                   <div className="mb-5 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-100">
-                    <div className="flex items-baseline gap-2 mb-1">
-                      <span className="text-sm font-medium text-slate-600">Final Price:</span>
-                      <span className="text-2xl font-bold text-slate-900">₹{Math.round(priceInfo.finalPrice).toLocaleString()}</span>
-                      {priceInfo.finalPrice < rec.pricing.subtotal && (
-                        <span className="text-sm text-slate-500 line-through ml-2">
-                          ₹{Math.round(rec.pricing.subtotal).toLocaleString()}
-                        </span>
-                      )}
+                    <div className="flex items-baseline gap-3 flex-wrap">
+                      <span className="text-sm font-medium text-slate-600">Lens Price:</span>
+                      {lensMRP && lensMRP >= lensPrice ? (
+                        <>
+                          <span className="text-lg text-slate-500 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
+                          {lensMRP > lensPrice && <span className="text-slate-400">→</span>}
+                        </>
+                      ) : null}
+                      <span className="text-2xl font-bold text-slate-900">₹{Math.round(lensPrice).toLocaleString()}</span>
                     </div>
-                    {/* Band Pricing Display */}
-                    {rec.bandPricing?.applied && rec.bandPricing.extra > 0 && (
-                      <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
-                        <span className="font-medium">Power Band Extra:</span>
-                        <span className="font-semibold text-slate-700">+₹{Math.round(rec.bandPricing.extra).toLocaleString()}</span>
-                        {rec.bandPricing.matchedBand && (
-                          <span className="text-slate-500">
-                            ({rec.bandPricing.matchedBand.minPower}D - {rec.bandPricing.matchedBand.maxPower}D)
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {hasCouponDiscount && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <Ticket size={14} className="text-yellow-600" />
-                        <span className="text-xs font-semibold text-yellow-700">
-                          Coupon Applied: Save ₹{Math.round(priceInfo.couponDiscount!.savings).toLocaleString()}
-                        </span>
-                      </div>
-                    )}
-                    {priceInfo.savings > 0 && !hasCouponDiscount && (
-                      <p className="text-xs text-green-600 font-medium mt-1">
-                        You save ₹{Math.round(priceInfo.savings).toLocaleString()}
-                      </p>
-                    )}
                   </div>
-
-                  {/* Icons/Tags */}
-                  {(hasYOPO || hasCombo || hasFreeLens) && (
-                    <div className="flex flex-wrap gap-2 mb-5">
-                      {hasYOPO && (
-                        <span className="px-3 py-1.5 bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-800 text-xs font-semibold rounded-lg border border-yellow-200 shadow-sm flex items-center gap-1">
-                          <Star size={12} className="fill-yellow-600" />
-                          YOPO
-                        </span>
-                      )}
-                      {hasCombo && (
-                        <span className="px-3 py-1.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 text-xs font-semibold rounded-lg border border-purple-200 shadow-sm flex items-center gap-1">
-                          <Package size={12} />
-                          Combo Eligible
-                        </span>
-                      )}
-                      {hasFreeLens && (
-                        <span className="px-3 py-1.5 bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 text-xs font-semibold rounded-lg border border-green-200 shadow-sm flex items-center gap-1">
-                          <Gift size={12} />
-                          Free Lens Possible
-                        </span>
-                      )}
-                    </div>
-                  )}
 
                   {/* Primary CTA */}
                   <Button
                     fullWidth
-                    onClick={async () => {
+                    onClick={() => {
                       setSelectedProduct(rec.id);
-                      
-                      // If category discount is applied, recalculate offers for this product
-                      if (appliedCategory) {
-                        try {
-                          const response = await fetch(
-                            `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
-                            {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                productId: rec.id,
-                                couponCode: appliedCouponCode || null,
-                                customerCategory: appliedCategory,
-                                secondPair: secondPairEnabled ? {
-                                  enabled: true,
-                                  firstPairTotal: rec.pricing.subtotal || 0,
-                                  secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
-                                  secondPairLensPrice: secondPairLensId 
-                                    ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
-                                    : (parseFloat(secondPairLensPrice) || 0),
-                                } : null,
-                              }),
-                            }
-                          );
-                          const result = await response.json();
-                          if (result.success) {
-                            setRecalculatedOffers(prev => ({
-                              ...prev,
-                              [rec.id]: result.data,
-                            }));
-                          }
-                        } catch (error) {
-                          console.error('Failed to recalculate on product selection:', error);
-                        }
-                      }
                       
                       // Check if this is Power Sunglasses flow
                       const lensType = localStorage.getItem('lenstrack_lens_type');
@@ -880,1046 +706,7 @@ export default function RecommendationsPage() {
           </Button>
         </div>
 
-        {/* Coupon Code & Second Pair Section - Keep for now */}
-        <div className="mb-6 space-y-4">
-          {/* Coupon Code */}
-          <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur rounded-xl p-5 border-2 border-slate-700/50 shadow-lg">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center border border-yellow-500/30">
-                <Ticket size={24} className="text-yellow-400" />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-semibold text-slate-200 mb-2">
-                  Have a Coupon Code?
-                </label>
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    placeholder="Enter coupon code (e.g., WELCOME10)"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                    className="flex-1 rounded-lg border-2 border-slate-600 bg-slate-700/80 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/50 transition-colors"
-                    style={{ backgroundColor: 'rgba(51, 65, 85, 0.8)', color: 'white' }}
-                  />
-                  <Button
-                    onClick={async () => {
-                      if (!couponCode || !selectedProduct) return;
-                      setApplyingCoupon(true);
-                      try {
-                        const response = await fetch(
-                          `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
-                          {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              productId: selectedProduct,
-                              couponCode: couponCode,
-                              customerCategory: appliedCategory || null,
-                              secondPair: secondPairEnabled ? {
-                                enabled: true,
-                                firstPairTotal: selectedRec?.pricing.subtotal || 0,
-                                secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
-                                secondPairLensPrice: secondPairLensId 
-                                  ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
-                                  : (parseFloat(secondPairLensPrice) || 0),
-                              } : null,
-                            }),
-                          }
-                        );
-                        const result = await response.json();
-                        if (result.success) {
-                          // Check if coupon was actually applied or if there's an error
-                          if (result.data.couponError) {
-                            // Coupon validation failed
-                            showToast('error', result.data.couponError);
-                            setAppliedCouponCode(null);
-                            setCouponCode('');
-                          } else if (result.data.couponDiscount) {
-                            // Coupon applied successfully
-                            setAppliedCouponCode(couponCode);
-                            setRecalculatedOffers(prev => ({
-                              ...prev,
-                              [selectedProduct]: result.data,
-                            }));
-                            const discountAmount = result.data.couponDiscount.savings || 0;
-                            showToast('success', `Coupon applied! You saved ₹${Math.round(discountAmount).toLocaleString()}`);
-                          } else {
-                            // Coupon code was provided but no discount was applied
-                            showToast('warning', 'Coupon code is valid but no discount was applied');
-                            setAppliedCouponCode(null);
-                          }
-                        } else {
-                          showToast('error', result.error?.message || 'Failed to apply coupon');
-                          setAppliedCouponCode(null);
-                        }
-                      } catch (error) {
-                        showToast('error', 'Failed to apply coupon');
-                      } finally {
-                        setApplyingCoupon(false);
-                      }
-                    }}
-                    disabled={!couponCode || applyingCoupon}
-                    loading={applyingCoupon}
-                    className={appliedCouponCode === couponCode 
-                      ? "bg-green-500 hover:bg-green-600 text-white font-semibold" 
-                      : "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-semibold shadow-lg"
-                    }
-                  >
-                    {appliedCouponCode === couponCode ? (
-                      <>
-                        <Check size={18} className="mr-2" />
-                        Applied
-                      </>
-                    ) : (
-                      'Apply Coupon'
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Category Discount Section */}
-          {selectedProduct && (
-            <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur rounded-xl p-5 border-2 border-slate-700/50 shadow-lg">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center border border-blue-500/30">
-                  <UserCheck size={24} className="text-blue-400" />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-semibold text-slate-200 mb-2">
-                    Category Discount
-                  </label>
-                  <p className="text-xs text-slate-400">Select your category to get special discounts</p>
-                </div>
-              </div>
-              
-              {!appliedCategory ? (
-                <div className="space-y-4">
-                  <Select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    options={[
-                      { value: '', label: 'Select Category' },
-                      ...availableCategories
-                        .filter(cat => cat.isActive)
-                        .map(cat => ({
-                          value: cat.customerCategory,
-                          label: `${cat.customerCategory} - ${cat.discountPercent}% off${cat.maxDiscount ? ` (max ₹${cat.maxDiscount})` : ''}`,
-                        })),
-                    ]}
-                    className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
-                  />
-                  
-                  {selectedCategory && availableCategories.find(c => c.customerCategory === selectedCategory && c.categoryVerificationRequired) && (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">
-                          Upload ID Proof <span className="text-red-400">*</span>
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <label className="flex-1 cursor-pointer">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  setCategoryIdImage(file);
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    setCategoryIdImagePreview(reader.result as string);
-                                  };
-                                  reader.readAsDataURL(file);
-                                }
-                              }}
-                            />
-                            <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-slate-600 bg-slate-700/50 hover:border-blue-500 transition-colors">
-                              <Upload size={18} className="text-slate-400" />
-                              <span className="text-sm text-slate-300">
-                                {categoryIdImage ? categoryIdImage.name : 'Click to upload ID proof'}
-                              </span>
-                            </div>
-                          </label>
-                          {categoryIdImagePreview && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCategoryIdImage(null);
-                                setCategoryIdImagePreview(null);
-                              }}
-                              className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg"
-                            >
-                              <X size={18} />
-                            </button>
-                          )}
-                        </div>
-                        {categoryIdImagePreview && (
-                          <div className="mt-2">
-                            <img
-                              src={categoryIdImagePreview}
-                              alt="ID Preview"
-                              className="max-w-full h-32 object-contain rounded-lg border border-slate-600"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  <Button
-                    onClick={async () => {
-                      if (!selectedCategory || !selectedProduct) return;
-                      const selectedCat = availableCategories.find(c => c.customerCategory === selectedCategory);
-                      if (selectedCat?.categoryVerificationRequired && !categoryIdImage) {
-                        showToast('error', 'Please upload ID proof for this category');
-                        return;
-                      }
-                      
-                      setApplyingCategory(true);
-                      try {
-                        // Convert image to base64 if exists
-                        let idImageBase64 = null;
-                        if (categoryIdImage) {
-                          idImageBase64 = await new Promise<string>((resolve) => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => resolve(reader.result as string);
-                            reader.readAsDataURL(categoryIdImage);
-                          });
-                        }
-                        
-                        const response = await fetch(
-                          `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
-                          {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              productId: selectedProduct,
-                              couponCode: appliedCouponCode || null,
-                              customerCategory: selectedCategory,
-                              secondPair: secondPairEnabled ? {
-                                enabled: true,
-                                firstPairTotal: selectedRec?.pricing.subtotal || 0,
-                                secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
-                                secondPairLensPrice: secondPairLensId 
-                                  ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
-                                  : (parseFloat(secondPairLensPrice) || 0),
-                              } : null,
-                            }),
-                          }
-                        );
-                        const result = await response.json();
-                        if (result.success) {
-                          if (result.data.categoryDiscount) {
-                            setAppliedCategory(selectedCategory);
-                            setRecalculatedOffers(prev => ({
-                              ...prev,
-                              [selectedProduct]: result.data,
-                            }));
-                            // Save to localStorage
-                            localStorage.setItem('lenstrack_category_discount', JSON.stringify({
-                              category: selectedCategory,
-                              idImage: idImageBase64,
-                            }));
-                            const discountAmount = result.data.categoryDiscount.savings || 0;
-                            showToast('success', `Category discount applied! You saved ₹${Math.round(discountAmount).toLocaleString()}`);
-                          } else {
-                            showToast('warning', 'No discount available for this category');
-                          }
-                        } else {
-                          showToast('error', result.error?.message || 'Failed to apply category discount');
-                        }
-                      } catch (error) {
-                        showToast('error', 'Failed to apply category discount');
-                      } finally {
-                        setApplyingCategory(false);
-                      }
-                    }}
-                    disabled={!selectedCategory || applyingCategory}
-                    loading={applyingCategory}
-                    className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold shadow-lg"
-                  >
-                    Apply Category Discount
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-green-500/20 border border-green-500/40 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="text-green-400" size={20} />
-                      <div>
-                        <p className="text-sm font-semibold text-green-300">{appliedCategory} Discount Applied</p>
-                        {selectedPricing?.categoryDiscount && (
-                          <p className="text-xs text-green-400">
-                            Saving ₹{Math.round(selectedPricing.categoryDiscount.savings).toLocaleString()}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      onClick={async () => {
-                        if (!selectedProduct) return;
-                        setApplyingCategory(true);
-                        try {
-                          const response = await fetch(
-                            `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
-                            {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                productId: selectedProduct,
-                                couponCode: appliedCouponCode || null,
-                                customerCategory: null, // Remove category
-                                secondPair: secondPairEnabled ? {
-                                  enabled: true,
-                                  firstPairTotal: selectedRec?.pricing.subtotal || 0,
-                                  secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
-                                  secondPairLensPrice: secondPairLensId 
-                                    ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
-                                    : (parseFloat(secondPairLensPrice) || 0),
-                                } : null,
-                              }),
-                            }
-                          );
-                          const result = await response.json();
-                          if (result.success) {
-                            setAppliedCategory(null);
-                            setSelectedCategory('');
-                            setCategoryIdImage(null);
-                            setCategoryIdImagePreview(null);
-                            setRecalculatedOffers(prev => ({
-                              ...prev,
-                              [selectedProduct]: result.data,
-                            }));
-                            localStorage.removeItem('lenstrack_category_discount');
-                            showToast('success', 'Category discount removed');
-                          }
-                        } catch (error) {
-                          showToast('error', 'Failed to remove category discount');
-                        } finally {
-                          setApplyingCategory(false);
-                        }
-                      }}
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-400 hover:text-red-300 hover:bg-red-500/20"
-                    >
-                      <X size={16} className="mr-1" />
-                      Remove
-                    </Button>
-                  </div>
-                  {categoryIdImagePreview && (
-                    <div className="p-2 bg-slate-700/50 rounded-lg">
-                      <p className="text-xs text-slate-400 mb-1">Uploaded ID Proof:</p>
-                      <img
-                        src={categoryIdImagePreview}
-                        alt="ID Proof"
-                        className="max-w-full h-24 object-contain rounded border border-slate-600"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Second Pair Toggle */}
-          {selectedProduct && (
-            <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur rounded-xl p-5 border-2 border-slate-700/50 shadow-lg">
-              <label className="flex items-center gap-4 cursor-pointer">
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={secondPairEnabled}
-                    onChange={async (e) => {
-                      setSecondPairEnabled(e.target.checked);
-                      // Auto-recalculate when second pair is toggled
-                      if (selectedProduct && (e.target.checked || !e.target.checked)) {
-                        try {
-                          const response = await fetch(
-                            `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
-                            {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                productId: selectedProduct,
-                                couponCode: appliedCouponCode || null,
-                                customerCategory: appliedCategory || null,
-                                secondPair: e.target.checked ? {
-                                  enabled: true,
-                                  firstPairTotal: selectedRec?.pricing.subtotal || 0,
-                                  secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
-                                  secondPairLensPrice: secondPairLensId 
-                                    ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
-                                    : (parseFloat(secondPairLensPrice) || 0),
-                                } : null,
-                              }),
-                            }
-                          );
-                          const result = await response.json();
-                          if (result.success) {
-                            setRecalculatedOffers(prev => ({
-                              ...prev,
-                              [selectedProduct]: result.data,
-                            }));
-                          }
-                        } catch (error) {
-                          console.error('Failed to recalculate on second pair toggle:', error);
-                        }
-                      }
-                    }}
-                    className="w-6 h-6 rounded border-2 border-slate-600 bg-slate-700 text-emerald-500 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-800 cursor-pointer"
-                  />
-                  {secondPairEnabled && (
-                    <CheckCircle className="absolute top-0 left-0 w-6 h-6 text-emerald-500 pointer-events-none" size={24} />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <span className="text-base font-semibold text-slate-200 flex items-center gap-2">
-                    <Package size={18} className="text-purple-400" />
-                    Buy Second Pair?
-                  </span>
-                  <p className="text-sm text-slate-400 mt-1">Get additional discount on second pair</p>
-                </div>
-              </label>
-              
-              {secondPairEnabled && (
-                <div className="mt-5 pt-4 border-t border-slate-700/50">
-                  <p className="text-sm text-slate-300 mb-3 font-medium">Enter Second Pair Details:</p>
-                  <div className="grid grid-cols-2 gap-4">
-                      <Input
-                        label="Second Pair Frame MRP"
-                        type="number"
-                        placeholder="e.g., 1500"
-                        value={secondPairFrameMRP}
-                        onChange={async (e) => {
-                          setSecondPairFrameMRP(e.target.value);
-                          
-                          // Auto-recalculate when frame MRP is entered and second pair is enabled
-                          if (selectedProduct && secondPairEnabled && e.target.value && parseFloat(e.target.value) > 0) {
-                            try {
-                              const response = await fetch(
-                                `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
-                                {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    productId: selectedProduct,
-                                    couponCode: appliedCouponCode || null,
-                                    customerCategory: appliedCategory || null,
-                                    secondPair: {
-                                      enabled: true,
-                                      firstPairTotal: selectedRec?.pricing.subtotal || 0,
-                                      secondPairFrameMRP: parseFloat(e.target.value) || 0,
-                                      secondPairLensPrice: secondPairLensId 
-                                        ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
-                                        : (parseFloat(secondPairLensPrice) || 0),
-                                    },
-                                  }),
-                                }
-                              );
-                              const result = await response.json();
-                              if (result.success) {
-                                setRecalculatedOffers(prev => ({
-                                  ...prev,
-                                  [selectedProduct]: result.data,
-                                }));
-                              }
-                            } catch (error) {
-                              console.error('Failed to recalculate on frame MRP change:', error);
-                            }
-                          }
-                        }}
-                        className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white !placeholder:text-slate-500 focus:!border-purple-500 focus:!ring-purple-500/50 [&_input]:!bg-slate-700/80 [&_input]:!text-white"
-                        style={{ backgroundColor: 'rgba(51, 65, 85, 0.8)' }}
-                      />
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                        Second Pair Lens
-                      </label>
-                      <Select
-                        value={secondPairLensId}
-                        onChange={async (e) => {
-                          const selectedLens = availableLenses.find(l => l.id === e.target.value);
-                          setSecondPairLensId(e.target.value);
-                          const newPrice = selectedLens ? selectedLens.price.toString() : '';
-                          setSecondPairLensPrice(newPrice);
-                          
-                          // Auto-recalculate when lens is selected and second pair is enabled
-                          if (selectedProduct && secondPairEnabled && e.target.value) {
-                            try {
-                              const response = await fetch(
-                                `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
-                                {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    productId: selectedProduct,
-                                    couponCode: appliedCouponCode || null,
-                                    customerCategory: appliedCategory || null,
-                                    secondPair: {
-                                      enabled: true,
-                                      firstPairTotal: selectedRec?.pricing.subtotal || 0,
-                                      secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
-                                      secondPairLensPrice: selectedLens ? selectedLens.price : 0,
-                                    },
-                                  }),
-                                }
-                              );
-                              const result = await response.json();
-                              if (result.success) {
-                                setRecalculatedOffers(prev => ({
-                                  ...prev,
-                                  [selectedProduct]: result.data,
-                                }));
-                              }
-                            } catch (error) {
-                              console.error('Failed to recalculate on lens selection:', error);
-                            }
-                          }
-                        }}
-                        options={[
-                          { value: '', label: 'Select Lens' },
-                          ...availableLenses.map((lens) => ({
-                            value: lens.id,
-                            label: `${lens.name} - ₹${lens.price.toLocaleString()}`,
-                          })),
-                        ]}
-                        className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
-                      />
-                    </div>
-                  </div>
-                  {!secondPairLensId && (
-                    <div className="mt-2">
-                      <Input
-                        label="Or Enter Lens Price Manually"
-                        type="number"
-                        placeholder="e.g., 2000"
-                        value={secondPairLensPrice}
-                        onChange={async (e) => {
-                          setSecondPairLensId(''); // Clear selected lens when manual entry
-                          setSecondPairLensPrice(e.target.value);
-                          
-                          // Auto-recalculate when price is entered and second pair is enabled
-                          if (selectedProduct && secondPairEnabled && e.target.value && parseFloat(e.target.value) > 0) {
-                            try {
-                              const response = await fetch(
-                                `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
-                                {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    productId: selectedProduct,
-                                    couponCode: appliedCouponCode || null,
-                                    customerCategory: appliedCategory || null,
-                                    secondPair: {
-                                      enabled: true,
-                                      firstPairTotal: selectedRec?.pricing.subtotal || 0,
-                                      secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
-                                      secondPairLensPrice: parseFloat(e.target.value) || 0,
-                                    },
-                                  }),
-                                }
-                              );
-                              const result = await response.json();
-                              if (result.success) {
-                                setRecalculatedOffers(prev => ({
-                                  ...prev,
-                                  [selectedProduct]: result.data,
-                                }));
-                              }
-                            } catch (error) {
-                              console.error('Failed to recalculate on price change:', error);
-                            }
-                          }
-                        }}
-                        className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white !placeholder:text-slate-500 focus:!border-purple-500 focus:!ring-purple-500/50 [&_input]:!bg-slate-700/80 [&_input]:!text-white"
-                        style={{ backgroundColor: 'rgba(51, 65, 85, 0.8)' }}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Old detailed view - keeping for reference but hidden */}
-        {/* Hidden section, won't execute */}
-        {false && data && (data as any).recommendations && (
-        <div className="grid lg:grid-cols-5 gap-6">
-          {/* Product Cards List - 3 columns */}
-          <div className="lg:col-span-3 space-y-4">
-            {(data as any).recommendations.map((rec: any) => {
-              const rankBadge = getRankBadge(rec.rank);
-              const isSelected = selectedProduct === rec.id;
-              const priceInfo = calculatePriceWithOffer(rec, selectedOffer[rec.id]);
-
-              return (
-                <div
-                  key={rec.id}
-                  onClick={async () => {
-                    setSelectedProduct(rec.id);
-                    // If category discount is applied, recalculate offers for this product
-                    if (appliedCategory) {
-                      try {
-                        const response = await fetch(
-                          `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
-                          {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              productId: rec.id,
-                              couponCode: appliedCouponCode || null,
-                              customerCategory: appliedCategory,
-                              secondPair: secondPairEnabled ? {
-                                enabled: true,
-                                firstPairTotal: rec.pricing.subtotal || 0,
-                                secondPairFrameMRP: parseFloat(secondPairFrameMRP) || 0,
-                                secondPairLensPrice: secondPairLensId 
-                                  ? (availableLenses.find(l => l.id === secondPairLensId)?.price || parseFloat(secondPairLensPrice) || 0)
-                                  : (parseFloat(secondPairLensPrice) || 0),
-                              } : null,
-                            }),
-                          }
-                        );
-                        const result = await response.json();
-                        if (result.success) {
-                          setRecalculatedOffers(prev => ({
-                            ...prev,
-                            [rec.id]: result.data,
-                          }));
-                        }
-                      } catch (error) {
-                        console.error('Failed to recalculate on product selection:', error);
-                      }
-                    }
-                  }}
-                  className={`relative cursor-pointer rounded-2xl transition-all duration-300 overflow-hidden shadow-lg ${
-                    isSelected
-                      ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-900 scale-[1.02] shadow-emerald-500/20'
-                      : 'hover:ring-1 hover:ring-emerald-500/50 hover:shadow-xl'
-                  }`}
-                >
-                  {/* Rank Badge */}
-                  <div className={`absolute top-0 left-0 right-0 py-2 px-4 bg-gradient-to-r ${rankBadge.color} text-center shadow-lg z-10`}>
-                    <span className="text-xs font-bold text-white drop-shadow-md">{rankBadge.label}</span>
-                    <span className="text-xs text-white/90 ml-2 font-medium">• {Math.round(rec.matchScore)}% Match</span>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 backdrop-blur pt-12 pb-4 px-4 border border-slate-700/50 rounded-2xl">
-                    <div className="flex gap-4">
-                      {/* Product Image */}
-                      <div className="relative w-28 h-28 flex-shrink-0 bg-gradient-to-br from-slate-700 via-slate-750 to-slate-800 rounded-xl overflow-hidden flex items-center justify-center border-2 border-slate-600/50 shadow-lg group-hover:border-emerald-500/50 transition-colors">
-                        {rec.imageUrl && rec.imageUrl.trim() ? (
-                          <img 
-                            src={rec.imageUrl} 
-                            alt={rec.name} 
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                            }}
-                          />
-                        ) : null}
-                        <div className={`${rec.imageUrl && rec.imageUrl.trim() ? 'hidden' : ''} w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-600/20 to-purple-600/20`}>
-                          <span className="text-6xl">👓</span>
-                        </div>
-                      </div>
-
-                      {/* Product Info */}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold text-white truncate">{rec.name}</h3>
-                        <p className="text-sm text-slate-400">{rec.brand || 'Premium Quality'}</p>
-                        
-                        {/* Features Tags */}
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {rec.features?.slice(0, 3).filter((f: any) => f && f.name).map((feature: any) => {
-                            const FeatureIcon = getFeatureIcon(feature.key);
-                            return (
-                              <span
-                                key={feature.key}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 border border-blue-500/30 rounded-lg text-xs text-blue-300 font-medium"
-                              >
-                                <FeatureIcon size={12} className="text-blue-400" />
-                                {feature.name}
-                              </span>
-                            );
-                          })}
-                          {rec.features && rec.features.length > 3 && (
-                            <span className="inline-flex items-center px-2.5 py-1 bg-slate-700/50 border border-slate-600 rounded-lg text-xs text-slate-400">
-                              +{rec.features.length - 3} more
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Pricing Section */}
-                    <div className="mt-4 pt-4 border-t border-slate-700/50">
-                      <div className="grid grid-cols-3 gap-2 text-center mb-3">
-                        <div className="bg-slate-700/40 border border-slate-600/50 rounded-lg p-2.5 shadow-sm">
-                          <p className="text-xs text-slate-400 mb-1">Frame</p>
-                          <p className="text-sm font-bold text-white">₹{Math.round(rec.pricing.framePrice).toLocaleString()}</p>
-                        </div>
-                        <div className="bg-slate-700/40 border border-slate-600/50 rounded-lg p-2.5 shadow-sm">
-                          <p className="text-xs text-slate-400 mb-1">Lens</p>
-                          <p className="text-sm font-bold text-white">₹{Math.round(rec.pricing.lensPrice.totalLensPrice).toLocaleString()}</p>
-                        </div>
-                        <div className="bg-gradient-to-br from-emerald-500/30 to-teal-500/30 border border-emerald-500/50 rounded-lg p-2.5 shadow-sm">
-                          <p className="text-xs text-emerald-300 mb-1 font-medium">Final</p>
-                          <p className="text-sm font-bold text-emerald-300">₹{Math.round(priceInfo.finalPrice).toLocaleString()}</p>
-                        </div>
-                      </div>
-
-                      {/* Savings Badge */}
-                      {priceInfo.savings > 0 && (
-                        <div className="flex items-center justify-center gap-2 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-2 border-green-500/40 rounded-lg py-2.5 px-4 shadow-lg">
-                          <BadgePercent size={18} className="text-green-400" />
-                          <span className="text-sm text-green-300 font-bold">
-                            You save ₹{Math.round(priceInfo.savings).toLocaleString()}
-                          </span>
-                          {priceInfo.offer && (
-                            <span className="text-xs text-green-100 bg-green-500/40 border border-green-400/50 px-2.5 py-1 rounded-md font-semibold">
-                              {priceInfo.offer.code}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Available Offers Toggle - Only show if there are eligible offers (not already applied) */}
-                      {rec.offers && rec.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[rec.id]).length > 0 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setExpandedOffers(expandedOffers === rec.id ? null : rec.id);
-                          }}
-                          className="w-full mt-3 flex items-center justify-between text-sm text-yellow-400 hover:text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 rounded-lg py-2 px-3 transition-all hover:bg-yellow-500/20"
-                        >
-                          <span className="flex items-center gap-2 font-medium">
-                            <Ticket size={16} className="text-yellow-400" />
-                            {rec.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[rec.id]).length} eligible offers
-                          </span>
-                          {expandedOffers === rec.id ? (
-                            <ChevronUp size={18} className="text-yellow-400" />
-                          ) : (
-                            <ChevronDown size={18} className="text-yellow-400" />
-                          )}
-                        </button>
-                      )}
-
-                      {/* Offers List - Only show eligible offers (not already applied) */}
-                      {expandedOffers === rec.id && rec.offers && rec.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[rec.id]).length > 0 && (
-                        <div className="mt-3 space-y-2">
-                          {rec.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[rec.id]).map((offer: any) => (
-                            <button
-                              key={offer.code}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSelectOffer(rec.id, offer.code);
-                              }}
-                              className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                                selectedOffer[rec.id] === offer.code
-                                  ? 'border-yellow-500 bg-yellow-500/20 shadow-lg shadow-yellow-500/20'
-                                  : 'border-slate-600 bg-slate-700/40 hover:border-yellow-500/50 hover:bg-yellow-500/5'
-                              }`}
-                            >
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <p className="text-sm font-semibold text-white">{offer.title || offer.description}</p>
-                                  {offer.description && offer.title && (
-                                    <p className="text-xs text-slate-400 mt-0.5">{offer.description}</p>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 ml-3">
-                                  {offer.discountAmount && offer.discountAmount > 0 && (
-                                    <span className="text-base font-bold text-green-400 whitespace-nowrap">
-                                      -₹{Math.round(offer.discountAmount).toLocaleString()}
-                                    </span>
-                                  )}
-                                  {selectedOffer[rec.id] === offer.code && (
-                                    <div className="w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center">
-                                      <Check size={14} className="text-yellow-900 font-bold" />
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 mt-2">
-                                <span className="text-xs bg-slate-600/80 text-slate-200 px-2.5 py-1 rounded-md font-medium border border-slate-500">
-                                  Code: {offer.code}
-                                </span>
-                                {offer.minPurchase && (
-                                  <span className="text-xs text-slate-400 bg-slate-700/50 px-2 py-1 rounded">
-                                    Min: ₹{offer.minPurchase.toLocaleString()}
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Stock Status */}
-                    <div className="mt-3 flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <Star size={14} className={`${rec.rank <= 3 ? 'text-yellow-400 fill-yellow-400' : 'text-slate-500'}`} />
-                        <span className="text-xs text-slate-400">Rank #{rec.rank}</span>
-                      </div>
-                      <span
-                        className={`text-xs px-3 py-1.5 rounded-lg font-semibold border ${
-                          rec.storeInfo?.isAvailable
-                            ? 'bg-green-500/20 text-green-300 border-green-500/40'
-                            : 'bg-red-500/20 text-red-300 border-red-500/40'
-                        }`}
-                      >
-                        {rec.storeInfo?.isAvailable ? '✓ In Stock' : '✗ Out of Stock'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Detailed View Panel - 2 columns */}
-          <div className="lg:col-span-2">
-            {selectedRec && selectedPricing ? (
-              <div className="sticky top-4 space-y-4">
-                {/* Selected Product Summary */}
-                <div className="bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 backdrop-blur rounded-2xl border-2 border-emerald-500/30 overflow-hidden shadow-2xl">
-                  <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 p-5 shadow-lg">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-xl font-bold text-white mb-1">{selectedRec!.name}</h3>
-                        <p className="text-emerald-100 text-sm font-medium">{selectedRec!.brand || 'Premium Brand'}</p>
-                        {selectedRec!.sku && (
-                          <p className="text-emerald-200/80 text-xs mt-1 font-mono">SKU: {selectedRec!.sku}</p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <div className="bg-white/20 backdrop-blur rounded-lg px-3 py-2">
-                          <p className="text-xs text-emerald-100">Match Score</p>
-                          <p className="text-2xl font-bold text-white">{Math.round(selectedRec!.matchScore)}%</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4 space-y-4">
-                    {/* Lens Features Detail */}
-                    <div className="bg-slate-700/30 rounded-xl p-4 border border-slate-600/50">
-                      <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                        <Eye size={16} className="text-blue-400" />
-                        Lens Features Included
-                      </h4>
-                      <div className="space-y-2">
-                        {selectedRec!.pricing.lensPrice.featureAddons && selectedRec!.pricing.lensPrice.featureAddons.length > 0 ? (
-                          selectedRec!.pricing.lensPrice.featureAddons.map((addon: any) => (
-                            <div key={addon.name} className="flex justify-between items-center text-sm bg-slate-800/50 rounded-lg px-3 py-2">
-                              <span className="text-slate-300 font-medium">{addon.name}</span>
-                              <span className="text-blue-400 font-bold">+₹{Math.round(addon.price).toLocaleString()}</span>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="bg-slate-800/50 rounded-lg px-3 py-2">
-                            <p className="text-slate-400 text-sm">Standard lens included</p>
-                            <p className="text-slate-500 text-xs mt-1">Base price: ₹{Math.round(selectedRec!.pricing.lensPrice.baseLensPrice).toLocaleString()}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Price Breakdown */}
-                    <div className="bg-gradient-to-br from-slate-700/40 to-slate-800/40 rounded-xl p-5 border border-slate-600/50 shadow-lg">
-                      <h4 className="text-base font-bold text-white mb-4 flex items-center gap-2">
-                        <CircleDollarSign size={18} className="text-emerald-400" />
-                        Price Breakdown
-                      </h4>
-                      
-                      <div className="space-y-2.5">
-                        <div className="flex justify-between items-center text-sm bg-slate-800/50 rounded-lg px-3 py-2">
-                          <span className="text-slate-300 font-medium">Frame Price</span>
-                          <span className="text-white font-bold">₹{Math.round(selectedRec!.pricing.framePrice).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm bg-slate-800/50 rounded-lg px-3 py-2">
-                          <span className="text-slate-300 font-medium">Base Lens</span>
-                          <span className="text-white font-bold">₹{Math.round(selectedRec!.pricing.lensPrice.baseLensPrice).toLocaleString()}</span>
-                        </div>
-                        {selectedRec!.pricing.lensPrice.featureAddons && selectedRec!.pricing.lensPrice.featureAddons.map((addon: any) => (
-                          <div key={addon.name} className="flex justify-between items-center text-sm bg-slate-800/30 rounded-lg px-3 py-1.5 pl-5">
-                            <span className="text-slate-400">+ {addon.name}</span>
-                            <span className="text-blue-300 font-medium">₹{Math.round(addon.price).toLocaleString()}</span>
-                          </div>
-                        ))}
-                        <div className="border-t-2 border-slate-600 pt-3 mt-3">
-                          <div className="flex justify-between items-center text-base bg-slate-800/60 rounded-lg px-3 py-2">
-                            <span className="text-slate-200 font-semibold">Subtotal</span>
-                            <span className="text-white font-bold">₹{Math.round(selectedRec!.pricing.subtotal).toLocaleString()}</span>
-                          </div>
-                        </div>
-                        
-                        {/* Applied Offers Section - Automatic Offers */}
-                        <div className="mt-3 space-y-2">
-                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Applied Offers</p>
-                          
-                          {/* Primary Offer (Automatic) */}
-                          {selectedPricing!.offer && (
-                            <div className="flex justify-between items-center text-sm bg-green-500/20 border border-green-500/40 rounded-lg px-3 py-2 text-green-300">
-                              <span className="flex items-center gap-2 font-medium">
-                                <Tag size={14} className="text-green-400" />
-                                {selectedPricing!.offer.title || selectedPricing!.offer.description}
-                              </span>
-                              <span className="font-bold text-green-400">-₹{Math.round(selectedPricing!.offer.savings || selectedPricing!.savings).toLocaleString()}</span>
-                            </div>
-                          )}
-
-                          {/* Category Discount (Automatic) */}
-                          {selectedPricing!.categoryDiscount && (
-                            <div className="flex justify-between items-center text-sm bg-blue-500/20 border border-blue-500/40 rounded-lg px-3 py-2 text-blue-300">
-                              <span className="flex items-center gap-2 font-medium">
-                                <Percent size={14} className="text-blue-400" />
-                                {selectedPricing!.categoryDiscount.description}
-                              </span>
-                              <span className="font-bold text-blue-400">-₹{Math.round(selectedPricing!.categoryDiscount.savings).toLocaleString()}</span>
-                            </div>
-                          )}
-
-                          {/* Coupon Discount (Applied) */}
-                          {selectedPricing!.couponDiscount && (
-                            <div className="flex justify-between items-center text-sm bg-yellow-500/20 border border-yellow-500/40 rounded-lg px-3 py-2 text-yellow-300">
-                              <span className="flex items-center gap-2 font-medium">
-                                <Ticket size={14} className="text-yellow-400" />
-                                {selectedPricing!.couponDiscount.description}
-                              </span>
-                              <span className="font-bold text-yellow-400">-₹{Math.round(selectedPricing!.couponDiscount.savings).toLocaleString()}</span>
-                            </div>
-                          )}
-
-                          {/* Second Pair Discount (Applied) */}
-                          {selectedPricing!.secondPairDiscount && (
-                            <div className="flex justify-between items-center text-sm bg-purple-500/20 border border-purple-500/40 rounded-lg px-3 py-2 text-purple-300">
-                              <span className="flex items-center gap-2 font-medium">
-                                <Package size={14} className="text-purple-400" />
-                                {selectedPricing!.secondPairDiscount.description}
-                              </span>
-                              <span className="font-bold text-purple-400">-₹{Math.round(selectedPricing!.secondPairDiscount.savings).toLocaleString()}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Eligible Offers Section - User Can Select */}
-                        {selectedRec!.offers && selectedRec!.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[selectedRec!.id]).length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-slate-600/50">
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Eligible Offers</p>
-                            <div className="space-y-2">
-                              {selectedRec!.offers.filter((o: any) => o.isApplicable && o.code !== selectedOffer[selectedRec!.id]).map((offer: any) => (
-                                <button
-                                  key={offer.code}
-                                  onClick={() => handleSelectOffer(selectedRec!.id, offer.code)}
-                                  className="w-full text-left p-3 rounded-lg border-2 border-slate-600 bg-slate-700/40 hover:border-yellow-500/50 hover:bg-yellow-500/5 transition-all"
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <p className="text-sm font-semibold text-white">{offer.title || offer.description}</p>
-                                      {offer.description && offer.title && (
-                                        <p className="text-xs text-slate-400 mt-0.5">{offer.description}</p>
-                                      )}
-                                    </div>
-                                    {offer.discountAmount && offer.discountAmount > 0 && (
-                                      <span className="text-base font-bold text-green-400 whitespace-nowrap ml-3">
-                                        -₹{Math.round(offer.discountAmount).toLocaleString()}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <span className="text-xs bg-slate-600/80 text-slate-200 px-2.5 py-1 rounded-md font-medium border border-slate-500">
-                                      Code: {offer.code}
-                                    </span>
-                                    {offer.minPurchase && (
-                                      <span className="text-xs text-slate-400 bg-slate-700/50 px-2 py-1 rounded">
-                                        Min: ₹{offer.minPurchase.toLocaleString()}
-                                      </span>
-                                    )}
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="border-t-2 border-emerald-500/50 pt-4 mt-4 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-lg px-4 py-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-white font-bold text-lg">Final Price</span>
-                            <div className="text-right">
-                              {selectedPricing!.savings > 0 && (
-                                <span className="text-slate-400 line-through text-sm block mb-1">
-                                  ₹{Math.round(selectedRec!.pricing.subtotal).toLocaleString()}
-                                </span>
-                              )}
-                              <span className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-                                ₹{Math.round(selectedPricing!.finalPrice).toLocaleString()}
-                              </span>
-                            </div>
-                          </div>
-                          {selectedPricing!.savings > 0 && (
-                            <div className="mt-2 text-center">
-                              <span className="text-sm text-green-400 font-medium">
-                                You save ₹{Math.round(selectedPricing!.savings).toLocaleString()}!
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="space-y-3">
-                      <Button 
-                        fullWidth 
-                        className="bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:via-teal-600 hover:to-emerald-700 text-white font-semibold py-3 shadow-lg shadow-emerald-500/30 transition-all hover:scale-[1.02]"
-                      >
-                        <ShoppingBag size={20} className="mr-2" />
-                        Select This Lens
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        fullWidth
-                        className="border-2 border-slate-600 text-slate-300 hover:border-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 py-3 font-medium"
-                      >
-                        <Phone size={20} className="mr-2" />
-                        Talk to Expert
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Offer Code Box */}
-                {selectedPricing!.offer && (
-                  <div className="bg-gradient-to-r from-yellow-500/20 via-orange-500/20 to-yellow-500/20 backdrop-blur rounded-xl border-2 border-yellow-500/50 p-5 shadow-lg shadow-yellow-500/20">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-yellow-500/30 to-orange-500/30 rounded-xl flex items-center justify-center border border-yellow-400/50">
-                        <Gift size={28} className="text-yellow-300" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs text-yellow-200 font-medium mb-1">Apply at checkout</p>
-                        <p className="text-xl font-bold text-white font-mono tracking-wider">{selectedPricing!.offer.code}</p>
-                      </div>
-                      <div className="text-right bg-green-500/20 rounded-lg px-4 py-2 border border-green-500/40">
-                        <p className="text-xs text-green-300 font-medium">You Save</p>
-                        <p className="text-xl font-bold text-green-300">
-                          ₹{Math.round(selectedPricing!.savings).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : null}
-          </div>
-        </div>
-        )}
+        {/* Removed: Coupon Code, Category Discount, and Second Pair sections - not relevant for lens selection */}
 
         {/* Bottom CTA Section */}
         <div className="mt-8 bg-gradient-to-r from-slate-800/80 via-slate-800/80 to-slate-900/80 backdrop-blur rounded-2xl border-2 border-slate-700/50 p-6 shadow-xl">
@@ -2050,15 +837,14 @@ export default function RecommendationsPage() {
             {/* List */}
             <div className="flex-1 overflow-y-auto p-6 space-y-3">
               {sortedRecommendations.map((rec) => {
-                const priceInfo = calculatePriceWithOffer(rec, selectedOffer[rec.id]);
+                const lensPrice = getLensPrice(rec);
+                // Get MRP - only use if explicitly set (not null/undefined)
+                const lensMRP = (rec.mrp && rec.mrp > 0) ? rec.mrp : null;
                 // Extract index from lensIndex or name
                 const lensIndexStr = rec.lensIndex || rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
                 const lensIndexDisplay = lensIndexStr.replace('INDEX_', '1.').replace(/^1\./, '1.');
                 const brandLine = rec.brand || 'Premium';
                 const benefits = rec.features?.slice(0, 3).map(f => f?.name).filter(Boolean) || [];
-                const hasYOPO = rec.offers.some(o => o.type === 'YOPO' && o.isApplicable);
-                const hasCombo = rec.offers.some(o => o.type === 'COMBO' && o.isApplicable);
-                const hasFreeLens = rec.offers.some(o => o.type === 'FREE_LENS' && o.isApplicable);
                 
                 // Get match percentage (prefer matchPercent, fallback to matchScore)
                 const matchPercent = rec.matchPercent ?? Math.round(rec.matchScore);
@@ -2138,13 +924,14 @@ export default function RecommendationsPage() {
                           </div>
                         )}
                         
-                        <div className="mb-3">
-                          <span className="text-2xl font-bold text-slate-900">₹{Math.round(priceInfo.finalPrice).toLocaleString()}</span>
-                          {priceInfo.savings > 0 && (
-                            <span className="ml-2 text-sm text-green-600 font-semibold">
-                              Save ₹{Math.round(priceInfo.savings).toLocaleString()}
-                            </span>
-                          )}
+                        <div className="mb-3 flex items-baseline gap-2">
+                          {lensMRP && lensMRP >= lensPrice ? (
+                            <>
+                              <span className="text-lg text-slate-500 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
+                              {lensMRP > lensPrice && <span className="text-slate-400">→</span>}
+                            </>
+                          ) : null}
+                          <span className="text-2xl font-bold text-slate-900">₹{Math.round(lensPrice).toLocaleString()}</span>
                         </div>
                         {benefits.length > 0 && (
                           <ul className="space-y-1.5 mb-3">
@@ -2156,50 +943,11 @@ export default function RecommendationsPage() {
                             ))}
                           </ul>
                         )}
-                        <div className="flex flex-wrap gap-2">
-                          {hasYOPO && (
-                            <span className="px-2.5 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-lg border border-yellow-200">YOPO</span>
-                          )}
-                          {hasCombo && (
-                            <span className="px-2.5 py-1 bg-purple-100 text-purple-800 text-xs font-semibold rounded-lg border border-purple-200">Combo</span>
-                          )}
-                          {hasFreeLens && (
-                            <span className="px-2.5 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-lg border border-green-200">Free Lens</span>
-                          )}
-                        </div>
                       </div>
                       <Button
-                        onClick={async () => {
+                        onClick={() => {
                           setSelectedProduct(rec.id);
                           setShowViewAllModal(false);
-                          
-                          // If category discount is applied, recalculate offers for this product
-                          if (appliedCategory) {
-                            try {
-                              const response = await fetch(
-                                `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
-                                {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    productId: rec.id,
-                                    couponCode: appliedCouponCode || null,
-                                    customerCategory: appliedCategory,
-                                    secondPair: null,
-                                  }),
-                                }
-                              );
-                              const result = await response.json();
-                              if (result.success) {
-                                setRecalculatedOffers(prev => ({
-                                  ...prev,
-                                  [rec.id]: result.data,
-                                }));
-                              }
-                            } catch (error) {
-                              console.error('Failed to recalculate on product selection:', error);
-                            }
-                          }
                           
                           // Navigate to offer summary page
                           router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);

@@ -161,6 +161,17 @@ export class RecommendationsAdapterService {
           return null;
         }
 
+        // Debug: Log full product data to verify MRP is being fetched
+        console.log(`[RecommendationsAdapter] Full product data for ${product.itCode}:`, {
+          id: fullProduct.id,
+          name: fullProduct.name,
+          mrp: fullProduct.mrp,
+          baseOfferPrice: fullProduct.baseOfferPrice,
+          addOnPrice: fullProduct.addOnPrice,
+          hasMRP: 'mrp' in fullProduct,
+          mrpType: typeof fullProduct.mrp,
+        });
+
         // Calculate band pricing
         const bandPricing = await bandPricingService.calculateBandPricing(
           fullProduct.id,
@@ -234,6 +245,21 @@ export class RecommendationsAdapterService {
           })
           .filter((b: any) => b !== null) || [];
 
+        // Calculate MRP: Use database MRP if available, otherwise use baseOfferPrice as fallback (like admin panel does)
+        // Admin panel uses: mrp: product.mrp || product.baseOfferPrice
+        const calculatedMRP = fullProduct.mrp || fullProduct.baseOfferPrice || null;
+
+        // Debug: Log MRP value from database
+        console.log(`[RecommendationsAdapter] Product ${product.itCode} MRP calculation:`, {
+          itCode: product.itCode,
+          dbMRP: fullProduct.mrp,
+          baseOfferPrice: fullProduct.baseOfferPrice,
+          finalPrice: finalPrice,
+          calculatedMRP: calculatedMRP,
+          hasDBMRP: !!fullProduct.mrp,
+          usingFallback: !fullProduct.mrp && !!fullProduct.baseOfferPrice,
+        });
+
         return {
           id: fullProduct.id,
           name: product.name || fullProduct.name,
@@ -241,6 +267,7 @@ export class RecommendationsAdapterService {
           itCode: product.itCode,
           description: null,
           brand: fullProduct.brandLine,
+          mrp: calculatedMRP,
           basePrice: finalPrice,
           imageUrl: null,
           category: session.category,

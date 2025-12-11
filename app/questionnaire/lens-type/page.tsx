@@ -68,7 +68,7 @@ export default function LensTypePage() {
     },
   ];
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!selectedCategory) {
       showToast('error', 'Please select a lens type');
       return;
@@ -77,7 +77,42 @@ export default function LensTypePage() {
     // Save selection
     localStorage.setItem('lenstrack_lens_type', selectedCategory);
     
-    // Navigate to prescription
+    // If ACCESSORIES is selected, create session and go directly to accessories page
+    if (selectedCategory === ProductCategory.ACCESSORIES) {
+      try {
+        // Get store code from localStorage or use default
+        const storeCode = localStorage.getItem('lenstrack_store_code') || 'MAIN-001';
+        
+        // Create session for accessories
+        const response = await fetch('/api/public/questionnaire/sessions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            storeCode: storeCode,
+            category: 'ACCESSORIES',
+            customerName: 'Guest',
+            customerPhone: '0000000000',
+          }),
+        });
+
+        const data = await response.json();
+        
+        if (data.success && data.data?.sessionId) {
+          // Navigate directly to accessories page
+          router.push(`/questionnaire/${data.data.sessionId}/accessories`);
+        } else {
+          showToast('error', data.error?.message || 'Failed to start accessories flow');
+        }
+      } catch (error: any) {
+        console.error('Failed to create session:', error);
+        showToast('error', 'Failed to start accessories flow');
+      }
+      return;
+    }
+    
+    // For other categories, navigate to prescription
     router.push('/questionnaire/prescription');
   };
 

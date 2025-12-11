@@ -160,6 +160,7 @@ export async function POST(request: NextRequest) {
     authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
 
     const body = await request.json();
+    console.log('[POST /api/admin/offers/rules] Request body:', JSON.stringify(body, null, 2));
 
     const validationResult = offerRuleSchema.safeParse(body);
     if (!validationResult.success) {
@@ -169,9 +170,11 @@ export async function POST(request: NextRequest) {
     }
 
     const data = validationResult.data;
+    console.log('[POST /api/admin/offers/rules] Validated data:', JSON.stringify(data, null, 2));
 
     // Build config from legacy fields if provided
-    const ruleConfigData: any = data.config || {};
+    // Config is required in Prisma schema (OfferRuleConfig type), so ensure it's always an object
+    const ruleConfigData: any = data.config && typeof data.config === 'object' ? { ...data.config } : {};
     if (data.discountType !== undefined) ruleConfigData.discountType = data.discountType;
     if (data.discountValue !== undefined) ruleConfigData.discountValue = typeof data.discountValue === 'string' ? parseFloat(data.discountValue) : data.discountValue;
     if (data.comboPrice !== undefined) ruleConfigData.comboPrice = typeof data.comboPrice === 'string' ? parseFloat(data.comboPrice) : data.comboPrice;
@@ -211,6 +214,9 @@ export async function POST(request: NextRequest) {
       : (data.frameSubCategory ? [data.frameSubCategory] : []);
     const lensBrandLines = Array.isArray(data.lensBrandLines) ? data.lensBrandLines : [];
 
+    // Convert priority to BigInt for Prisma
+    const priorityValue = typeof data.priority === 'string' ? parseInt(data.priority, 10) : (data.priority ?? 100);
+    
     const ruleData: any = {
       code: data.code,
       offerType: data.offerType,
@@ -219,25 +225,50 @@ export async function POST(request: NextRequest) {
       lensBrandLines,
       config: ruleConfigData,
       upsellEnabled: data.upsellEnabled ?? true,
-      priority: typeof data.priority === 'string' ? parseInt(data.priority, 10) : (data.priority ?? 100),
+      priority: BigInt(priorityValue), // Convert to BigInt for Prisma
       isActive: data.isActive ?? true,
       organizationId: data.organizationId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
-    // Optional fields
-    if (data.minFrameMRP !== undefined) ruleData.minFrameMRP = typeof data.minFrameMRP === 'string' ? parseFloat(data.minFrameMRP) : data.minFrameMRP;
-    if (data.maxFrameMRP !== undefined) ruleData.maxFrameMRP = typeof data.maxFrameMRP === 'string' ? parseFloat(data.maxFrameMRP) : data.maxFrameMRP;
-    if (data.upsellThreshold !== undefined) ruleData.upsellThreshold = typeof data.upsellThreshold === 'string' ? parseFloat(data.upsellThreshold) : data.upsellThreshold;
-    if (data.upsellRewardText !== undefined) ruleData.upsellRewardText = data.upsellRewardText;
+    // Optional fields - handle Json? types properly
+    if (data.minFrameMRP !== undefined && data.minFrameMRP !== null) {
+      ruleData.minFrameMRP = typeof data.minFrameMRP === 'string' ? parseFloat(data.minFrameMRP) : data.minFrameMRP;
+    }
+    if (data.maxFrameMRP !== undefined && data.maxFrameMRP !== null) {
+      ruleData.maxFrameMRP = typeof data.maxFrameMRP === 'string' ? parseFloat(data.maxFrameMRP) : data.maxFrameMRP;
+    }
+    // upsellThreshold is Json? in Prisma, so we can store it as number or null
+    if (data.upsellThreshold !== undefined && data.upsellThreshold !== null) {
+      ruleData.upsellThreshold = typeof data.upsellThreshold === 'string' ? parseFloat(data.upsellThreshold) : data.upsellThreshold;
+    }
+    // upsellRewardText is Json? in Prisma
+    if (data.upsellRewardText !== undefined && data.upsellRewardText !== null) {
+      ruleData.upsellRewardText = data.upsellRewardText;
+    }
 
     // Use user's organizationId if not provided or invalid
     if (!ruleData.organizationId || !/^[0-9a-fA-F]{24}$/.test(ruleData.organizationId)) {
       ruleData.organizationId = user.organizationId;
     }
 
-    const rule = await prisma.offerRule.create({
-      data: ruleData,
-    });
+    console.log('[POST /api/admin/offers/rules] Rule data to create:', JSON.stringify(ruleData, (key, value) => 
+      typeof value === 'bigint' ? value.toString() : value, 2));
+
+    let rule;
+    try {
+      rule = await prisma.offerRule.create({
+        data: ruleData,
+      });
+      console.log('[POST /api/admin/offers/rules] Rule created successfully:', rule.id);
+    } catch (prismaError: any) {
+      console.error('[POST /api/admin/offers/rules] Prisma error:', prismaError);
+      console.error('[POST /api/admin/offers/rules] Prisma error code:', prismaError?.code);
+      console.error('[POST /api/admin/offers/rules] Prisma error message:', prismaError?.message);
+      console.error('[POST /api/admin/offers/rules] Prisma error meta:', JSON.stringify(prismaError?.meta, null, 2));
+      throw prismaError;
+    }
 
     // Transform rule to include discount fields from config for frontend compatibility
     const ruleConfig = rule.config as any || {};

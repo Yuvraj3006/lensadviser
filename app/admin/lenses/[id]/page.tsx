@@ -12,10 +12,10 @@ import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Package, Settings, Sparkles, TrendingUp, Eye } from 'lucide-react';
+import { Package, Settings, Sparkles, TrendingUp, Eye, DollarSign } from 'lucide-react';
 import { BRAND_LINES, SPEC_GROUPS } from '@/lib/constants/lens';
 
-type Tab = 'general' | 'rxRanges' | 'features' | 'benefits' | 'specifications';
+type Tab = 'general' | 'rxRanges' | 'powerAddOnPricing' | 'features' | 'benefits' | 'specifications';
 
 interface RxRange {
   sphMin: number;
@@ -32,6 +32,7 @@ interface LensFormData {
   visionType: 'SINGLE_VISION' | 'PROGRESSIVE' | 'BIFOCAL' | 'ANTI_FATIGUE' | 'MYOPIA_CONTROL';
   lensIndex: 'INDEX_156' | 'INDEX_160' | 'INDEX_167' | 'INDEX_174';
   tintOption: 'CLEAR' | 'TINT' | 'PHOTOCHROMIC' | 'TRANSITION';
+  mrp: number;
   baseOfferPrice: number;
   addOnPrice: number;
   category: 'ECONOMY' | 'STANDARD' | 'PREMIUM' | 'ULTRA';
@@ -57,6 +58,17 @@ interface Benefit {
   description?: string;
 }
 
+interface PowerAddOnBand {
+  id: string;
+  sphMin: number | null;
+  sphMax: number | null;
+  cylMin: number | null;
+  cylMax: number | null;
+  addMin: number | null;
+  addMax: number | null;
+  extraCharge: number;
+}
+
 export default function AdminLensDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -67,6 +79,8 @@ export default function AdminLensDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [features, setFeatures] = useState<Feature[]>([]);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
+  const [powerAddOnBands, setPowerAddOnBands] = useState<PowerAddOnBand[]>([]);
+  const [loadingAddOnBands, setLoadingAddOnBands] = useState(false);
 
   const [formData, setFormData] = useState<LensFormData>({
     itCode: '',
@@ -75,6 +89,7 @@ export default function AdminLensDetailPage() {
     visionType: 'SINGLE_VISION',
     lensIndex: 'INDEX_156',
     tintOption: 'CLEAR',
+    mrp: 0,
     baseOfferPrice: 0,
     addOnPrice: 0,
     category: 'STANDARD',
@@ -100,6 +115,7 @@ export default function AdminLensDetailPage() {
     fetchBenefits();
     if (lensId && lensId !== 'new') {
       fetchLens();
+      fetchPowerAddOnBands();
     } else {
       setLoading(false);
     }
@@ -161,6 +177,7 @@ export default function AdminLensDetailPage() {
           visionType: lens.visionType || 'SINGLE_VISION',
           lensIndex: lens.lensIndex || 'INDEX_156',
           tintOption: lens.tintOption || 'CLEAR',
+          mrp: lens.mrp || lens.baseOfferPrice || 0,
           baseOfferPrice: lens.baseOfferPrice || 0,
           addOnPrice: lens.addOnPrice || 0,
           category: lens.category || 'STANDARD',
@@ -181,7 +198,7 @@ export default function AdminLensDetailPage() {
   };
 
   const handleSave = async () => {
-    if (!formData.itCode || !formData.name || !formData.brandLine || formData.baseOfferPrice <= 0) {
+    if (!formData.itCode || !formData.name || !formData.brandLine || formData.baseOfferPrice <= 0 || formData.mrp <= 0) {
       showToast('error', 'Please fill all required fields');
       return;
     }
@@ -200,6 +217,7 @@ export default function AdminLensDetailPage() {
         visionType: formData.visionType,
         lensIndex: formData.lensIndex,
         tintOption: formData.tintOption,
+        mrp: formData.mrp || null,
         baseOfferPrice: formData.baseOfferPrice,
         addOnPrice: formData.addOnPrice || null,
         category: formData.category,
@@ -258,6 +276,120 @@ export default function AdminLensDetailPage() {
         i === index ? { ...range, [field]: value } : range
       ),
     }));
+  };
+
+  const fetchPowerAddOnBands = async () => {
+    if (lensId === 'new') return;
+    setLoadingAddOnBands(true);
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch(`/api/admin/lenses/${lensId}/power-addon-pricing`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: { message: 'Failed to fetch power add-on bands' } }));
+        console.error('Failed to fetch power add-on bands:', errorData.error?.message || `HTTP ${response.status}`);
+        // Set empty array on error to prevent UI issues
+        setPowerAddOnBands([]);
+        return;
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        setPowerAddOnBands(data.data || []);
+      } else {
+        console.error('Failed to fetch power add-on bands:', data.error?.message || 'Unknown error');
+        setPowerAddOnBands([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch power add-on bands:', error);
+      // Set empty array on error to prevent UI issues
+      setPowerAddOnBands([]);
+    } finally {
+      setLoadingAddOnBands(false);
+    }
+  };
+
+  const addPowerAddOnBand = async () => {
+    if (lensId === 'new') {
+      showToast('error', 'Please save the lens first before adding add-on pricing');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch(`/api/admin/lenses/${lensId}/power-addon-pricing`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          sphMin: null,
+          sphMax: null,
+          cylMin: null,
+          cylMax: null,
+          addMin: null,
+          addMax: null,
+          extraCharge: 0,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        showToast('success', 'Add-on band added successfully');
+        fetchPowerAddOnBands();
+      } else {
+        showToast('error', data.error?.message || 'Failed to add band');
+      }
+    } catch (error) {
+      showToast('error', 'Failed to add band');
+    }
+  };
+
+  const updatePowerAddOnBand = async (bandId: string, field: keyof PowerAddOnBand, value: number | null) => {
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const band = powerAddOnBands.find(b => b.id === bandId);
+      if (!band) return;
+
+      const updateData: any = { [field]: value };
+      const response = await fetch(`/api/admin/lenses/${lensId}/power-addon-pricing/${bandId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updateData),
+      });
+      const data = await response.json();
+      if (data.success) {
+        fetchPowerAddOnBands();
+      } else {
+        showToast('error', data.error?.message || 'Failed to update band');
+      }
+    } catch (error) {
+      showToast('error', 'Failed to update band');
+    }
+  };
+
+  const deletePowerAddOnBand = async (bandId: string) => {
+    if (!confirm('Are you sure you want to delete this add-on band?')) return;
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch(`/api/admin/lenses/${lensId}/power-addon-pricing/${bandId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        showToast('success', 'Band deleted successfully');
+        fetchPowerAddOnBands();
+      } else {
+        showToast('error', data.error?.message || 'Failed to delete band');
+      }
+    } catch (error) {
+      showToast('error', 'Failed to delete band');
+    }
   };
 
   const toggleFeature = (code: string) => {
@@ -450,6 +582,20 @@ export default function AdminLensDetailPage() {
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
+                  MRP (₹) *
+                </label>
+                <Input
+                  type="number"
+                  value={formData.mrp}
+                  onChange={(e) =>
+                    setFormData({ ...formData, mrp: parseFloat(e.target.value) || 0 })
+                  }
+                  placeholder="0"
+                />
+                <p className="text-xs text-slate-500 mt-1">Maximum Retail Price</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
                   Base Offer Price (₹) *
                 </label>
                 <Input
@@ -460,6 +606,7 @@ export default function AdminLensDetailPage() {
                   }
                   placeholder="0"
                 />
+                <p className="text-xs text-slate-500 mt-1">Actual selling price</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -473,24 +620,26 @@ export default function AdminLensDetailPage() {
                   }
                   placeholder="0"
                 />
+                <p className="text-xs text-slate-500 mt-1">Additional features</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Category *
-                </label>
-                <Select
-                  value={formData.category}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value as any })
-                  }
-                  options={[
-                    { value: 'ECONOMY', label: 'Economy' },
-                    { value: 'STANDARD', label: 'Standard' },
-                    { value: 'PREMIUM', label: 'Premium' },
-                    { value: 'ULTRA', label: 'Ultra' },
-                  ]}
-                />
-              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Category *
+              </label>
+              <Select
+                value={formData.category}
+                onChange={(e) =>
+                  setFormData({ ...formData, category: e.target.value as any })
+                }
+                options={[
+                  { value: 'ECONOMY', label: 'Economy' },
+                  { value: 'STANDARD', label: 'Standard' },
+                  { value: 'PREMIUM', label: 'Premium' },
+                  { value: 'ULTRA', label: 'Ultra' },
+                ]}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -624,6 +773,159 @@ export default function AdminLensDetailPage() {
                         onClick={() => removeRxRange(index)}
                       >
                         Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* RX Add-On Pricing Tab */}
+        {activeTab === 'powerAddOnPricing' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">RX Add-On Pricing</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  Configure combined SPH + CYL + ADD based extra charges. All conditions in a band must match together.
+                </p>
+              </div>
+              <Button onClick={addPowerAddOnBand} size="sm" disabled={lensId === 'new'}>
+                + Add Add-On Band
+              </Button>
+            </div>
+
+            {lensId === 'new' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm text-amber-800">
+                  Please save the lens first before adding RX add-on pricing bands.
+                </p>
+              </div>
+            )}
+
+            {loadingAddOnBands ? (
+              <p className="text-slate-500 text-center py-8">Loading add-on bands...</p>
+            ) : powerAddOnBands.length === 0 ? (
+              <p className="text-slate-500 text-center py-8">No add-on bands added yet</p>
+            ) : (
+              <div className="space-y-3">
+                {powerAddOnBands.map((band) => (
+                  <div
+                    key={band.id}
+                    className="grid grid-cols-8 gap-3 p-4 border border-slate-200 rounded-lg bg-slate-50"
+                  >
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        SPH Min
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={band.sphMin ?? ''}
+                        placeholder="ANY"
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                          updatePowerAddOnBand(band.id, 'sphMin', val);
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        SPH Max
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={band.sphMax ?? ''}
+                        placeholder="ANY"
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                          updatePowerAddOnBand(band.id, 'sphMax', val);
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        CYL Min
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={band.cylMin ?? ''}
+                        placeholder="ANY"
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                          updatePowerAddOnBand(band.id, 'cylMin', val);
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        CYL Max
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={band.cylMax ?? ''}
+                        placeholder="ANY"
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                          updatePowerAddOnBand(band.id, 'cylMax', val);
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        ADD Min
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={band.addMin ?? ''}
+                        placeholder="ANY"
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                          updatePowerAddOnBand(band.id, 'addMin', val);
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        ADD Max
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={band.addMax ?? ''}
+                        placeholder="ANY"
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                          updatePowerAddOnBand(band.id, 'addMax', val);
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Extra Charge (₹)
+                      </label>
+                      <Input
+                        type="number"
+                        value={band.extraCharge}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          updatePowerAddOnBand(band.id, 'extraCharge', val);
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => deletePowerAddOnBand(band.id)}
+                      >
+                        Delete
                       </Button>
                     </div>
                   </div>

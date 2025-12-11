@@ -57,9 +57,18 @@ export interface AccessoryItem {
   quantity?: number;
 }
 
+export interface RxInput {
+  rSph?: number | null; // Right eye sphere
+  rCyl?: number | null; // Right eye cylinder
+  lSph?: number | null; // Left eye sphere
+  lCyl?: number | null; // Left eye cylinder
+  add?: number | null; // Addition (for progressive/bifocal)
+}
+
 export interface OfferCalculationInput {
   frame?: FrameInput | null; // Optional for "Only Lens" flow
   lens?: LensInput | null; // Optional for CONTACT_LENS_ONLY mode
+  prescription?: RxInput | null; // Prescription data for RX add-on pricing
   customerCategory?: CustomerCategoryCode | null;
   couponCode?: string | null;
   // For second pair flow
@@ -83,6 +92,16 @@ export interface UpsellSuggestion {
   remaining: number; // Amount needed to unlock (e.g., 500)
 }
 
+export interface RxAddOnBreakdown {
+  label: string;
+  charge: number;
+  matchedBand?: {
+    sphRange?: string;
+    cylRange?: string;
+    addRange?: string;
+  };
+}
+
 export interface OfferCalculationResult {
   frameMRP: number;
   lensPrice: number;
@@ -95,6 +114,8 @@ export interface OfferCalculationResult {
   couponError?: string | null; // Error message if coupon validation failed
   secondPairDiscount?: OfferApplied | null;
   bonusProduct?: OfferApplied | null; // Bonus free product (doesn't reduce price, free add-on)
+  rxAddOnBreakdown?: RxAddOnBreakdown[]; // RX add-on pricing breakdown
+  totalRxAddOn?: number; // Total RX add-on charge (non-discountable)
   finalPayable: number;
   upsell?: UpsellSuggestion | null; // V2: Dynamic Upsell Engine
 }

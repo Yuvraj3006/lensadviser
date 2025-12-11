@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { DataTable, Column } from '@/components/data-display/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Spinner } from '@/components/ui/Spinner';
-import { Plus, Search, Edit2, Trash2, Eye } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Eye, TrendingUp } from 'lucide-react';
 import { Select } from '@/components/ui/Select';
 
 interface ContactLensProduct {
@@ -59,6 +59,10 @@ export default function ContactLensProductsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ContactLensProduct | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'general' | 'benefits'>('general');
+  const [benefits, setBenefits] = useState<any[]>([]);
+  const [benefitScores, setBenefitScores] = useState<Record<string, number>>({});
+  const [loadingBenefits, setLoadingBenefits] = useState(false);
   
   const [formData, setFormData] = useState({
     skuCode: '',
@@ -87,7 +91,35 @@ export default function ContactLensProductsPage() {
   useEffect(() => {
     fetchBrands();
     fetchProducts();
+    fetchBenefits();
   }, []);
+
+  const fetchBenefits = async () => {
+    setLoadingBenefits(true);
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch('/api/admin/benefit-features?type=BENEFIT&isActive=true', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setBenefits(data.data);
+          // Initialize benefit scores
+          const initialScores: Record<string, number> = {};
+          data.data.forEach((b: any) => {
+            initialScores[b.code] = 0;
+          });
+          setBenefitScores(initialScores);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch benefits:', error);
+    } finally {
+      setLoadingBenefits(false);
+    }
+  };
 
   const fetchBrands = async () => {
     try {
@@ -200,7 +232,7 @@ export default function ContactLensProductsPage() {
     }
   };
 
-  const handleEdit = (product: ContactLensProduct) => {
+  const handleEdit = async (product: ContactLensProduct) => {
     setEditingProduct(product);
     setFormData({
       skuCode: product.skuCode,
@@ -225,7 +257,27 @@ export default function ContactLensProductsPage() {
       colorOptions: product.colorOptions ? JSON.parse(product.colorOptions).join(', ') : '',
       isActive: product.isActive,
     });
+    
+    // Fetch benefit scores for this product
+    if (product.id) {
+      try {
+        const token = localStorage.getItem('lenstrack_token');
+        const response = await fetch(`/api/admin/contact-lens-products/${product.id}/benefits`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data?.benefitScores) {
+            setBenefitScores(data.data.benefitScores);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch benefit scores:', error);
+      }
+    }
+    
     setIsModalOpen(true);
+    setActiveTab('general');
   };
 
   const handleDelete = async (id: string) => {
@@ -276,6 +328,58 @@ export default function ContactLensProductsPage() {
       colorOptions: '',
       isActive: true,
     });
+    // Reset benefit scores
+    const initialScores: Record<string, number> = {};
+    benefits.forEach((b: any) => {
+      initialScores[b.code] = 0;
+    });
+    setBenefitScores(initialScores);
+    setActiveTab('general');
+  };
+
+  const updateBenefitScore = (code: string, score: number) => {
+    setBenefitScores((prev) => ({
+      ...prev,
+      [code]: Math.max(0, Math.min(3, score)), // Clamp 0-3
+    }));
+  };
+
+  const handleSaveBenefits = async () => {
+    if (!editingProduct) return;
+
+    setSubmitting(true);
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const benefitsArray = Object.entries(benefitScores)
+        .filter(([_, score]) => score > 0)
+        .map(([code, score]) => ({
+          benefitCode: code,
+          score,
+        }));
+
+      const response = await fetch(`/api/admin/contact-lens-products/${editingProduct.id}/benefits`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          benefits: benefitsArray,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        showToast('success', 'Benefit scores saved successfully');
+      } else {
+        showToast('error', data.error?.message || 'Failed to save benefit scores');
+      }
+    } catch (error) {
+      console.error('Error saving benefit scores:', error);
+      showToast('error', 'An error occurred');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const filteredProducts = products.filter(p =>
@@ -421,12 +525,49 @@ export default function ContactLensProductsPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleSubmit} loading={submitting}>
-              {editingProduct ? 'Update' : 'Create'}
-            </Button>
+            {activeTab === 'benefits' && editingProduct ? (
+              <Button onClick={handleSaveBenefits} loading={submitting}>
+                Save Benefits
+              </Button>
+            ) : (
+              <Button onClick={handleSubmit} loading={submitting}>
+                {editingProduct ? 'Update' : 'Create'}
+              </Button>
+            )}
           </>
         }
       >
+        {/* Tabs */}
+        {editingProduct && (
+          <div className="border-b border-slate-200 mb-4">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setActiveTab('general')}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === 'general'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                General
+              </button>
+              <button
+                onClick={() => setActiveTab('benefits')}
+                className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
+                  activeTab === 'benefits'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <TrendingUp size={16} />
+                Benefits
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* General Tab */}
+        {activeTab === 'general' && (
         <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -664,6 +805,82 @@ export default function ContactLensProductsPage() {
             </div>
           </div>
         </form>
+        )}
+
+        {/* Benefits Tab */}
+        {activeTab === 'benefits' && editingProduct && (
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Benefit Mapping</h3>
+              <p className="text-sm text-slate-600 mb-4">
+                Map benefits to this contact lens product. Scores range from 0-3 (0 = not applicable, 3 = strongest match).
+              </p>
+              
+              {loadingBenefits ? (
+                <div className="text-center py-8">
+                  <div className="w-8 h-8 mx-auto border-4 border-slate-300 border-t-blue-600 rounded-full animate-spin" />
+                  <p className="text-slate-600 mt-2">Loading benefits...</p>
+                </div>
+              ) : benefits.length === 0 ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-yellow-800 text-sm">
+                    No benefits found. Please create benefits first in Admin → Benefit Features.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {benefits.map((benefit) => (
+                    <div key={benefit.id} className="p-4 border border-slate-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <span className="font-medium text-slate-900">
+                            {benefit.code} - {benefit.name}
+                          </span>
+                          {benefit.description && (
+                            <p className="text-sm text-slate-500 mt-1">{benefit.description}</p>
+                          )}
+                        </div>
+                        <span className="text-sm font-medium text-slate-600">
+                          {benefitScores[benefit.code] || 0} / 3
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="range"
+                          min="0"
+                          max="3"
+                          step="0.1"
+                          value={benefitScores[benefit.code] || 0}
+                          onChange={(e) =>
+                            updateBenefitScore(benefit.code, parseFloat(e.target.value))
+                          }
+                          className="flex-1"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          max="3"
+                          step="0.1"
+                          value={benefitScores[benefit.code] || 0}
+                          onChange={(e) =>
+                            updateBenefitScore(benefit.code, parseFloat(e.target.value) || 0)
+                          }
+                          className="w-20 px-2 py-1 border border-slate-300 rounded text-sm"
+                        />
+                      </div>
+                      <div className="text-xs text-slate-500 mt-2">
+                        {benefitScores[benefit.code] === 0 && 'Not applicable'}
+                        {benefitScores[benefit.code] > 0 && benefitScores[benefit.code] <= 1 && 'Weak match'}
+                        {benefitScores[benefit.code] > 1 && benefitScores[benefit.code] <= 2 && 'Moderate match'}
+                        {benefitScores[benefit.code] > 2 && benefitScores[benefit.code] <= 3 && 'Strong match'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

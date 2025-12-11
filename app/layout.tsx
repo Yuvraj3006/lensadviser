@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { ToastProvider } from "@/contexts/ToastContext";
-import { QueryProvider } from "@/components/providers/QueryProvider";
-import { PerformanceFix } from "@/components/PerformanceFix";
+import { AppProviders } from "@/components/providers/AppProviders";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -21,19 +18,62 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <html lang="en">
-      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
-        <PerformanceFix />
-        <QueryProvider>
-          <AuthProvider>
-            <ToastProvider>
-              {children}
-            </ToastProvider>
-          </AuthProvider>
-        </QueryProvider>
-      </body>
-    </html>
-  );
+  // #region agent log
+  console.log('[DEBUG] RootLayout rendering', { timestamp: Date.now() });
+  // #endregion
+  
+  // Wrap in error boundary at layout level
+  let appProvidersElement: React.ReactNode;
+  try {
+    // #region agent log
+    console.log('[DEBUG] RootLayout before AppProviders check', { timestamp: Date.now(), hasAppProviders: typeof AppProviders !== 'undefined' });
+    // #endregion
+    
+    if (typeof AppProviders === 'undefined') {
+      throw new Error('AppProviders is undefined');
+    }
+    
+    appProvidersElement = <AppProviders>{children}</AppProviders>;
+  } catch (error: any) {
+    // #region agent log
+    console.error('[DEBUG] RootLayout AppProviders error', { error: error?.message, stack: error?.stack, name: error?.name, timestamp: Date.now() });
+    // #endregion
+    // Fallback: render children without providers if AppProviders fails
+    appProvidersElement = <>{children}</>;
+  }
+  
+  try {
+    // #region agent log
+    console.log('[DEBUG] RootLayout before return', { timestamp: Date.now() });
+    // #endregion
+    return (
+      <html lang="en">
+        <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
+          {appProvidersElement}
+        </body>
+      </html>
+    );
+  } catch (error: any) {
+    // #region agent log
+    console.error('[DEBUG] RootLayout render error', { error: error?.message, stack: error?.stack, name: error?.name, timestamp: Date.now() });
+    // #endregion
+    // Last resort: return minimal HTML
+    return (
+      <html lang="en">
+        <body>
+          <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
+            <h1>Application Error</h1>
+            <p>An error occurred while rendering the application.</p>
+            {process.env.NODE_ENV === 'development' && (
+              <pre style={{ background: '#f5f5f5', padding: '10px', overflow: 'auto' }}>
+                {error?.message || 'Unknown error'}
+                {error?.stack && `\n\n${error.stack}`}
+              </pre>
+            )}
+          </div>
+        </body>
+      </html>
+    );
+  }
 }
 

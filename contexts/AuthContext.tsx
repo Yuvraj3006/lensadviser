@@ -24,12 +24,15 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // #region agent log
+  console.log('[DEBUG] AuthProvider rendering', { timestamp: Date.now() });
+  // #endregion
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshSession = useCallback(async () => {
     try {
-      const token = localStorage.getItem('lenstrack_token');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('lenstrack_token') : null;
       if (!token) {
         setUser(null);
         setIsLoading(false);
@@ -46,12 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         setUser(data.data.user);
       } else {
-        localStorage.removeItem('lenstrack_token');
+        if (typeof window !== 'undefined') localStorage.removeItem('lenstrack_token');
         setUser(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Session refresh failed:', error);
-      localStorage.removeItem('lenstrack_token');
+      if (typeof window !== 'undefined') localStorage.removeItem('lenstrack_token');
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -59,7 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refreshSession();
+    refreshSession().catch((error) => {
+      console.error('Error in refreshSession useEffect:', error);
+    });
   }, [refreshSession]);
 
   const login = async (email: string, password: string) => {

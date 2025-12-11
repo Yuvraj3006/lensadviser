@@ -43,6 +43,12 @@ export default function CLPowerPage() {
 
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
+  // Real-time validation - runs automatically when rx values change
+  useEffect(() => {
+    validateInput();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rx.odSphere, rx.odCylinder, rx.odAxis, rx.odAdd, rx.osSphere, rx.osCylinder, rx.osAxis, rx.osAdd]);
+
   // Real-time validation
   const validateInput = () => {
     const errors: string[] = [];
@@ -122,7 +128,7 @@ export default function CLPowerPage() {
     };
 
     localStorage.setItem('lenstrack_cl_final_power', JSON.stringify(clPower));
-    router.push('/questionnaire/contact-lens');
+    router.push('/questionnaire/contact-lens/questionnaire');
   };
 
   return (
@@ -240,7 +246,11 @@ export default function CLPowerPage() {
                 <h4 className="font-semibold text-red-900 mb-2">⚠️ Validation Errors:</h4>
                 <ul className="list-disc list-inside space-y-1">
                   {validationErrors.map((error, idx) => (
-                    <li key={idx} className="text-sm text-red-700">{error}</li>
+                    <li key={idx} className="text-sm text-red-700">
+                      {typeof error === 'string' ? error : typeof error === 'object' && error !== null
+                        ? (error as any).message || JSON.stringify(error)
+                        : String(error)}
+                    </li>
                   ))}
                 </ul>
               </div>

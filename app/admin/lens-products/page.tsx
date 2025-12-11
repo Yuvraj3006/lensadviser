@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -8,7 +9,7 @@ import { Modal } from '@/components/ui/Modal';
 import { DataTable, Column } from '@/components/data-display/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Spinner } from '@/components/ui/Spinner';
-import { Plus, Search, Edit2, Trash2, Glasses, Filter } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Glasses, Filter, Eye } from 'lucide-react';
 import { Select } from '@/components/ui/Select';
 
 type LensType = 'SINGLE_VISION' | 'PROGRESSIVE' | 'BIFOCAL' | 'SPECIALITY';
@@ -37,7 +38,7 @@ interface LensProduct {
   category?: 'ECONOMY' | 'STANDARD' | 'PREMIUM' | 'ULTRA';
   deliveryDays?: number;
   mrp: number;
-  offerPrice: number;
+  baseOfferPrice: number;
   addOnPrice: number | null;
   sphMin: number;
   sphMax: number;
@@ -49,6 +50,7 @@ interface LensProduct {
 }
 
 export default function LensProductsPage() {
+  const router = useRouter();
   const { showToast } = useToast();
   const [products, setProducts] = useState<LensProduct[]>([]);
   const [brands, setBrands] = useState<LensBrand[]>([]);
@@ -72,7 +74,7 @@ export default function LensProductsPage() {
     category: 'STANDARD' as 'ECONOMY' | 'STANDARD' | 'PREMIUM' | 'ULTRA',
     deliveryDays: 4,
     mrp: 0,
-    offerPrice: 0,
+    baseOfferPrice: 0,
     addOnPrice: 0,
     sphMin: -10,
     sphMax: 10,
@@ -167,7 +169,7 @@ export default function LensProductsPage() {
       category: 'STANDARD',
       deliveryDays: 4,
       mrp: 0,
-      offerPrice: 0,
+      baseOfferPrice: 0,
       addOnPrice: 0,
       sphMin: -10,
       sphMax: 10,
@@ -191,8 +193,8 @@ export default function LensProductsPage() {
       tintOption: (product as any).tintOption || 'CLEAR',
       category: (product as any).category || 'STANDARD',
       deliveryDays: (product as any).deliveryDays || 4,
-      mrp: product.mrp,
-      offerPrice: product.offerPrice,
+      mrp: product.mrp || product.baseOfferPrice || 0,
+      baseOfferPrice: product.baseOfferPrice || (product as any).offerPrice || 0,
       addOnPrice: product.addOnPrice || 0,
       sphMin: product.sphMin,
       sphMax: product.sphMax,
@@ -239,7 +241,13 @@ export default function LensProductsPage() {
       if (data.success) {
         showToast('success', editingId ? 'Lens product updated' : 'Lens product created');
         setIsModalOpen(false);
-        fetchProducts();
+        
+        // If creating new lens, redirect to detail page to add RX Add-On Pricing
+        if (!editingId && data.data?.id) {
+          router.push(`/admin/lenses/${data.data.id}`);
+        } else {
+          fetchProducts();
+        }
       } else {
         showToast('error', data.error?.message || 'Failed to save lens product');
       }
@@ -314,8 +322,13 @@ export default function LensProductsPage() {
       header: 'Pricing',
       render: (product) => (
         <div className="text-sm">
-          <div>MRP: ₹{product.mrp.toLocaleString()}</div>
-          <div className="text-slate-500">Offer: ₹{product.offerPrice.toLocaleString()}</div>
+          {product.mrp && product.mrp > 0 && (
+            <div className="text-slate-500 line-through">MRP: ₹{product.mrp.toLocaleString()}</div>
+          )}
+          <div>Offer Price: ₹{(product.baseOfferPrice || (product as any).offerPrice || 0).toLocaleString()}</div>
+          {product.addOnPrice && product.addOnPrice > 0 && (
+            <div className="text-slate-500">Add-On: ₹{product.addOnPrice.toLocaleString()}</div>
+          )}
         </div>
       ),
     },
@@ -342,7 +355,16 @@ export default function LensProductsPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => router.push(`/admin/lenses/${product.id}`)}
+            title="View Details (RX Add-On Pricing, Features, etc.)"
+          >
+            <Eye size={16} />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => handleEdit(product)}
+            title="Quick Edit"
           >
             <Edit2 size={16} />
           </Button>
@@ -350,6 +372,7 @@ export default function LensProductsPage() {
             variant="outline"
             size="sm"
             onClick={() => handleDelete(product.id)}
+            title="Delete"
           >
             <Trash2 size={16} />
           </Button>
@@ -618,18 +641,22 @@ export default function LensProductsPage() {
                 value={formData.mrp}
                 onChange={(e) => setFormData({ ...formData, mrp: parseFloat(e.target.value) || 0 })}
                 placeholder="0"
+                required
               />
+              <p className="text-xs text-slate-500 mt-1">Maximum Retail Price (shown to customers)</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Offer Price *
+                Base Offer Price *
               </label>
               <Input
                 type="number"
-                value={formData.offerPrice}
-                onChange={(e) => setFormData({ ...formData, offerPrice: parseFloat(e.target.value) || 0 })}
+                value={formData.baseOfferPrice}
+                onChange={(e) => setFormData({ ...formData, baseOfferPrice: parseFloat(e.target.value) || 0 })}
                 placeholder="0"
+                required
               />
+              <p className="text-xs text-slate-500 mt-1">Actual selling price (offer price)</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -641,6 +668,7 @@ export default function LensProductsPage() {
                 onChange={(e) => setFormData({ ...formData, addOnPrice: parseFloat(e.target.value) || 0 })}
                 placeholder="0"
               />
+              <p className="text-xs text-slate-500 mt-1">Additional price for add-on features</p>
             </div>
           </div>
 

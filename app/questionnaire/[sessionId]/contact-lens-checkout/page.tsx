@@ -264,7 +264,29 @@ export default function ContactLensCheckoutPage() {
 
   const clTotal = contactLensData.mrp * contactLensData.quantity;
   const addOnsTotal = addOns.reduce((sum, a) => sum + a.price, 0);
-  const totalPrice = clTotal + addOnsTotal;
+  
+  // Check for combo discount
+  const hasSolution = addOns.some(a => a.category === 'SOLUTION');
+  const comboDiscount = hasSolution ? 150 : 0;
+  const addOnsAfterDiscount = addOnsTotal - comboDiscount;
+  
+  // Check for quantity-based discount
+  let quantityDiscount = 0;
+  let quantityDiscountDesc = '';
+  if (contactLensData.quantity >= 4) {
+    quantityDiscount = clTotal * 0.10;
+    quantityDiscountDesc = 'Buy 4+ Boxes - 10% OFF';
+  } else if (contactLensData.quantity >= 2) {
+    quantityDiscount = clTotal * 0.15;
+    quantityDiscountDesc = 'Buy 2 Boxes - 15% OFF';
+  }
+  
+  const clAfterDiscount = clTotal - quantityDiscount;
+  const totalPrice = clAfterDiscount + addOnsAfterDiscount;
+  
+  // Load prescription/power data
+  const finalPower = localStorage.getItem('lenstrack_cl_final_power');
+  const powerData = finalPower ? JSON.parse(finalPower) : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
@@ -276,44 +298,118 @@ export default function ContactLensCheckoutPage() {
           </h1>
 
           <div className="bg-white rounded-xl p-6 space-y-6 mb-6">
+            {/* Prescription/Power Summary */}
+            {powerData && (
+              <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+                <h3 className="font-semibold text-blue-900 mb-3">Contact Lens Power</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  {powerData.od?.sphere !== null && (
+                    <div>
+                      <span className="text-slate-600">OD (Right Eye):</span>
+                      <div className="font-semibold text-slate-900">
+                        {powerData.od.sphere >= 0 ? '+' : ''}{powerData.od.sphere?.toFixed(2)}
+                        {powerData.od.cylinder && ` / ${powerData.od.cylinder >= 0 ? '+' : ''}${powerData.od.cylinder.toFixed(2)}`}
+                        {powerData.od.axis && ` × ${powerData.od.axis}`}
+                        {powerData.od.add && ` ADD +${powerData.od.add.toFixed(2)}`}
+                      </div>
+                    </div>
+                  )}
+                  {powerData.os?.sphere !== null && (
+                    <div>
+                      <span className="text-slate-600">OS (Left Eye):</span>
+                      <div className="font-semibold text-slate-900">
+                        {powerData.os.sphere >= 0 ? '+' : ''}{powerData.os.sphere?.toFixed(2)}
+                        {powerData.os.cylinder && ` / ${powerData.os.cylinder >= 0 ? '+' : ''}${powerData.os.cylinder.toFixed(2)}`}
+                        {powerData.os.axis && ` × ${powerData.os.axis}`}
+                        {powerData.os.add && ` ADD +${powerData.os.add.toFixed(2)}`}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Order Summary */}
             <div>
               <h2 className="text-xl font-bold text-slate-900 mb-4">Order Summary</h2>
               <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Product:</span>
-                  <span className="font-semibold">{contactLensData.productName}</span>
+                {/* Contact Lens Product */}
+                <div className="bg-slate-50 rounded-lg p-4">
+                  <div className="flex justify-between mb-2">
+                    <span className="text-slate-600">Product:</span>
+                    <span className="font-semibold">{contactLensData.productName}</span>
+                  </div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-slate-600">Brand:</span>
+                    <span className="font-semibold">{contactLensData.brand}</span>
+                  </div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-slate-600">Pack Type:</span>
+                    <span className="font-semibold">{contactLensData.packType}</span>
+                  </div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-slate-600">Quantity:</span>
+                    <span className="font-semibold">{contactLensData.quantity} box(es)</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-slate-200">
+                    <span className="text-slate-600">Subtotal:</span>
+                    <span className="font-semibold">₹{clTotal.toLocaleString()}</span>
+                  </div>
+                  {quantityDiscount > 0 && (
+                    <div className="flex justify-between text-green-600 mt-2">
+                      <span className="text-sm">{quantityDiscountDesc}:</span>
+                      <span className="text-sm font-semibold">-₹{quantityDiscount.toLocaleString()}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Brand:</span>
-                  <span className="font-semibold">{contactLensData.brand}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Pack Type:</span>
-                  <span className="font-semibold">{contactLensData.packType}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Quantity:</span>
-                  <span className="font-semibold">{contactLensData.quantity}</span>
-                </div>
+
+                {/* Add-ons */}
                 {addOns.length > 0 && (
-                  <>
-                    <div className="flex justify-between pt-3 border-t">
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <div className="flex justify-between mb-2">
                       <span className="text-slate-600">Add-ons:</span>
                       <span className="font-semibold">₹{addOnsTotal.toLocaleString()}</span>
                     </div>
                     {addOns.map((addOn) => (
-                      <div key={addOn.id} className="flex justify-between text-sm">
+                      <div key={addOn.id} className="flex justify-between text-sm mb-1">
                         <span className="text-slate-500">- {addOn.name}</span>
                         <span className="text-slate-600">₹{addOn.price.toLocaleString()}</span>
                       </div>
                     ))}
-                  </>
+                    {comboDiscount > 0 && (
+                      <div className="flex justify-between text-green-600 mt-2 pt-2 border-t border-slate-200">
+                        <span className="text-sm">Combo Offer (CL + Solution):</span>
+                        <span className="text-sm font-semibold">-₹{comboDiscount.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
                 )}
-                <div className="flex justify-between pt-3 border-t">
-                  <span className="text-lg font-bold text-slate-900">Total:</span>
+
+                {/* Upsell Suggestion */}
+                {contactLensData.quantity < 2 && (
+                  <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
+                    <div className="flex items-start gap-2">
+                      <span className="text-yellow-600">💡</span>
+                      <div>
+                        <div className="font-semibold text-yellow-900 mb-1">Special Offer Available!</div>
+                        <div className="text-sm text-yellow-700">
+                          Add 1 more box to unlock 15% OFF on all contact lenses
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Final Total */}
+                <div className="flex justify-between pt-3 border-t-2 border-slate-300">
+                  <span className="text-lg font-bold text-slate-900">Total Payable:</span>
                   <span className="text-2xl font-bold text-blue-600">₹{totalPrice.toLocaleString()}</span>
                 </div>
+                {(quantityDiscount > 0 || comboDiscount > 0) && (
+                  <div className="text-sm text-green-600 text-right">
+                    You saved ₹{(quantityDiscount + comboDiscount).toLocaleString()}!
+                  </div>
+                )}
               </div>
             </div>
 

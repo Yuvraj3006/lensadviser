@@ -48,6 +48,7 @@ interface OfferSummaryData {
     frameType?: string;
   };
   offerResult: OfferCalculationResult;
+  allApplicableOffers?: any[]; // All offers from recommendations
 }
 
 export default function OfferSummaryPage() {
@@ -68,11 +69,26 @@ export default function OfferSummaryPage() {
   const [categoryIdImage, setCategoryIdImage] = useState<File | null>(null);
   const [categoryIdImagePreview, setCategoryIdImagePreview] = useState<string | null>(null);
   const [availableCategories, setAvailableCategories] = useState<any[]>([]);
+  const [allApplicableOffersList, setAllApplicableOffersList] = useState<any[]>([]);
+  
+  // Second pair selection state
+  const [secondPairEnabled, setSecondPairEnabled] = useState(false);
+  const [secondPairFrameMRP, setSecondPairFrameMRP] = useState('');
+  const [secondPairBrand, setSecondPairBrand] = useState('');
+  const [secondPairSubBrand, setSecondPairSubBrand] = useState('');
+  const [secondPairLensId, setSecondPairLensId] = useState('');
+  const [secondPairLensPrice, setSecondPairLensPrice] = useState(0);
+  const [showLensSelectionModal, setShowLensSelectionModal] = useState(false);
+  const [availableLenses, setAvailableLenses] = useState<any[]>([]);
+  const [loadingLenses, setLoadingLenses] = useState(false);
+  const [frameBrands, setFrameBrands] = useState<any[]>([]);
+  const [availableSubBrands, setAvailableSubBrands] = useState<string[]>([]);
 
   useEffect(() => {
     if (sessionId && productId) {
       fetchOfferSummary();
       fetchAvailableCategories();
+      fetchFrameBrands();
       
       // Load saved category from localStorage
       const savedCategory = localStorage.getItem('lenstrack_category_discount');
@@ -92,20 +108,102 @@ export default function OfferSummaryPage() {
 
   const fetchAvailableCategories = async () => {
     try {
+      console.log('[OfferSummary] Fetching categories...');
+      
+      // Method 1: Try to get organizationId from store verification (most reliable)
       const storeCode = localStorage.getItem('lenstrack_store_code');
+      let organizationId: string | null = null;
+      
       if (storeCode) {
-        const response = await fetch(`/api/public/stores/verify?code=${storeCode}`);
-        const storeData = await response.json();
-        if (storeData.success && storeData.data?.organizationId) {
-          const catResponse = await fetch(`/api/admin/offers/category-discounts?organizationId=${storeData.data.organizationId}`);
-          const catData = await catResponse.json();
-          if (catData.success) {
-            setAvailableCategories(catData.data || []);
+        try {
+          console.log('[OfferSummary] Trying store verification with code:', storeCode);
+          const verifyResponse = await fetch(`/api/public/verify-store?code=${storeCode}`);
+          if (verifyResponse.ok) {
+            const verifyData = await verifyResponse.json();
+            console.log('[OfferSummary] Store verification response:', verifyData);
+            if (verifyData.success && verifyData.data?.organizationId) {
+              organizationId = verifyData.data.organizationId;
+              console.log('[OfferSummary] Got organizationId from store verification:', organizationId);
+            }
+          } else {
+            const errorText = await verifyResponse.text();
+            console.warn('[OfferSummary] Store verification failed:', verifyResponse.status, errorText);
           }
+        } catch (e) {
+          console.warn('[OfferSummary] Store verification error:', e);
         }
       }
+      
+      // Method 2: Get from session -> store
+      if (!organizationId) {
+        try {
+          console.log('[OfferSummary] Trying to get organizationId from session');
+          const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+          if (sessionResponse.ok) {
+            const sessionData = await sessionResponse.json();
+            if (sessionData.success && sessionData.data?.session?.storeId) {
+              const storeId = sessionData.data.session.storeId;
+              // Get store details from verify-store or use storeCode
+              if (storeCode) {
+                const verifyResponse = await fetch(`/api/public/verify-store?code=${storeCode}`);
+                if (verifyResponse.ok) {
+                  const verifyData = await verifyResponse.json();
+                  if (verifyData.success && verifyData.data?.organizationId) {
+                    organizationId = verifyData.data.organizationId;
+                    console.log('[OfferSummary] Got organizationId from session->store:', organizationId);
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[OfferSummary] Session fetch error:', e);
+        }
+      }
+      
+      if (!organizationId) {
+        console.error('[OfferSummary] Could not determine organizationId for categories');
+        console.error('[OfferSummary] Store code in localStorage:', storeCode);
+        return;
+      }
+      
+      console.log('[OfferSummary] Fetching category discounts for organizationId:', organizationId);
+      const catResponse = await fetch(`/api/admin/offers/category-discounts?organizationId=${organizationId}`);
+      
+      console.log('[OfferSummary] Category discounts response status:', catResponse.status);
+      
+      if (!catResponse.ok) {
+        const errorText = await catResponse.text();
+        console.error('[OfferSummary] Category discounts API error:', catResponse.status, errorText);
+        if (catResponse.status === 404) {
+          console.warn('[OfferSummary] Category discounts endpoint not found (404)');
+        } else if (catResponse.status === 401 || catResponse.status === 403) {
+          console.warn('[OfferSummary] Category discounts API requires authentication');
+        } else {
+          console.warn('[OfferSummary] Failed to fetch category discounts:', catResponse.status);
+        }
+        return;
+      }
+      
+      const catContentType = catResponse.headers.get('content-type');
+      if (!catContentType || !catContentType.includes('application/json')) {
+        const responseText = await catResponse.text();
+        console.warn('[OfferSummary] Category discounts returned non-JSON response:', responseText.substring(0, 200));
+        return;
+      }
+      
+      const catData = await catResponse.json();
+      console.log('[OfferSummary] Category discounts API response:', catData);
+      
+      if (catData.success && catData.data) {
+        const categories = catData.data || [];
+        setAvailableCategories(categories);
+        console.log('[OfferSummary] ✅ Loaded categories:', categories.length, categories);
+      } else {
+        console.warn('[OfferSummary] Category discounts API returned unsuccessful response:', catData);
+      }
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
+      console.error('[OfferSummary] ❌ Failed to fetch categories:', error);
     }
   };
 
@@ -183,14 +281,14 @@ export default function OfferSummaryPage() {
       });
       
       if (offerResult.upsell) {
-        console.log('[OfferSummary] ✅ Upsell found! Details:', {
+        console.log('[OfferSummary] ? Upsell found! Details:', {
           message: offerResult.upsell.message,
           rewardText: offerResult.upsell.rewardText,
           remaining: offerResult.upsell.remaining,
           type: offerResult.upsell.type,
         });
       } else {
-        console.log('[OfferSummary] ⚠️ No upsell suggestion returned from offer engine');
+        console.log('[OfferSummary] ?? No upsell suggestion returned from offer engine');
         console.log('[OfferSummary] Final payable:', offerResult.finalPayable);
         console.log('[OfferSummary] This might mean:');
         console.log('  - No upsell rules configured in database');
@@ -229,9 +327,16 @@ export default function OfferSummaryPage() {
           frameType: frameData.frameType,
         },
         offerResult,
+        allApplicableOffers: selectedRec.offers || [], // Store all applicable offers
       };
 
       setData(summaryData);
+      
+      // Fetch available lenses for second pair selection
+      fetchAvailableLenses();
+      
+      // Fetch all applicable offers (always fetch)
+      fetchAllApplicableOffers(offerResult);
     } catch (error: any) {
       console.error('[OfferSummary] Error:', error);
       showToast('error', error.message || 'Failed to load offer summary');
@@ -332,14 +437,14 @@ export default function OfferSummaryPage() {
       return 'You pay only the higher of frame or lens.';
     }
     
-    // Combo: "Combo Price: ₹X"
+    // Combo: "Combo Price: ?X"
     if (labelUpper.includes('COMBO') || labelUpper.includes('COMBO PRICE')) {
       return 'Special package price applied.';
     }
     
     // Free Lens: "Free Lens (PERCENT_OF_FRAME)" or "Free Lens (VALUE_LIMIT)" or "Free Lens (FULL)"
     if (labelUpper.includes('FREE LENS') || labelUpper.includes('FREE_LENS')) {
-      return `Lens free up to ₹${Math.round(discountAmount).toLocaleString()}; you pay only difference.`;
+      return `Lens free up to ?${Math.round(discountAmount).toLocaleString()}; you pay only difference.`;
     }
     
     // Percent OFF: "X% OFF" or "X% OFF (FRAME_ONLY)" or "X% OFF (LENS_ONLY)"
@@ -359,13 +464,13 @@ export default function OfferSummaryPage() {
       return label || 'Percentage discount applied';
     }
     
-    // Flat OFF: "Flat ₹X OFF"
+    // Flat OFF: "Flat ?X OFF"
     if (labelUpper.includes('FLAT') && labelUpper.includes('OFF')) {
       const flatMatch = label.match(/FLAT\s*₹?(\d+)\s*OFF/i);
       if (flatMatch) {
-        return `Festival Offer -₹${flatMatch[1]}`;
+        return `Festival Offer -?${flatMatch[1]}`;
       }
-      return `Festival Offer -₹${Math.round(discountAmount).toLocaleString()}`;
+      return `Festival Offer -?${Math.round(discountAmount).toLocaleString()}`;
     }
     
     // BOGO50: "BOG50" or "Second pair X% off"
@@ -392,6 +497,176 @@ export default function OfferSummaryPage() {
       return `${category} Discount ${percent}%`;
     }
     return categoryDiscount.description || 'Category Discount applied';
+  };
+
+  const fetchAvailableLenses = async () => {
+    setLoadingLenses(true);
+    try {
+      const response = await fetch('/api/products/lenses');
+      const result = await response.json();
+      if (result.success) {
+        setAvailableLenses(result.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch lenses:', error);
+    } finally {
+      setLoadingLenses(false);
+    }
+  };
+
+  const fetchFrameBrands = async () => {
+    try {
+      const storeCode = localStorage.getItem('lenstrack_store_code');
+      if (storeCode) {
+        const response = await fetch(`/api/public/frame-brands?storeCode=${storeCode}`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            setFrameBrands(result.data || []);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch frame brands:', error);
+    }
+  };
+
+  const fetchAllApplicableOffers = async (offerResult?: OfferCalculationResult) => {
+    try {
+      // Use provided offerResult or current data's offerResult
+      const currentOfferResult = offerResult || data?.offerResult;
+      
+      // First, get offers from recommendations API which has all applicable offers
+      const recommendationsResponse = await fetch(
+        `/api/public/questionnaire/sessions/${sessionId}/recommendations`
+      );
+      
+      if (recommendationsResponse.ok) {
+        const recommendationsData = await recommendationsResponse.json();
+        if (recommendationsData.success) {
+          const selectedRec = recommendationsData.data.recommendations.find(
+            (r: any) => r.id === productId
+          );
+          
+          if (selectedRec) {
+            // Get offers from recommendations (if available)
+            const recOffers = selectedRec.offers || [];
+            
+            // Also get formatted offers from current offer result
+            let formattedOffers: any[] = [];
+            if (currentOfferResult) {
+              formattedOffers = formatOffers(currentOfferResult);
+            }
+            
+            // Combine both sources and deduplicate
+            const allOffersMap = new Map();
+            
+            // Add offers from recommendations
+            recOffers.forEach((offer: any) => {
+              if (offer.code) {
+                allOffersMap.set(offer.code, {
+                  type: offer.type || 'DISCOUNT',
+                  code: offer.code,
+                  title: offer.title || offer.description || 'Discount',
+                  description: offer.description || '',
+                  discountAmount: offer.discountAmount || 0,
+                  discountPercent: offer.discountPercent,
+                  isApplicable: offer.isApplicable !== false,
+                });
+              }
+            });
+            
+            // Add formatted offers from offer result
+            formattedOffers.forEach(offer => {
+              if (offer.code && !allOffersMap.has(offer.code)) {
+                allOffersMap.set(offer.code, {
+                  type: offer.type,
+                  code: offer.code,
+                  title: offer.title,
+                  description: offer.description,
+                  discountAmount: offer.discountAmount || 0,
+                  isApplicable: true,
+                });
+              }
+            });
+            
+            const applicableOffers = Array.from(allOffersMap.values());
+            
+            setAllApplicableOffersList(applicableOffers);
+            
+            // Update data with applicable offers
+            setData(prev => prev ? {
+              ...prev,
+              allApplicableOffers: applicableOffers,
+            } : null);
+            
+            console.log('[OfferSummary] Fetched all applicable offers:', applicableOffers.length, applicableOffers);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[OfferSummary] Failed to fetch all applicable offers:', error);
+    }
+  };
+
+  // Update sub-brands when brand is selected
+  useEffect(() => {
+    if (secondPairBrand && frameBrands.length > 0) {
+      const selectedBrand = frameBrands.find(b => b.brandName === secondPairBrand);
+      if (selectedBrand && selectedBrand.subBrands) {
+        setAvailableSubBrands(selectedBrand.subBrands.map((sb: any) => sb.subBrandName));
+      } else {
+        setAvailableSubBrands([]);
+      }
+      // Reset sub-brand if brand changes
+      if (selectedBrand && !selectedBrand.subBrands?.some((sb: any) => sb.subBrandName === secondPairSubBrand)) {
+        setSecondPairSubBrand('');
+      }
+    } else {
+      setAvailableSubBrands([]);
+    }
+  }, [secondPairBrand, frameBrands]);
+
+  const recalculateOffersWithSecondPair = async (secondPairData: {
+    frameMRP: number;
+    brand: string;
+    subBrand: string;
+    lensId: string;
+    lensPrice: number;
+  } | null) => {
+    if (!data || !productId) return;
+    
+    try {
+      const offersResponse = await fetch(
+        `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: productId,
+            couponCode: null,
+            customerCategory: appliedCategory || null,
+            secondPair: secondPairData ? {
+              enabled: true,
+              firstPairTotal: data.offerResult.baseTotal,
+              secondPairFrameMRP: secondPairData.frameMRP,
+              secondPairLensPrice: secondPairData.lensPrice,
+            } : null,
+          }),
+        }
+      );
+      
+      const offersData = await offersResponse.json();
+      if (offersData.success && offersData.data) {
+        // Update data with new offer result
+        setData(prev => prev ? {
+          ...prev,
+          offerResult: offersData.data,
+        } : null);
+      }
+    } catch (error) {
+      console.error('Failed to recalculate offers with second pair:', error);
+    }
   };
 
   const fetchEligibleProducts = async () => {
@@ -490,7 +765,7 @@ export default function OfferSummaryPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
         <div className="text-center max-w-md bg-slate-800/50 backdrop-blur rounded-xl p-8 border border-slate-700 shadow-lg">
-          <div className="text-5xl mb-4">⚠️</div>
+          <div className="text-5xl mb-4">??</div>
           <h2 className="text-xl font-semibold text-white mb-2">Unable to Load Offer Summary</h2>
           <p className="text-slate-400 mb-6">
             Please go back and select a lens again.
@@ -530,7 +805,7 @@ export default function OfferSummaryPage() {
   
   // Debug: Log upsell status
   const hasUpsell = !!data.offerResult.upsell;
-  console.log('[OfferSummary] 🎁 Upsell Banner Status:', {
+  console.log('[OfferSummary] ?? Upsell Banner Status:', {
     hasUpsell,
     upsellData: data.offerResult.upsell,
     finalPayable: data.offerResult.finalPayable,
@@ -629,20 +904,39 @@ export default function OfferSummaryPage() {
           
           {!appliedCategory ? (
             <div className="space-y-4">
-              <Select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                options={[
-                  { value: '', label: 'Select Category' },
-                  ...availableCategories
-                    .filter(cat => cat.isActive)
-                    .map(cat => ({
-                      value: cat.customerCategory,
-                      label: `${cat.customerCategory} - ${cat.discountPercent}% off${cat.maxDiscount ? ` (max ₹${cat.maxDiscount})` : ''}`,
-                    })),
-                ]}
-                className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
-              />
+              {availableCategories.length > 0 ? (
+                <Select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  options={[
+                    { value: '', label: 'Select Category' },
+                    ...(() => {
+                      // Get unique categories (deduplicate by customerCategory)
+                      const uniqueCategories = new Map<string, typeof availableCategories[0]>();
+                      availableCategories
+                        .filter(cat => cat.isActive)
+                        .forEach(cat => {
+                          if (!uniqueCategories.has(cat.customerCategory)) {
+                            uniqueCategories.set(cat.customerCategory, cat);
+                          }
+                        });
+                      
+                      return Array.from(uniqueCategories.values()).map(cat => ({
+                        value: cat.customerCategory,
+                        label: `${cat.customerCategory} - ${cat.discountPercent}% off${cat.maxDiscount ? ` (max ₹${cat.maxDiscount})` : ''}`,
+                      }));
+                    })(),
+                  ]}
+                  className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
+                />
+              ) : (
+                <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                  <p className="text-slate-400 text-sm">
+                    {availableCategories.length === 0 ? 'No category discounts available' : 'Loading categories...'}
+                  </p>
+                  <p className="text-slate-500 text-xs mt-1">Check browser console for details</p>
+                </div>
+              )}
               
               {selectedCategory && availableCategories.find(c => c.customerCategory === selectedCategory && c.categoryVerificationRequired) && (
                 <div className="space-y-3">
@@ -752,6 +1046,10 @@ export default function OfferSummaryPage() {
                           idImage: idImageBase64,
                         }));
                         const discountAmount = offersData.data.categoryDiscount.savings || 0;
+                        
+                        // Fetch all applicable offers after category is applied
+                        await fetchAllApplicableOffers(offersData.data);
+                        
                         showToast('success', `Category discount applied! You saved ₹${Math.round(discountAmount).toLocaleString()}`);
                       } else {
                         showToast('warning', 'No discount available for this category');
@@ -818,6 +1116,10 @@ export default function OfferSummaryPage() {
                           offerResult: offersData.data,
                         } : null);
                         localStorage.removeItem('lenstrack_category_discount');
+                        
+                        // Fetch all applicable offers after removing category
+                        await fetchAllApplicableOffers(offersData.data);
+                        
                         showToast('success', 'Category discount removed');
                       }
                     } catch (error) {
@@ -848,6 +1150,159 @@ export default function OfferSummaryPage() {
           )}
         </div>
 
+        {/* Second Pair Selection for BOGO Offers */}
+        {(() => {
+          // Check if there's a BOGO/BOG50 offer available
+          const hasBOGOOffer = data.allApplicableOffers?.some((o: any) => 
+            o.type === 'BOGO' || o.type === 'BOG50' || o.code?.includes('BOGO') || o.code?.includes('BOG50')
+          ) || data.offerResult.secondPairDiscount;
+          
+          if (!hasBOGOOffer) return null;
+          
+          return (
+            <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-6 mb-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center border border-purple-500/30">
+                  <Package className="text-purple-400" size={18} />
+                </div>
+                <h2 className="text-xl font-semibold text-white">Second Pair (BOGO Offer)</h2>
+              </div>
+              
+              <div className="space-y-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={secondPairEnabled}
+                    onChange={(e) => {
+                      setSecondPairEnabled(e.target.checked);
+                      if (!e.target.checked) {
+                        // Reset second pair data
+                        setSecondPairFrameMRP('');
+                        setSecondPairBrand('');
+                        setSecondPairSubBrand('');
+                        setSecondPairLensId('');
+                        setSecondPairLensPrice(0);
+                        // Recalculate offers without second pair
+                        recalculateOffersWithSecondPair(null);
+                      }
+                    }}
+                    className="w-5 h-5 rounded border-2 border-slate-600 bg-slate-700 text-purple-500 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-800 cursor-pointer"
+                  />
+                  <span className="text-base font-semibold text-slate-200">
+                    Enable Second Pair Discount
+                  </span>
+                </label>
+                
+                {secondPairEnabled && (
+                  <div className="mt-4 pt-4 border-t border-slate-700/50 space-y-4">
+                    <p className="text-sm text-slate-300 font-medium">Enter Second Pair Details:</p>
+                    
+                    {/* Frame Price */}
+                    <Input
+                      label="Second Pair Frame MRP"
+                      type="number"
+                      placeholder="e.g., 1500"
+                      value={secondPairFrameMRP}
+                      onChange={(e) => {
+                        setSecondPairFrameMRP(e.target.value);
+                        if (e.target.value && parseFloat(e.target.value) > 0) {
+                          recalculateOffersWithSecondPair({
+                            frameMRP: parseFloat(e.target.value),
+                            brand: secondPairBrand,
+                            subBrand: secondPairSubBrand,
+                            lensId: secondPairLensId,
+                            lensPrice: secondPairLensPrice,
+                          });
+                        }
+                      }}
+                      className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white !placeholder:text-slate-500"
+                    />
+                    
+                    {/* Frame Brand */}
+                    <Select
+                      label="Frame Brand"
+                      value={secondPairBrand}
+                      onChange={(e) => {
+                        setSecondPairBrand(e.target.value);
+                        setSecondPairSubBrand(''); // Reset sub-brand when brand changes
+                        if (e.target.value && secondPairFrameMRP && parseFloat(secondPairFrameMRP) > 0) {
+                          recalculateOffersWithSecondPair({
+                            frameMRP: parseFloat(secondPairFrameMRP),
+                            brand: e.target.value,
+                            subBrand: '',
+                            lensId: secondPairLensId,
+                            lensPrice: secondPairLensPrice,
+                          });
+                        }
+                      }}
+                      options={[
+                        { value: '', label: 'Select Brand' },
+                        ...frameBrands.map(b => ({ value: b.brandName, label: b.brandName })),
+                      ]}
+                      className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
+                    />
+                    
+                    {/* Frame Sub Brand */}
+                    {secondPairBrand && availableSubBrands.length > 0 && (
+                      <Select
+                        label="Frame Sub Brand"
+                        value={secondPairSubBrand}
+                        onChange={(e) => {
+                          setSecondPairSubBrand(e.target.value);
+                          if (secondPairFrameMRP && parseFloat(secondPairFrameMRP) > 0) {
+                            recalculateOffersWithSecondPair({
+                              frameMRP: parseFloat(secondPairFrameMRP),
+                              brand: secondPairBrand,
+                              subBrand: e.target.value,
+                              lensId: secondPairLensId,
+                              lensPrice: secondPairLensPrice,
+                            });
+                          }
+                        }}
+                        options={[
+                          { value: '', label: 'Select Sub Brand (Optional)' },
+                          ...availableSubBrands.map(sb => ({ value: sb, label: sb })),
+                        ]}
+                        className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
+                      />
+                    )}
+                    
+                    {/* Lens Selection */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Second Pair Lens
+                      </label>
+                      <div className="flex gap-3">
+                        <Input
+                          type="text"
+                          placeholder={secondPairLensId ? 'Lens selected' : 'Click to select lens'}
+                          value={secondPairLensId ? availableLenses.find(l => l.id === secondPairLensId)?.name || '' : ''}
+                          readOnly
+                          onClick={() => setShowLensSelectionModal(true)}
+                          className="flex-1 !bg-slate-700/80 !border-2 !border-slate-600 !text-white cursor-pointer"
+                        />
+                        <Button
+                          onClick={() => setShowLensSelectionModal(true)}
+                          variant="outline"
+                          className="border-2 border-slate-600 text-slate-300 hover:border-purple-500 hover:text-purple-400"
+                        >
+                          <Eye size={18} className="mr-2" />
+                          Select Lens
+                        </Button>
+                      </div>
+                      {secondPairLensPrice > 0 && (
+                        <p className="text-xs text-slate-400 mt-1">
+                          Selected lens price: ₹{Math.round(secondPairLensPrice).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Price Breakdown Card */}
         <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-6 mb-6">
           <div className="flex items-center gap-3 mb-6">
@@ -877,46 +1332,121 @@ export default function OfferSummaryPage() {
                   <div className="absolute inset-0 bg-blue-500/30 rounded-full blur-lg animate-pulse" />
                   <Gift className="relative text-blue-400" size={18} />
                 </div>
-                <h3 className="text-lg font-semibold text-white">🎉 Applied Offer(s)</h3>
+                <h3 className="text-lg font-semibold text-white">🎉 All Applicable Offers</h3>
               </div>
-              {offers.length > 0 ? (
-                <div className="space-y-3">
-                  {offers.map((offer, idx) => (
-                    <div 
-                      key={`${offer.code || offer.type || 'offer'}-${idx}`}
-                      className="group relative overflow-hidden bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 rounded-lg p-4 border-2 border-blue-500/50 hover:border-blue-400 transition-all duration-300 transform hover:scale-[1.02]"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      <div className="relative flex justify-between items-start gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            {offer.code && offer.code !== 'DISCOUNT' && offer.code.length > 0 && (
-                              <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold rounded-lg border border-blue-400/50 shadow-lg whitespace-nowrap">
-                                {offer.code}
-                              </span>
+              {(() => {
+                // Combine applied offers with all applicable offers from recommendations and fetched list
+                const allApplicableOffers = data.allApplicableOffers || [];
+                const fetchedApplicableOffers = allApplicableOffersList || [];
+                const appliedOfferCodes = new Set(offers.map(o => o.code));
+                
+                // Show applied offers first
+                const displayOffers = [...offers];
+                
+                // Combine all sources of applicable offers
+                const combinedOffers = [...allApplicableOffers, ...fetchedApplicableOffers];
+                
+                // Add other applicable offers that aren't applied yet
+                combinedOffers.forEach((offer: any) => {
+                  // Skip if already applied
+                  if (appliedOfferCodes.has(offer.code)) {
+                    return;
+                  }
+                  
+                  // Calculate discount amount if not provided
+                  let discountAmount = offer.discountAmount;
+                  if (!discountAmount && offer.discountPercent) {
+                    discountAmount = Math.round((data.offerResult.baseTotal * (offer.discountPercent || 0)) / 100);
+                  }
+                  
+                  // Include offer if it has discount or is a freebie type
+                  if (discountAmount > 0 || offer.type === 'FREE_LENS' || offer.type === 'BONUS_FREE_PRODUCT' || offer.isApplicable) {
+                    // Check if not already in displayOffers
+                    if (!displayOffers.find(o => o.code === offer.code)) {
+                      displayOffers.push({
+                        type: offer.type || 'DISCOUNT',
+                        code: offer.code || '',
+                        title: offer.title || offer.description || 'Discount',
+                        description: offer.description || '',
+                        discountAmount: discountAmount || 0,
+                        explanation: getExplanationFromLabel(offer.description || offer.title || '', discountAmount || 0),
+                      });
+                    }
+                  }
+                });
+                
+                return displayOffers.length > 0 ? (
+                  <div className="space-y-3">
+                    {displayOffers.map((offer, idx) => {
+                      const isApplied = offers.some(o => o.code === offer.code);
+                      return (
+                        <div 
+                          key={`${offer.code || offer.type || 'offer'}-${idx}`}
+                          className={`group relative overflow-hidden rounded-lg p-4 border-2 transition-all duration-300 transform hover:scale-[1.02] cursor-pointer ${
+                            isApplied
+                              ? 'bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 border-blue-500/50 hover:border-blue-400'
+                              : 'bg-gradient-to-r from-slate-700/50 via-slate-600/50 to-slate-700/50 border-slate-600/50 hover:border-slate-500 hover:border-yellow-500/50'
+                          }`}
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          <div className="relative flex justify-between items-start gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                {isApplied ? (
+                                  <span className="px-2 py-0.5 bg-green-500/30 text-green-300 text-xs font-semibold rounded border border-green-500/50">
+                                    ✓ Applied
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-yellow-500/30 text-yellow-300 text-xs font-semibold rounded border border-yellow-500/50">
+                                    Available
+                                  </span>
+                                )}
+                                {offer.code && offer.code !== 'DISCOUNT' && offer.code.length > 0 && (
+                                  <span className={`px-3 py-1 text-white text-xs font-bold rounded-lg border shadow-lg whitespace-nowrap ${
+                                    isApplied
+                                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 border-blue-400/50'
+                                      : 'bg-slate-600 border-slate-500'
+                                  }`}>
+                                    {offer.code}
+                                  </span>
+                                )}
+                                <span className="text-base font-bold text-white break-words">{offer.title || 'Discount'}</span>
+                              </div>
+                              {offer.explanation && (
+                                <p className={`text-sm mt-1 break-words ${isApplied ? 'text-blue-200' : 'text-slate-300'}`}>
+                                  {offer.explanation}
+                                </p>
+                              )}
+                              {!isApplied && (
+                                <p className="text-xs text-yellow-400 mt-2 italic">
+                                  Note: A better offer is currently applied. This offer would save ₹{Math.round(offer.discountAmount || 0).toLocaleString()}.
+                                </p>
+                              )}
+                            </div>
+                            {(offer.discountAmount || 0) > 0 && (
+                              <div className="ml-4 text-right flex-shrink-0">
+                                <div className={`rounded-lg px-3 py-1 border shadow-lg whitespace-nowrap ${
+                                  isApplied
+                                    ? 'bg-gradient-to-r from-green-400 to-emerald-400 border-green-300/50'
+                                    : 'bg-slate-600 border-slate-500'
+                                }`}>
+                                  <span className="text-lg font-bold text-white">
+                                    -₹{Math.round(offer.discountAmount || 0).toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
                             )}
-                            <span className="text-base font-bold text-white break-words">{offer.title || 'Discount'}</span>
-                          </div>
-                          {offer.explanation && (
-                            <p className="text-blue-200 text-sm mt-1 break-words">{offer.explanation}</p>
-                          )}
-                        </div>
-                        <div className="ml-4 text-right flex-shrink-0">
-                          <div className="bg-gradient-to-r from-green-400 to-emerald-400 rounded-lg px-3 py-1 border border-green-300/50 shadow-lg whitespace-nowrap">
-                            <span className="text-lg font-bold text-white">
-                              -₹{Math.round(offer.discountAmount || 0).toLocaleString()}
-                            </span>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-4">
-                  <p className="text-slate-400 text-sm italic">No offers applied</p>
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-slate-400 text-sm italic">No offers available</p>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Subtotal */}
@@ -975,12 +1505,15 @@ export default function OfferSummaryPage() {
           </Button>
           <Button
             onClick={() => {
-              router.push(`/questionnaire/${sessionId}/checkout/${productId}`);
+              // Save productId for accessories page
+              localStorage.setItem(`lenstrack_selected_product_${sessionId}`, productId);
+              // Navigate to accessories page
+              router.push(`/questionnaire/${sessionId}/accessories`);
             }}
             className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-3 shadow-lg hover:shadow-green-500/50 transform hover:scale-[1.02] transition-all duration-300 border-2 border-green-400/50"
           >
             <ShoppingCart size={18} className="mr-2" />
-            Proceed to Checkout
+            Add Accessories
             <ArrowRight size={18} className="ml-2" />
           </Button>
         </div>
@@ -1002,7 +1535,7 @@ export default function OfferSummaryPage() {
                 </p>
                 {data.offerResult.upsell.rewardText && (
                   <p className="text-yellow-800 text-sm font-semibold">
-                    🎁 {data.offerResult.upsell.rewardText}
+                    ?? {data.offerResult.upsell.rewardText}
                   </p>
                 )}
               </div>
@@ -1033,7 +1566,7 @@ export default function OfferSummaryPage() {
           if (bestThreshold) {
             const remaining = Math.ceil(bestThreshold.remaining / 100) * 100; // Round to nearest 100
             
-            console.log('[OfferSummary] 🎁 Showing fallback upsell banner:', {
+            console.log('[OfferSummary] ?? Showing fallback upsell banner:', {
               currentTotal,
               threshold: bestThreshold.amount,
               remaining,
@@ -1054,7 +1587,7 @@ export default function OfferSummaryPage() {
                         Add ₹{remaining.toLocaleString()} more and get {bestThreshold.reward}
                       </p>
                       <p className="text-yellow-800 text-sm font-semibold">
-                        🎁 Unlock amazing rewards with just a little more!
+                        ?? Unlock amazing rewards with just a little more!
                       </p>
                     </div>
                   </div>
@@ -1069,7 +1602,7 @@ export default function OfferSummaryPage() {
             );
           }
           
-          console.log('[OfferSummary] ⚠️ No fallback upsell banner - customer total too high or too low');
+          console.log('[OfferSummary] ?? No fallback upsell banner - customer total too high or too low');
           return null;
         })()
       )}
@@ -1177,7 +1710,7 @@ export default function OfferSummaryPage() {
                             {data.offerResult.upsell && (
                               <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
                                 <p className="text-xs text-green-700 font-medium">
-                                  ✓ Adding this will unlock your reward!
+                                  ? Adding this will unlock your reward!
                                 </p>
                               </div>
                             )}
@@ -1231,6 +1764,119 @@ export default function OfferSummaryPage() {
           </div>
         </div>
       )}
+
+      {/* Lens Selection Modal for Second Pair */}
+      {showLensSelectionModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 px-6 py-5 border-b border-purple-700 rounded-t-3xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Select Second Pair Lens</h2>
+                  <p className="text-purple-100 text-sm">Choose a lens for your second pair</p>
+                </div>
+                <button
+                  onClick={() => setShowLensSelectionModal(false)}
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingLenses ? (
+                <div className="text-center py-12">
+                  <div className="w-12 h-12 mx-auto mb-4 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+                  <p className="text-slate-600">Loading lenses...</p>
+                </div>
+              ) : availableLenses.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-600">No lenses available</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {availableLenses.map((lens) => (
+                    <div
+                      key={lens.id}
+                      className={`border-2 rounded-xl p-5 hover:shadow-lg transition-all bg-white group ${
+                        secondPairLensId === lens.id
+                          ? 'border-purple-500 bg-purple-50'
+                          : 'border-slate-200 hover:border-purple-400'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-6">
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold text-slate-900 mb-2">{lens.name}</h3>
+                          <div className="flex items-center gap-3 text-sm text-slate-600 mb-3 flex-wrap">
+                            {lens.brandLine && (
+                              <>
+                                <span className="font-medium text-slate-700">{lens.brandLine}</span>
+                                <span className="text-slate-400">•</span>
+                              </>
+                            )}
+                            {lens.index && (
+                              <>
+                                <span>Index {lens.index}</span>
+                                <span className="text-slate-400">•</span>
+                              </>
+                            )}
+                            {lens.itCode && (
+                              <span className="text-slate-500">IT Code: {lens.itCode}</span>
+                            )}
+                          </div>
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-2xl font-bold text-slate-900">₹{Math.round(lens.price || 0).toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => {
+                            setSecondPairLensId(lens.id);
+                            setSecondPairLensPrice(lens.price || 0);
+                            setShowLensSelectionModal(false);
+                            // Recalculate offers with selected lens
+                            if (secondPairFrameMRP && parseFloat(secondPairFrameMRP) > 0) {
+                              recalculateOffersWithSecondPair({
+                                frameMRP: parseFloat(secondPairFrameMRP),
+                                brand: secondPairBrand,
+                                subBrand: secondPairSubBrand,
+                                lensId: lens.id,
+                                lensPrice: lens.price || 0,
+                              });
+                            }
+                          }}
+                          className={`font-bold px-8 py-3 shadow-md hover:shadow-lg transition-all whitespace-nowrap ${
+                            secondPairLensId === lens.id
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white'
+                          }`}
+                        >
+                          {secondPairLensId === lens.id ? 'Selected' : 'Select'}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-gradient-to-r from-slate-50 to-purple-50 border-t-2 border-slate-200 px-6 py-4 rounded-b-3xl">
+              <Button
+                fullWidth
+                onClick={() => setShowLensSelectionModal(false)}
+                variant="outline"
+                className="border-2 border-slate-300 text-slate-700 hover:bg-white hover:border-purple-400 font-semibold py-3 shadow-sm"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -21,6 +21,7 @@ const createLensSchema = z.object({
   visionType: z.enum(['SINGLE_VISION', 'PROGRESSIVE', 'BIFOCAL', 'ANTI_FATIGUE', 'MYOPIA_CONTROL']),
   lensIndex: z.enum(['INDEX_156', 'INDEX_160', 'INDEX_167', 'INDEX_174']),
   tintOption: z.enum(['CLEAR', 'TINT', 'PHOTOCHROMIC', 'TRANSITION']),
+  mrp: z.number().min(0).optional().nullable(), // MRP (Maximum Retail Price)
   baseOfferPrice: z.number().min(0, 'Base offer price must be positive'),
   addOnPrice: z.number().min(0).optional().nullable(),
   category: z.enum(['ECONOMY', 'STANDARD', 'PREMIUM', 'ULTRA']),
@@ -105,6 +106,7 @@ export async function GET(request: NextRequest) {
         visionType: lens.visionType,
         lensIndex: lens.lensIndex,
         tintOption: lens.tintOption,
+        mrp: lens.mrp,
         baseOfferPrice: lens.baseOfferPrice,
         addOnPrice: lens.addOnPrice,
         category: lens.category,
@@ -179,6 +181,7 @@ export async function POST(request: NextRequest) {
         visionType: validated.visionType as VisionType,
         lensIndex: validated.lensIndex as LensIndex,
         tintOption: validated.tintOption as TintOption,
+        mrp: validated.mrp || validated.baseOfferPrice || null, // Use MRP if provided, otherwise use baseOfferPrice
         baseOfferPrice: validated.baseOfferPrice,
         addOnPrice: validated.addOnPrice || null,
         category: validated.category as LensCategory,
@@ -240,6 +243,7 @@ export async function POST(request: NextRequest) {
         visionType: lens.visionType,
         lensIndex: lens.lensIndex,
         tintOption: lens.tintOption,
+        mrp: lens.mrp,
         baseOfferPrice: lens.baseOfferPrice,
         addOnPrice: lens.addOnPrice,
         category: lens.category,

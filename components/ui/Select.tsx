@@ -49,9 +49,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                 {placeholder}
               </option>
             )}
-            {options.map((option) => (
+            {options.map((option, index) => (
               <option
-                key={option.value}
+                key={option.value || `option-${index}`}
                 value={option.value}
                 disabled={option.disabled}
               >
@@ -67,7 +67,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 
         {error && (
           <p id={`${props.id}-error`} className="mt-1.5 text-sm text-red-600" role="alert">
-            {error}
+            {typeof error === 'string' ? error : typeof error === 'object' && error !== null
+              ? (error as any).message || JSON.stringify(error)
+              : String(error)}
           </p>
         )}
       </div>
