@@ -72,6 +72,10 @@ const calculateOfferSchema = z.object({
     finalPrice: z.number(),
     quantity: z.number().optional(),
   })).optional(),
+  // Purchase context for Combo/Regular flow
+  purchaseContext: z.enum(['REGULAR', 'COMBO', 'YOPO']).nullable().optional(),
+  // Combo tier selection (for COMBO context)
+  selectedComboCode: z.string().nullable().optional(),
 });
 
 /**
@@ -99,7 +103,18 @@ export async function POST(request: NextRequest) {
       organizationId: body.organizationId,
       mode: body.mode || (body.frame && body.lens ? 'FRAME_AND_LENS' : body.lens ? 'ONLY_LENS' : 'CONTACT_LENS_ONLY'),
       otherItems: body.otherItems || undefined,
+      purchaseContext: body.purchaseContext || null,
+      selectedComboCode: body.selectedComboCode || null,
     };
+
+    // Server-side validation: Block mixed contexts and offer stacking in COMBO
+    if (normalizedInput.purchaseContext === 'COMBO') {
+      // In COMBO context, only coupon is allowed
+      // This is enforced in the offer engine service, but we can add additional validation here
+      if (normalizedInput.secondPair?.enabled) {
+        throw new ValidationError('Second pair offers are not allowed in COMBO context');
+      }
+    }
 
     // V2: Mandatory validations
     // For CONTACT_LENS_ONLY mode, otherItems is required

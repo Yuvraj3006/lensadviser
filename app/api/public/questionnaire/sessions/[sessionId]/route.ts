@@ -91,3 +91,67 @@ export async function GET(
   }
 }
 
+// PATCH /api/public/questionnaire/sessions/[sessionId] - Update session (purchase context, etc.)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ sessionId: string }> }
+) {
+  try {
+    const { sessionId } = await params;
+    const body = await request.json();
+
+    // Verify session exists
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Session not found',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    // Update session fields
+    const updateData: any = {};
+    if (body.purchaseContext) {
+      updateData.purchaseContext = body.purchaseContext;
+    }
+    if (body.selectedComboCode !== undefined) {
+      updateData.selectedComboCode = body.selectedComboCode;
+      
+      // Fetch and store combo version when tier is selected
+      if (body.selectedComboCode) {
+        const comboTier = await prisma.comboTier.findUnique({
+          where: { comboCode: body.selectedComboCode },
+          select: { comboVersion: true },
+        });
+        if (comboTier) {
+          updateData.comboVersionUsed = comboTier.comboVersion;
+        }
+      }
+    }
+    if (body.comboVersionUsed !== undefined) {
+      updateData.comboVersionUsed = body.comboVersionUsed;
+    }
+
+    const updated = await prisma.session.update({
+      where: { id: sessionId },
+      data: updateData,
+    });
+
+    return Response.json({
+      success: true,
+      data: updated,
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+

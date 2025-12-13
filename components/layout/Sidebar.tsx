@@ -23,6 +23,7 @@ import {
   ShoppingCart,
   TrendingUp,
   Eye,
+  Settings,
 } from 'lucide-react';
 // UserRole enum - defined inline since Prisma doesn't export unused enums
 enum UserRole {
@@ -112,6 +113,12 @@ const navItems: NavItem[] = [
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
   },
   {
+    label: 'Combo Tiers',
+    href: '/admin/combo-tiers',
+    icon: <Package size={20} />,
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+  },
+  {
     label: 'Category Discounts',
     href: '/admin/offers/category-discounts',
     icon: <Percent size={20} />,
@@ -120,6 +127,18 @@ const navItems: NavItem[] = [
   {
     label: 'Coupons',
     href: '/admin/offers/coupons',
+    icon: <Ticket size={20} />,
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+  },
+  {
+    label: 'Settings',
+    href: '/admin/settings',
+    icon: <Settings size={20} />,
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+  },
+  {
+    label: 'Tools',
+    href: '/admin/tools',
     icon: <Ticket size={20} />,
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
   },

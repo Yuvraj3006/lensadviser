@@ -10,7 +10,7 @@ import { z } from 'zod';
 // Using passthrough to allow legacy fields from frontend
 const offerRuleSchema = z.object({
   code: z.string().min(1),
-  offerType: z.enum(['YOPO', 'COMBO_PRICE', 'FREE_LENS', 'PERCENT_OFF', 'FLAT_OFF', 'BOG50', 'CATEGORY_DISCOUNT', 'BONUS_FREE_PRODUCT']), // Match OfferType enum
+  offerType: z.enum(['YOPO', 'COMBO_PRICE', 'FREE_LENS', 'PERCENT_OFF', 'FLAT_OFF', 'BOG50', 'BOGO', 'CATEGORY_DISCOUNT', 'BONUS_FREE_PRODUCT']), // Match OfferType enum
   // Handle arrays that might be null/undefined - transform to empty array
   frameBrands: z.union([z.array(z.string()), z.null(), z.undefined()]).transform(val => val || []).default([]),
   frameSubCategories: z.union([z.array(z.string()), z.null(), z.undefined()]).transform(val => val || []).default([]),
@@ -258,8 +258,14 @@ export async function POST(request: NextRequest) {
 
     let rule;
     try {
+      // For MongoDB nested types, use 'set' syntax for config
       rule = await prisma.offerRule.create({
-        data: ruleData,
+        data: {
+          ...ruleData,
+          config: {
+            set: ruleConfigData,
+          },
+        },
       });
       console.log('[POST /api/admin/offers/rules] Rule created successfully:', rule.id);
     } catch (prismaError: any) {

@@ -166,11 +166,20 @@ export default function AdminLensesPage() {
     {
       key: 'lensIndex',
       header: 'Index',
-      render: (lens) => (
-        <span className="text-sm text-slate-600">
-          {lens.lensIndex?.replace('INDEX_', '') || 'N/A'}
-        </span>
-      ),
+      render: (lens) => {
+        const formatIndex = (index: string | undefined) => {
+          if (!index) return 'N/A';
+          if (index.startsWith('INDEX_')) {
+            const numPart = index.replace('INDEX_', '');
+            if (numPart.length >= 3 && numPart.startsWith('1')) {
+              return `1.${numPart.substring(1)}`;
+            }
+            return index.replace('INDEX_', '1.');
+          }
+          return index;
+        };
+        return <span className="text-sm text-slate-600">{formatIndex(lens.lensIndex)}</span>;
+      },
     },
     {
       key: 'baseOfferPrice',

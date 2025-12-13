@@ -127,20 +127,85 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch benefit mappings for all options
-    const allOptionIds = questions.flatMap((q: any) => (q.options || []).map((opt: any) => opt.id || opt._id?.toString()));
+    // Ensure all option IDs are converted to strings consistently
+    const allOptionIds = questions.flatMap((q: any) => 
+      (q.options || []).map((opt: any) => {
+        const id = opt.id || opt._id;
+        return id ? id.toString() : null;
+      }).filter((id: string | null) => id !== null)
+    );
+    
+    console.log(`[GET /api/admin/questions] Fetching benefit mappings for ${allOptionIds.length} options`);
+    if (allOptionIds.length > 0 && allOptionIds.length <= 10) {
+      console.log(`[GET /api/admin/questions] Sample option IDs:`, allOptionIds.slice(0, 5));
+    }
+    
+    // First, check if there are ANY AnswerBenefit records in the database at all
+    const totalAnswerBenefits = await prisma.answerBenefit.count({});
+    console.log(`[GET /api/admin/questions] DEBUG: Total AnswerBenefit records in database: ${totalAnswerBenefits}`);
+    
+    // Get sample AnswerBenefit records to see what answerIds exist
+    if (totalAnswerBenefits > 0) {
+      const sampleBenefits = await prisma.answerBenefit.findMany({
+        take: 10,
+        select: { 
+          id: true,
+          answerId: true,
+          benefitId: true,
+          points: true,
+        },
+      });
+      console.log(`[GET /api/admin/questions] DEBUG: Sample AnswerBenefit records:`, 
+        sampleBenefits.map((b: any) => ({
+          id: b.id?.toString(),
+          answerId: b.answerId?.toString(),
+          benefitId: b.benefitId?.toString(),
+          points: b.points,
+        }))
+      );
+    }
+    
     const benefitMappings = allOptionIds.length > 0
       ? await prisma.answerBenefit.findMany({
           where: { answerId: { in: allOptionIds } },
         })
       : [];
+    
+    console.log(`[GET /api/admin/questions] Found ${benefitMappings.length} benefit mappings for ${allOptionIds.length} options`);
+    
+    // Debug: If no mappings found, check if any of the option IDs match
+    if (benefitMappings.length === 0 && allOptionIds.length > 0 && totalAnswerBenefits > 0) {
+      // Get all answerIds from AnswerBenefit table
+      const allAnswerBenefitIds = await prisma.answerBenefit.findMany({
+        select: { answerId: true },
+        distinct: ['answerId'],
+      });
+      const answerBenefitIdStrings = allAnswerBenefitIds.map((b: any) => b.answerId?.toString()).filter(Boolean);
+      
+      console.log(`[GET /api/admin/questions] DEBUG: Found ${answerBenefitIdStrings.length} unique answerIds in AnswerBenefit table`);
+      console.log(`[GET /api/admin/questions] DEBUG: Sample answerIds from AnswerBenefit:`, answerBenefitIdStrings.slice(0, 5));
+      console.log(`[GET /api/admin/questions] DEBUG: Sample option IDs from questions:`, allOptionIds.slice(0, 5));
+      
+      // Check if there's any overlap
+      const matchingIds = allOptionIds.filter((id: string) => answerBenefitIdStrings.includes(id));
+      console.log(`[GET /api/admin/questions] DEBUG: Matching IDs found: ${matchingIds.length}`);
+      if (matchingIds.length > 0) {
+        console.log(`[GET /api/admin/questions] DEBUG: Matching IDs:`, matchingIds);
+      }
+    }
+    
     const benefitMappingsByAnswerId = new Map<string, any[]>();
     benefitMappings.forEach((bm: any) => {
-      const answerId = bm.answerId.toString();
-      if (!benefitMappingsByAnswerId.has(answerId)) {
-        benefitMappingsByAnswerId.set(answerId, []);
+      const answerId = bm.answerId ? bm.answerId.toString() : null;
+      if (answerId) {
+        if (!benefitMappingsByAnswerId.has(answerId)) {
+          benefitMappingsByAnswerId.set(answerId, []);
+        }
+        benefitMappingsByAnswerId.get(answerId)!.push(bm);
       }
-      benefitMappingsByAnswerId.get(answerId)!.push(bm);
     });
+    
+    console.log(`[GET /api/admin/questions] Benefit mappings by answerId: ${benefitMappingsByAnswerId.size} unique answers`);
 
     // Fetch benefits to get codes
     const benefitIds = [...new Set(benefitMappings.map((bm: any) => bm.benefitId))];
@@ -151,9 +216,26 @@ export async function GET(request: NextRequest) {
       : [];
     const benefitMap = new Map(benefits.map((b: any) => [b.id.toString(), b]));
 
+    // Fetch answer counts for all questions (from SessionAnswer table)
+    const questionIds = questions.map((q: any) => q.id || q._id?.toString()).filter(Boolean);
+    const answerCounts = questionIds.length > 0
+      ? await prisma.sessionAnswer.groupBy({
+          by: ['questionId'],
+          where: { 
+            questionId: { in: questionIds },
+          },
+          _count: true,
+        })
+      : [];
+    const answerCountMap = new Map(
+      answerCounts.map((ac: any) => [ac.questionId.toString(), ac._count])
+    );
+
     const formattedQuestions = questions.map((q: any) => {
+      const questionId = q.id?.toString() || q._id?.toString() || '';
       const options = (q.options || []).map((opt: any) => {
-        const optionId = opt.id?.toString() || opt._id?.toString() || '';
+        // Ensure consistent string format for option ID
+        const optionId = opt.id ? String(opt.id) : (opt._id ? String(opt._id) : '');
         const mappings = benefitMappingsByAnswerId.get(optionId) || [];
         const benefitMapping: Record<string, number> = {};
         let categoryWeight = 1.0;
@@ -186,8 +268,41 @@ export async function GET(request: NextRequest) {
         };
       });
       
+      // Calculate total benefit mappings count for this question
+      // Use the same optionId that was used to create the option object
+      const questionMappingCount = options.reduce((count: number, opt: any) => {
+        const optId = String(opt.id); // Ensure it's a string
+        if (!optId || optId === 'undefined' || optId === 'null') return count;
+        const mappings = benefitMappingsByAnswerId.get(optId) || [];
+        const mappingCount = mappings.length;
+        return count + mappingCount;
+      }, 0);
+      
+      // Debug logging for questions with options but zero mappings
+      if (options.length > 0 && questionMappingCount === 0 && benefitMappingsByAnswerId.size > 0) {
+        console.log(`[GET /api/admin/questions] Question "${q.key}" has ${options.length} options but 0 mappings.`);
+        console.log(`  Question ID: ${questionId}`);
+        console.log(`  Total mappings in Map: ${benefitMappingsByAnswerId.size}`);
+        options.forEach((opt: any) => {
+          const optId = String(opt.id);
+          const hasMapping = benefitMappingsByAnswerId.has(optId);
+          const mappings = benefitMappingsByAnswerId.get(optId) || [];
+          console.log(`  - Option "${opt.textEn || opt.key}" (ID: ${optId}): ${hasMapping ? `HAS ${mappings.length} mappings` : 'NO mappings'}`);
+          // Check if similar IDs exist in the map
+          if (!hasMapping) {
+            const similarIds = Array.from(benefitMappingsByAnswerId.keys()).filter((key: string) => 
+              key.includes(optId.substring(0, 10)) || optId.includes(key.substring(0, 10))
+            );
+            if (similarIds.length > 0) {
+              console.log(`    Similar IDs found in map: ${similarIds.slice(0, 3).join(', ')}`);
+            }
+          }
+        });
+      }
+      
+      const finalQuestionId = q.id?.toString() || q._id?.toString() || '';
       return {
-        id: q.id || (q._id ? q._id.toString() : ''),
+        id: finalQuestionId,
         key: q.key,
         textEn: q.textEn,
         textHi: q.textHi || null,
@@ -198,8 +313,8 @@ export async function GET(request: NextRequest) {
         allowMultiple: q.allowMultiple ?? false,
         isActive: q.isActive ?? true,
         optionCount: options.length,
-        answerCount: 0, // TODO: Add answers relation if needed
-        mappingCount: 0, // TODO: Add mappings relation if needed
+        answerCount: answerCountMap.get(finalQuestionId) || 0,
+        mappingCount: questionMappingCount, // Count of benefit mappings across all options
         createdAt: q.createdAt || new Date(), // Provide default for null createdAt
         parentQuestionId: q.parentAnswerId || null, // Map parentAnswerId to parentQuestionId for frontend
         parentAnswerId: q.parentAnswerId || null,
@@ -208,9 +323,12 @@ export async function GET(request: NextRequest) {
     });
 
     console.log(`[GET /api/admin/questions] Returning ${formattedQuestions.length} questions`);
+    let totalMappings = 0;
     formattedQuestions.forEach((q: any) => {
-      console.log(`  - Question "${q.key}": ${q.options.length} options`);
+      totalMappings += q.mappingCount || 0;
+      console.log(`  - Question "${q.key}": ${q.options.length} options, ${q.mappingCount || 0} mappings`);
     });
+    console.log(`[GET /api/admin/questions] Total mappings across all questions: ${totalMappings}`);
     return Response.json({
       success: true,
       data: formattedQuestions,

@@ -5,7 +5,8 @@ import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { RefreshCw, CheckCircle, AlertCircle, XCircle, Database, Eye, Tag, Package, Settings } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertCircle, XCircle, Database, Eye, Tag, Package, Settings, ExternalLink } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface SyncIssue {
   module: string;
@@ -27,6 +28,7 @@ interface SyncCheckResult {
 
 export default function SystemSyncCheckPage() {
   const { showToast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [organizationId, setOrganizationId] = useState('');
   const [result, setResult] = useState<SyncCheckResult | null>(null);
@@ -197,6 +199,40 @@ export default function SystemSyncCheckPage() {
                             )}
                           </div>
                           <p className="text-slate-700">{issue.message}</p>
+                          {(issue.module === 'Offer Rule Consistency' || 
+                            issue.module === 'Rx Range Validation' || 
+                            issue.module === 'Lens-Benefit Mapping' ||
+                            issue.module === 'Tint/Mirror Eligibility' ||
+                            issue.module === 'Answer-Benefit Mapping' ||
+                            issue.module === 'Band Pricing') && (
+                            <div className="mt-3">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  if (issue.module === 'Offer Rule Consistency') {
+                                    router.push('/admin/offers/rules');
+                                  } else if (issue.module === 'Rx Range Validation' || 
+                                             issue.module === 'Lens-Benefit Mapping' ||
+                                             issue.module === 'Tint/Mirror Eligibility' ||
+                                             issue.module === 'Band Pricing') {
+                                    router.push('/admin/lens-products');
+                                  } else if (issue.module === 'Answer-Benefit Mapping') {
+                                    router.push('/admin/questionnaire');
+                                  }
+                                }}
+                                className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                              >
+                                <ExternalLink size={14} className="mr-2" />
+                                {issue.module === 'Offer Rule Consistency' && 'Go to Offer Rules'}
+                                {(issue.module === 'Rx Range Validation' || 
+                                  issue.module === 'Lens-Benefit Mapping' ||
+                                  issue.module === 'Tint/Mirror Eligibility' ||
+                                  issue.module === 'Band Pricing') && 'Go to Lens Products'}
+                                {issue.module === 'Answer-Benefit Mapping' && 'Go to Questionnaire Builder'}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

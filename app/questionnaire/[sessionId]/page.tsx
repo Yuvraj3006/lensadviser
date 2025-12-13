@@ -149,8 +149,13 @@ export default function QuestionnaireSessionPage() {
 
       if (data.success) {
         if (data.data?.completed || isLastQuestion) {
-          // All questions done - show recommendations
-          router.push(`/questionnaire/${sessionId}/recommendations`);
+          // Track questionnaire completed
+          import('@/services/analytics.service').then(({ analyticsService }) => {
+            analyticsService.questionnaireCompleted(sessionId);
+          });
+          
+          // All questions done - redirect to needs summary first, then path choice
+          router.push(`/questionnaire/${sessionId}/needs-summary`);
         } else {
           // Move to next question
           setCurrentQuestionIndex((prev) => prev + 1);

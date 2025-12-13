@@ -113,6 +113,14 @@ export async function PUT(
     const { options, ...questionData } = body;
 
     console.log(`[PUT /api/admin/questions/${questionId}] Updating question with ${options?.length || 0} options`);
+    console.log(`[PUT /api/admin/questions/${questionId}] Options data:`, options?.map((opt: any) => ({
+      id: opt.id,
+      key: opt.key,
+      textEn: opt.textEn,
+      triggersSubQuestion: opt.triggersSubQuestion,
+      subQuestionId: opt.subQuestionId,
+      nextQuestionIds: opt.nextQuestionIds,
+    })));
 
     // Fetch all benefits for the organization to map codes to IDs
     const benefits = await prisma.benefit.findMany({
@@ -157,7 +165,10 @@ export async function PUT(
       isActive: Boolean(questionData.isActive ?? true),
       options: {
         create: (options || []).map((opt: any, index: number) => {
-          const subQuestionId = (opt.triggersSubQuestion && opt.subQuestionId && String(opt.subQuestionId).trim() !== '') 
+          // Check if subQuestionId is provided (either directly or via triggersSubQuestion)
+          // The condition should allow subQuestionId even if triggersSubQuestion is not explicitly set
+          const hasSubQuestionId = opt.subQuestionId && String(opt.subQuestionId).trim() !== '';
+          const subQuestionId = hasSubQuestionId 
             ? String(opt.subQuestionId).trim() 
             : null;
           
@@ -169,7 +180,10 @@ export async function PUT(
             ? opt.nextQuestionIds.filter((id: any) => id && String(id).trim() !== '')
             : (subQuestionId ? [subQuestionId] : []); // Fallback to legacy subQuestionId
 
-          return {
+          // Set triggersSubQuestion to true if subQuestionId exists
+          const triggersSubQuestion = subQuestionId ? true : Boolean(opt.triggersSubQuestion || false);
+
+          const optionData = {
             key: optionKey,
             text: opt.text || opt.textEn || null,
             textEn: String(opt.textEn).trim(),
@@ -178,10 +192,21 @@ export async function PUT(
             icon: opt.icon?.trim() || null,
             order: Number(index + 1),
             displayOrder: Number(opt.displayOrder || index + 1),
-            triggersSubQuestion: Boolean(opt.triggersSubQuestion || false),
+            triggersSubQuestion: triggersSubQuestion,
             subQuestionId: subQuestionId, // Keep for backward compatibility
             nextQuestionIds: nextQuestionIds, // New: array support
           };
+
+          if (subQuestionId) {
+            console.log(`[PUT /api/admin/questions/${questionId}] Creating option with subquestion:`, {
+              optionKey,
+              subQuestionId,
+              triggersSubQuestion,
+              nextQuestionIds,
+            });
+          }
+
+          return optionData;
         }),
       },
     };

@@ -86,6 +86,7 @@ export default function OfferRulesPage() {
   const [subBrands, setSubBrands] = useState<string[]>([]);
   const [brandSubBrandMap, setBrandSubBrandMap] = useState<Record<string, string[]>>({});
   const [availableSubBrands, setAvailableSubBrands] = useState<string[]>([]);
+  const [selectedEligibleBrands, setSelectedEligibleBrands] = useState<string[]>([]);
 
   useEffect(() => {
     // Get organization ID from auth context or API
@@ -131,6 +132,16 @@ export default function OfferRulesPage() {
     }
   }, [formData.frameBrand, brandSubBrandMap, subBrands]);
 
+  // Initialize selected eligible brands when form opens with BOGO/BOG50
+  useEffect(() => {
+    if (isCreateOpen && (formData.offerType === 'BOGO' || formData.offerType === 'BOG50')) {
+      const eligibleBrands = ((formData as any).config?.eligibleBrands || []) as string[];
+      if (eligibleBrands.length > 0 && JSON.stringify(eligibleBrands) !== JSON.stringify(selectedEligibleBrands)) {
+        setSelectedEligibleBrands(eligibleBrands);
+      }
+    }
+  }, [isCreateOpen, formData.offerType, (formData as any).config?.eligibleBrands]);
+
   const fetchRules = async (orgId: string) => {
     setLoading(true);
     try {
@@ -163,6 +174,7 @@ export default function OfferRulesPage() {
       lensItCodes: [],
     });
     setEditingRule(null);
+    setSelectedEligibleBrands([]);
     setIsCreateOpen(true);
   };
 
@@ -174,11 +186,24 @@ export default function OfferRulesPage() {
     };
     setFormData(ruleWithConfig);
     setEditingRule(rule);
+    // Initialize selected eligible brands for BOGO/BOG50
+    if (rule.offerType === 'BOGO' || rule.offerType === 'BOG50') {
+      const eligibleBrands = ((ruleWithConfig as any).config?.eligibleBrands || []) as string[];
+      setSelectedEligibleBrands(eligibleBrands);
+    }
     setIsCreateOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (!formData.code || formData.code.trim() === '') {
+      showToast('error', 'Code is required');
+      setSubmitting(false);
+      return;
+    }
+    
     setSubmitting(true);
     try {
       const token = localStorage.getItem('lenstrack_token');
@@ -187,29 +212,95 @@ export default function OfferRulesPage() {
         : '/api/admin/offers/rules';
       const method = editingRule ? 'PUT' : 'POST';
 
+      // Prepare payload - ensure code is present and config is properly structured
+      const payload = {
+        ...formData,
+        code: formData.code?.trim() || '',
+        organizationId,
+        config: (formData as any).config || {},
+      };
+
+      console.log('[OfferRules] Submitting payload:', JSON.stringify(payload, null, 2));
+
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          ...formData,
-          organizationId,
-          config: (formData as any).config || {},
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      // Check response status first
+      if (!response.ok) {
+        console.error('[OfferRules] Response not OK:', response.status, response.statusText);
+        let errorData;
+        try {
+          const text = await response.text();
+          console.error('[OfferRules] Response text:', text);
+          errorData = text ? JSON.parse(text) : {};
+        } catch (parseError) {
+          console.error('[OfferRules] Failed to parse error response:', parseError);
+          errorData = { error: { message: `Server error: ${response.status} ${response.statusText}` } };
+        }
+        const errorMessage = errorData?.error?.message || errorData?.message || `Failed to save (${response.status})`;
+        showToast('error', errorMessage);
+        if (errorData?.error?.details && Array.isArray(errorData.error.details)) {
+          console.error('[OfferRules] Validation errors:', errorData.error.details);
+        }
+        setSubmitting(false);
+        return;
+      }
+
+      let data;
+      try {
+        const responseText = await response.text();
+        console.log('[OfferRules] Raw response text:', responseText);
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error('[OfferRules] Failed to parse response:', parseError);
+        showToast('error', 'Invalid response from server');
+        setSubmitting(false);
+        return;
+      }
+      
+      console.log('[OfferRules] Parsed API Response:', data);
+      
       if (data.success) {
         showToast('success', editingRule ? 'Offer rule updated' : 'Offer rule created');
         setIsCreateOpen(false);
         fetchRules(organizationId);
       } else {
-        showToast('error', data.error?.message || 'Failed to save');
+        console.error('[OfferRules] API Error - Full response:', JSON.stringify(data, null, 2));
+        // Handle different error response formats
+        let errorMessage = 'Failed to save';
+        if (data.error) {
+          if (typeof data.error === 'string') {
+            errorMessage = data.error;
+          } else if (data.error.message) {
+            errorMessage = data.error.message;
+          } else if (data.error.details) {
+            if (Array.isArray(data.error.details)) {
+              errorMessage = data.error.details.map((d: any) => d.message || JSON.stringify(d)).join(', ');
+            } else {
+              errorMessage = String(data.error.details);
+            }
+          }
+        } else if (data.message) {
+          errorMessage = data.message;
+        }
+        
+        showToast('error', errorMessage);
+        
+        // Log validation errors if present
+        if (data.error?.details && Array.isArray(data.error.details)) {
+          console.error('[OfferRules] Validation errors:', data.error.details);
+        }
       }
     } catch (error) {
-      showToast('error', 'An error occurred');
+      console.error('[OfferRules] Exception during submit:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      showToast('error', errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -348,7 +439,22 @@ export default function OfferRulesPage() {
             <Select
               label="Offer Type"
               value={formData.offerType || ''}
-              onChange={(e) => setFormData({ ...formData, offerType: e.target.value as OfferRuleType })}
+              onChange={(e) => {
+                const newOfferType = e.target.value as OfferRuleType;
+                setFormData({ ...formData, offerType: newOfferType });
+                // Initialize eligible brands when switching to BOGO/BOG50
+                if ((newOfferType === 'BOGO' || newOfferType === 'BOG50') && !(formData as any).config?.eligibleBrands) {
+                  setSelectedEligibleBrands([]);
+                  setFormData({ 
+                    ...formData, 
+                    offerType: newOfferType,
+                    config: {
+                      ...(formData as any).config || {},
+                      eligibleBrands: []
+                    }
+                  });
+                }
+              }}
               options={[
                 { value: 'YOPO', label: 'YOPO' },
                 { value: 'COMBO_PRICE', label: 'COMBO_PRICE' },
@@ -673,20 +779,148 @@ export default function OfferRulesPage() {
                   </p>
                 </div>
               )}
-              <Input
-                label="Eligible Brands (comma-separated, or * for all)"
-                value={((formData as any).config?.eligibleBrands || []).join(', ')}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  config: {
-                    ...(formData as any).config || {},
-                    eligibleBrands: e.target.value 
-                      ? e.target.value.split(',').map(b => b.trim()).filter(b => b)
-                      : []
-                  }
-                })}
-                placeholder="e.g., LENSTRACK, RAYBAN or * for all"
-              />
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-slate-700">
+                  Eligible Frames (Select Brands & Sub-Brands)
+                </label>
+                <div className="border border-slate-300 rounded-lg p-4 max-h-96 overflow-y-auto bg-slate-50">
+                  {/* Universal option */}
+                  <div className="mb-4 pb-4 border-b border-slate-300">
+                    <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-2 rounded">
+                      <input
+                        type="checkbox"
+                        checked={selectedEligibleBrands.includes('*')}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            // Select all option - clear others and select *
+                            setSelectedEligibleBrands(['*']);
+                            setFormData({ 
+                              ...formData, 
+                              config: {
+                                ...(formData as any).config || {},
+                                eligibleBrands: ['*']
+                              }
+                            });
+                          } else {
+                            setSelectedEligibleBrands([]);
+                            setFormData({ 
+                              ...formData, 
+                              config: {
+                                ...(formData as any).config || {},
+                                eligibleBrands: []
+                              }
+                            });
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="font-semibold text-slate-900">* (All Brands & Sub-Brands)</span>
+                    </label>
+                  </div>
+
+                  {/* Brands and Sub-Brands */}
+                  {brands.map((brand) => {
+                    const brandSubBrands = brandSubBrandMap[brand] || [];
+                    const isBrandSelected = selectedEligibleBrands.includes(brand);
+                    const selectedSubBrands = selectedEligibleBrands.filter(sb => brandSubBrands.includes(sb));
+                    const allSubBrandsSelected = brandSubBrands.length > 0 && selectedSubBrands.length === brandSubBrands.length;
+
+                    return (
+                      <div key={brand} className="mb-3">
+                        {/* Brand checkbox */}
+                        <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={isBrandSelected && !selectedEligibleBrands.includes('*')}
+                            onChange={(e) => {
+                              let newSelection = [...selectedEligibleBrands.filter(b => b !== '*')];
+                              if (e.target.checked) {
+                                // Add brand and all its sub-brands
+                                if (!newSelection.includes(brand)) {
+                                  newSelection.push(brand);
+                                }
+                                brandSubBrands.forEach(sb => {
+                                  if (!newSelection.includes(sb)) {
+                                    newSelection.push(sb);
+                                  }
+                                });
+                              } else {
+                                // Remove brand and all its sub-brands
+                                newSelection = newSelection.filter(b => b !== brand && !brandSubBrands.includes(b));
+                              }
+                              setSelectedEligibleBrands(newSelection);
+                              setFormData({ 
+                                ...formData, 
+                                config: {
+                                  ...(formData as any).config || {},
+                                  eligibleBrands: newSelection
+                                }
+                              });
+                            }}
+                            disabled={selectedEligibleBrands.includes('*')}
+                            className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="font-medium text-slate-800">{brand}</span>
+                          {brandSubBrands.length > 0 && (
+                            <span className="text-xs text-slate-500">
+                              ({selectedSubBrands.length}/{brandSubBrands.length} sub-brands)
+                            </span>
+                          )}
+                        </label>
+
+                        {/* Sub-Brands */}
+                        {brandSubBrands.length > 0 && (
+                          <div className="ml-6 mt-1 space-y-1">
+                            {brandSubBrands.map((subBrand) => (
+                              <label
+                                key={subBrand}
+                                className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1.5 rounded text-sm"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedEligibleBrands.includes(subBrand) && !selectedEligibleBrands.includes('*')}
+                                  onChange={(e) => {
+                                    let newSelection = [...selectedEligibleBrands.filter(b => b !== '*' && b !== brand)];
+                                    if (e.target.checked) {
+                                      if (!newSelection.includes(subBrand)) {
+                                        newSelection.push(subBrand);
+                                      }
+                                    } else {
+                                      newSelection = newSelection.filter(b => b !== subBrand);
+                                    }
+                                    // If all sub-brands are selected, also add the brand
+                                    const remainingSubBrands = brandSubBrands.filter(sb => sb !== subBrand);
+                                    const otherSelectedSubBrands = newSelection.filter(sb => remainingSubBrands.includes(sb));
+                                    if (e.target.checked && otherSelectedSubBrands.length === remainingSubBrands.length) {
+                                      if (!newSelection.includes(brand)) {
+                                        newSelection.push(brand);
+                                      }
+                                    }
+                                    setSelectedEligibleBrands(newSelection);
+                                    setFormData({ 
+                                      ...formData, 
+                                      config: {
+                                        ...(formData as any).config || {},
+                                        eligibleBrands: newSelection
+                                      }
+                                    });
+                                  }}
+                                  disabled={selectedEligibleBrands.includes('*')}
+                                  className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                />
+                                <span className="text-slate-700">{subBrand}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-500">
+                  💡 Select specific brands/sub-brands or choose "*" for all frames. Selected: {selectedEligibleBrands.length} item(s)
+                </p>
+              </div>
             </div>
           )}
 

@@ -6,6 +6,75 @@ import { UserRole } from '@/lib/constants';
 import { VisionType, LensIndex } from '@prisma/client';
 import { z } from 'zod';
 
+// GET /api/admin/lens-products/:id - Get single lens product with all RX ranges
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await authenticate(request);
+    authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
+
+    const { id } = await params;
+
+    const product = await prisma.lensProduct.findUnique({
+      where: { id },
+      include: {
+        rxRanges: {
+          orderBy: { createdAt: 'asc' },
+        },
+        features: {
+          include: {
+            feature: {
+              select: {
+                code: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundError('Lens product');
+    }
+
+    return Response.json({
+      success: true,
+      data: {
+        id: product.id,
+        itCode: product.itCode,
+        name: product.name,
+        brandLine: product.brandLine,
+        visionType: product.visionType,
+        lensIndex: product.lensIndex,
+        tintOption: product.tintOption,
+        category: product.category,
+        deliveryDays: product.deliveryDays,
+        mrp: product.mrp,
+        baseOfferPrice: product.baseOfferPrice,
+        addOnPrice: product.addOnPrice,
+        yopoEligible: product.yopoEligible,
+        isActive: product.isActive,
+        rxRanges: product.rxRanges.map((r) => ({
+          id: r.id,
+          sphMin: r.sphMin,
+          sphMax: r.sphMax,
+          cylMin: r.cylMin,
+          cylMax: r.cylMax,
+          addOnPrice: r.addOnPrice,
+        })),
+        featureCodes: product.features.map((pf) => pf.feature.code),
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
+      },
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
 const updateLensProductSchema = z.object({
   itCode: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
@@ -21,7 +90,16 @@ const updateLensProductSchema = z.object({
   baseOfferPrice: z.number().min(0).optional(),
   addOnPrice: z.number().min(0).optional().nullable(),
   featureCodes: z.array(z.string()).optional(), // Feature codes for mapping
-  // Rx ranges are handled separately via LensRxRange model
+  benefitScores: z.record(z.string(), z.number().min(0).max(3)).optional(), // Benefit code -> score (0-3)
+  rxRanges: z.array(z.object({
+    sphMin: z.number(),
+    sphMax: z.number(),
+    cylMin: z.number(),
+    cylMax: z.number(),
+    addMin: z.number().nullable().optional(),
+    addMax: z.number().nullable().optional(),
+    addOnPrice: z.number().min(0),
+  })).optional(),
   yopoEligible: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });
@@ -122,6 +200,40 @@ export async function PUT(
           data: features.map((f) => ({
             productId: id,
             featureId: f.id,
+          })),
+        });
+      }
+    }
+
+    // Handle benefits update if provided
+    if (validated.benefitScores !== undefined) {
+      // Delete existing benefits
+      await prisma.productBenefit.deleteMany({
+        where: { productId: id },
+      });
+
+      // Get benefit codes with score > 0
+      const benefitCodes = Object.keys(validated.benefitScores).filter(
+        code => (validated.benefitScores?.[code] || 0) > 0
+      );
+
+      if (benefitCodes.length > 0) {
+        // Get benefit IDs from codes - use BenefitFeature model
+        const benefits = await (prisma as any).benefitFeature.findMany({
+          where: {
+            organizationId: user.organizationId,
+            type: 'BENEFIT',
+            code: { in: benefitCodes },
+          },
+          select: { id: true, code: true },
+        });
+
+        // Create new benefits
+        await prisma.productBenefit.createMany({
+          data: benefits.map((b: any) => ({
+            productId: id,
+            benefitId: b.id,
+            score: validated.benefitScores?.[b.code] || 0,
           })),
         });
       }

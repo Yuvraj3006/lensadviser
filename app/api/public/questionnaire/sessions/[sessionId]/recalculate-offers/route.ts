@@ -189,6 +189,7 @@ export async function POST(
       price: totalLensPrice,
       brandLine: product.brandLine || 'STANDARD',
       yopoEligible: product.yopoEligible || false,
+      name: product.name || undefined, // Include product name for brandLine matching
     };
 
     // Calculate offers using offer engine (frame is optional for lens-only flow)
@@ -200,6 +201,29 @@ export async function POST(
       ? accessories
       : undefined;
 
+    console.log('[recalculate-offers] Calling offer engine with:', {
+      organizationId,
+      frame: frameInput ? {
+        brand: frameInput.brand,
+        subCategory: frameInput.subCategory,
+        mrp: frameInput.mrp,
+        frameType: frameInput.frameType,
+      } : null,
+      lens: {
+        itCode: lensInput.itCode,
+        price: lensInput.price,
+        brandLine: lensInput.brandLine,
+        yopoEligible: lensInput.yopoEligible,
+      },
+      customerCategory: finalCustomerCategory,
+      prescription: prescriptionInput,
+      isOnlyLens: !frameInput || frameInput.mrp === 0,
+    });
+
+    // Get purchase context and combo code from session
+    const purchaseContext = (session.purchaseContext as 'REGULAR' | 'COMBO' | 'YOPO' | null) || null;
+    const selectedComboCode = session.selectedComboCode || null;
+
     const offerResult = await offerEngineService.calculateOffers({
       frame: frameInput, // null for lens-only flow
       lens: lensInput,
@@ -209,6 +233,17 @@ export async function POST(
       secondPair: secondPair || null,
       organizationId,
       otherItems, // Include accessories in offer calculation
+      purchaseContext, // Pass purchase context (REGULAR/COMBO/YOPO)
+      selectedComboCode, // Pass selected combo tier code for COMBO context
+    });
+
+    console.log('[recalculate-offers] Offer engine returned:', {
+      offersAppliedCount: offerResult.offersApplied?.length || 0,
+      offersApplied: offerResult.offersApplied,
+      categoryDiscount: offerResult.categoryDiscount,
+      baseTotal: offerResult.baseTotal,
+      effectiveBase: offerResult.effectiveBase,
+      finalPayable: offerResult.finalPayable,
     });
 
     // Serialize the offer result to handle any BigInt or Date fields

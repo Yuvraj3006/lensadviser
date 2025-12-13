@@ -124,8 +124,24 @@ export async function POST(
 
     const isComplete = answeredQuestions >= totalQuestions;
 
-    // If all answered, mark as completed
+    // If all answered, mark as completed and generate NeedsProfile
     if (isComplete) {
+      // Generate and save NeedsProfile
+      const { needsProfileService } = await import('@/services/needs-profile.service');
+      let profile = null;
+      try {
+        profile = await needsProfileService.generateNeedsProfile(sessionId);
+        await needsProfileService.saveNeedsProfile(sessionId, profile);
+        console.log('[Questionnaire] NeedsProfile generated and saved:', profile);
+        
+        // Track needs profile generated
+        const { analyticsService } = await import('@/services/analytics.service');
+        await analyticsService.needsProfileGenerated(sessionId, profile);
+      } catch (profileError) {
+        console.error('[Questionnaire] Failed to generate NeedsProfile:', profileError);
+        // Don't fail the request if profile generation fails
+      }
+
       await prisma.session.update({
         where: { id: sessionId },
         data: {

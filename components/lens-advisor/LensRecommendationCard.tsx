@@ -23,6 +23,8 @@ interface RecommendedLens {
   itCode?: string;
   price?: number;
   roleTag?: 'BEST_MATCH' | 'RECOMMENDED_INDEX' | 'PREMIUM' | 'BUDGET' | 'OTHER';
+  label?: string; // 'Recommended', 'Premium', 'Value', 'Lowest Price', etc.
+  canTry?: boolean; // Show "Can Try" badge for last product
   indexRecommendation?: {
     recommendedIndex: string; // INDEX_156, INDEX_160, etc.
     indexDelta: number; // >0 thinner, 0 ideal, <0 thicker
@@ -41,14 +43,7 @@ interface LensRecommendationCardProps {
   recommendedIndex?: string; // INDEX_156, INDEX_160, etc. (from parent)
 }
 
-// Helper to convert INDEX_156 to "1.56" for display
-const formatIndexDisplay = (index: string | undefined): string => {
-  if (!index) return '';
-  if (index.startsWith('INDEX_')) {
-    return index.replace('INDEX_', '1.');
-  }
-  return index;
-};
+import { formatIndexDisplay } from '@/lib/format-index';
 
 const roleTagConfig = {
   BEST_MATCH: { label: 'Best Match', color: 'bg-blue-600 text-white' },
@@ -163,18 +158,27 @@ export function LensRecommendationCard({ lens, isSelected, onSelect, recommended
         )}
       </div>
 
-      {matchPercent > 0 && (
+      {/* Label Badge - Show if label exists */}
+      {lens.label && (
         <div className="mb-3">
-          <div className="flex items-center justify-between text-sm mb-1">
-            <span className="text-slate-600">Match</span>
-            <span className="font-semibold text-blue-600">{matchPercent}%</span>
-          </div>
-          <div className="w-full bg-slate-200 rounded-full h-2">
-            <div
-              className="bg-blue-600 h-2 rounded-full"
-              style={{ width: `${Math.min(matchPercent, 100)}%` }}
-            />
-          </div>
+          <span className={`px-3 py-1 text-xs font-bold rounded-full border inline-block ${
+            lens.label === 'Recommended' 
+              ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 border-blue-200'
+              : lens.label === 'Premium'
+              ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 border-purple-200'
+              : lens.label === 'Value'
+              ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-200'
+              : lens.label === 'Lowest Price'
+              ? 'bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 border-orange-200'
+              : 'bg-slate-100 text-slate-800 border-slate-200'
+          }`}>
+            {lens.label}
+          </span>
+          {lens.canTry && (
+            <span className="ml-2 px-2.5 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-lg border border-yellow-200">
+              Can Try
+            </span>
+          )}
         </div>
       )}
 

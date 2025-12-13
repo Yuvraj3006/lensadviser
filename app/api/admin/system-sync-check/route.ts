@@ -37,10 +37,23 @@ export async function GET(request: NextRequest) {
 
     const lensesMissingBenefits = lensesWithoutBenefits.filter((lens: any) => lens.benefits.length === 0);
     if (lensesMissingBenefits.length > 0) {
+      // Create detailed message with lens IT codes, names, and IDs
+      const lensDetails = lensesMissingBenefits
+        .slice(0, 10) // Limit to first 10 for readability
+        .map((lens: any) => {
+          const lensCode = lens.itCode || 'NO_CODE';
+          const lensName = lens.name || 'NO_NAME';
+          const lensId = lens.id;
+          return `${lensCode} (${lensName}, ID: ${lensId})`;
+        })
+        .join('; ');
+      
+      const moreCount = lensesMissingBenefits.length > 10 ? ` and ${lensesMissingBenefits.length - 10} more` : '';
+      
       issues.push({
         module: 'Lens-Benefit Mapping',
         severity: 'warning',
-        message: `${lensesMissingBenefits.length} active lenses have no benefit mappings`,
+        message: `${lensesMissingBenefits.length} active lens(es) have no benefit mappings. ${lensDetails}${moreCount}. Please add benefit mappings for these lenses in the Lens Products page.`,
         count: lensesMissingBenefits.length,
       });
     }
@@ -60,10 +73,23 @@ export async function GET(request: NextRequest) {
       (lens: any) => lens.tintColors.length === 0 && lens.mirrorCoatings.length === 0
     );
     if (lensesWithoutTintOptions.length > 0) {
+      // Create detailed message with lens IT codes, names, and IDs
+      const lensDetails = lensesWithoutTintOptions
+        .slice(0, 10) // Limit to first 10 for readability
+        .map((lens: any) => {
+          const lensCode = lens.itCode || 'NO_CODE';
+          const lensName = lens.name || 'NO_NAME';
+          const lensId = lens.id;
+          return `${lensCode} (${lensName}, ID: ${lensId})`;
+        })
+        .join('; ');
+      
+      const moreCount = lensesWithoutTintOptions.length > 10 ? ` and ${lensesWithoutTintOptions.length - 10} more` : '';
+      
       issues.push({
         module: 'Tint/Mirror Eligibility',
         severity: 'warning',
-        message: `${lensesWithoutTintOptions.length} active lenses have no tint or mirror options`,
+        message: `${lensesWithoutTintOptions.length} active lens(es) have no tint or mirror options. ${lensDetails}${moreCount}. Please add tint/mirror options for these lenses in the Lens Products page.`,
         count: lensesWithoutTintOptions.length,
       });
     }
@@ -80,10 +106,20 @@ export async function GET(request: NextRequest) {
 
     const missingRxRanges = lensesWithoutRxRanges.filter((lens: any) => lens.rxRanges.length === 0);
     if (missingRxRanges.length > 0) {
+      // Create detailed message with lens IT codes, names, and IDs
+      const lensDetails = missingRxRanges
+        .map((lens: any) => {
+          const lensCode = lens.itCode || 'NO_CODE';
+          const lensName = lens.name || 'NO_NAME';
+          const lensId = lens.id;
+          return `${lensCode} (${lensName}, ID: ${lensId})`;
+        })
+        .join('; ');
+      
       issues.push({
         module: 'Rx Range Validation',
         severity: 'error',
-        message: `${missingRxRanges.length} active lenses have no Rx ranges defined`,
+        message: `${missingRxRanges.length} active lens(es) have no Rx ranges defined. ${lensDetails}. Please add Rx ranges for these lenses in the Lens Products page.`,
         count: missingRxRanges.length,
       });
     }
@@ -96,29 +132,89 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const invalidOfferRules = offerRules.filter((rule: any) => {
-      // Check if rule has required config fields based on offer type
+    const invalidOfferRules: Array<{ rule: any; reason: string }> = [];
+    
+    for (const rule of offerRules) {
       const config = rule.config || {};
-      if (rule.offerType === 'COMBO_PRICE' && !config.comboPrice) {
-        return true;
+      let reason = '';
+      
+      // Check if rule has required config fields based on offer type
+      switch (rule.offerType) {
+        case 'COMBO_PRICE':
+          if (!config.comboPrice && config.comboPrice !== 0) {
+            reason = 'Missing comboPrice in config';
+          }
+          break;
+          
+        case 'FREE_LENS':
+          if (!config.ruleType) {
+            reason = 'Missing ruleType in config';
+          }
+          break;
+          
+        case 'BOG50':
+          if ((!config.eligibleBrands || config.eligibleBrands.length === 0) && 
+              (!config.eligibleCategories || config.eligibleCategories.length === 0)) {
+            reason = 'Missing eligibleBrands or eligibleCategories in config';
+          }
+          break;
+          
+        case 'BONUS_FREE_PRODUCT':
+          if (!config.bonusLimit && config.bonusLimit !== 0) {
+            reason = 'Missing bonusLimit in config';
+          } else if (!config.bonusCategory) {
+            reason = 'Missing bonusCategory in config';
+          }
+          break;
+          
+        case 'PERCENT_OFF':
+        case 'FLAT_OFF':
+        case 'CATEGORY_DISCOUNT':
+          // These offer types might work without config if using legacy fields
+          // Only validate if config exists but is incomplete
+          if (Object.keys(config).length > 0) {
+            if (config.discountType && !config.discountValue && config.discountValue !== 0) {
+              reason = 'Has discountType but missing discountValue in config';
+            }
+          }
+          break;
+          
+        case 'BOGO':
+          // BOGO might need eligibleBrands or eligibleCategories
+          if ((!config.eligibleBrands || config.eligibleBrands.length === 0) && 
+              (!config.eligibleCategories || config.eligibleCategories.length === 0)) {
+            reason = 'Missing eligibleBrands or eligibleCategories in config';
+          }
+          break;
+          
+        case 'YOPO':
+          // YOPO typically doesn't need config, but check if it has invalid config
+          // No validation needed for YOPO
+          break;
+          
+        default:
+          reason = `Unknown offer type: ${rule.offerType}`;
       }
-      if (rule.offerType === 'FREE_LENS' && !config.ruleType) {
-        return true;
+      
+      if (reason) {
+        invalidOfferRules.push({ rule, reason });
       }
-      if (rule.offerType === 'BOG50' && !config.eligibleBrands && !config.eligibleCategories) {
-        return true;
-      }
-      if (rule.offerType === 'BONUS_FREE_PRODUCT' && (!config.bonusLimit || !config.bonusCategory)) {
-        return true;
-      }
-      return false;
-    });
+    }
 
     if (invalidOfferRules.length > 0) {
+      // Create detailed message with rule codes and IDs for easy lookup
+      const ruleDetails = invalidOfferRules
+        .map(({ rule, reason }) => {
+          const ruleId = rule.id;
+          const ruleCode = rule.code || 'NO_CODE';
+          return `${ruleCode} (ID: ${ruleId}, Type: ${rule.offerType}): ${reason}`;
+        })
+        .join('; ');
+      
       issues.push({
         module: 'Offer Rule Consistency',
         severity: 'error',
-        message: `${invalidOfferRules.length} offer rules have invalid or missing configuration`,
+        message: `${invalidOfferRules.length} offer rule(s) have invalid or missing configuration. ${ruleDetails}. Please check and update these rules in the Offer Rules page.`,
         count: invalidOfferRules.length,
       });
     }
@@ -132,15 +228,36 @@ export async function GET(request: NextRequest) {
       },
       include: {
         benefitMappings: true,
+        question: {
+          select: {
+            id: true,
+            text: true,
+            code: true,
+          },
+        },
       },
     });
 
     const answersMissingBenefits = answersWithoutBenefits.filter((answer: any) => answer.benefitMappings.length === 0);
     if (answersMissingBenefits.length > 0) {
+      // Create detailed message with question and answer details
+      const answerDetails = answersMissingBenefits
+        .slice(0, 10) // Limit to first 10 for readability
+        .map((answer: any) => {
+          const questionText = answer.question?.text || 'NO_QUESTION';
+          const questionCode = answer.question?.code || 'NO_CODE';
+          const answerText = answer.text || 'NO_ANSWER';
+          const answerId = answer.id;
+          return `Q: ${questionCode} (${questionText}) - A: ${answerText} (ID: ${answerId})`;
+        })
+        .join('; ');
+      
+      const moreCount = answersMissingBenefits.length > 10 ? ` and ${answersMissingBenefits.length - 10} more` : '';
+      
       issues.push({
         module: 'Answer-Benefit Mapping',
         severity: 'warning',
-        message: `${answersMissingBenefits.length} answer options have no benefit mappings`,
+        message: `${answersMissingBenefits.length} answer option(s) have no benefit mappings. ${answerDetails}${moreCount}. Please add benefit mappings for these answers in the Questionnaire Builder page.`,
         count: answersMissingBenefits.length,
       });
     }
@@ -177,10 +294,24 @@ export async function GET(request: NextRequest) {
     }
 
     if (overlappingBands.length > 0) {
+      // Create detailed message with lens and band details
+      const bandDetails = overlappingBands
+        .slice(0, 10) // Limit to first 10 for readability
+        .map((item: any) => {
+          const lensCode = item.lensCode || 'NO_CODE';
+          const lensId = item.lensId;
+          const band1Range = `${item.band1.minPower} to ${item.band1.maxPower}`;
+          const band2Range = `${item.band2.minPower} to ${item.band2.maxPower}`;
+          return `${lensCode} (ID: ${lensId}): Bands [${band1Range}] and [${band2Range}] overlap`;
+        })
+        .join('; ');
+      
+      const moreCount = overlappingBands.length > 10 ? ` and ${overlappingBands.length - 10} more` : '';
+      
       issues.push({
         module: 'Band Pricing',
         severity: 'error',
-        message: `${overlappingBands.length} lenses have overlapping band pricing ranges`,
+        message: `${overlappingBands.length} lens(es) have overlapping band pricing ranges. ${bandDetails}${moreCount}. Please fix overlapping ranges in the Lens Products page.`,
         count: overlappingBands.length,
       });
     }

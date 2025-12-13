@@ -181,7 +181,10 @@ export default function SpectaclePowerPage() {
             <Glasses size={32} />
             Enter Your Spectacle Power
           </h1>
-          <p className="text-slate-300 mb-6">We'll convert this to contact lens power</p>
+          <p className="text-slate-300 mb-2">We'll convert this to contact lens power</p>
+          <p className="text-sm text-slate-400 mb-6 italic">
+            Contact lenses sit directly on the eye, so their power is adjusted slightly from spectacle numbers for safe and accurate vision.
+          </p>
 
           <div className="bg-white rounded-xl p-6 space-y-6 mb-6">
             {/* Right Eye */}
@@ -320,7 +323,7 @@ export default function SpectaclePowerPage() {
                       <div className="text-lg font-semibold text-blue-700">{convertedPower.formatted.od}</div>
                       <div className="text-xs text-slate-500 mt-2 space-y-1">
                         {convertedPower.conversionDetails?.conversionInfo.od.isToric && (
-                          <div>✓ Toric lens (|CYL| ≥ 0.75)</div>
+                          <div>✓ Toric lens (|CYL| ≥ 0.75) - Both principal meridians converted</div>
                         )}
                         {convertedPower.conversionDetails?.conversionInfo.od.usedSphericalEquivalent && (
                           <div>✓ Spherical equivalent used (|CYL| ≤ 0.50)</div>
@@ -338,7 +341,7 @@ export default function SpectaclePowerPage() {
                       <div className="text-lg font-semibold text-blue-700">{convertedPower.formatted.os}</div>
                       <div className="text-xs text-slate-500 mt-2 space-y-1">
                         {convertedPower.conversionDetails?.conversionInfo.os.isToric && (
-                          <div>✓ Toric lens (|CYL| ≥ 0.75)</div>
+                          <div>✓ Toric lens (|CYL| ≥ 0.75) - Both principal meridians converted</div>
                         )}
                         {convertedPower.conversionDetails?.conversionInfo.os.usedSphericalEquivalent && (
                           <div>✓ Spherical equivalent used (|CYL| ≤ 0.50)</div>

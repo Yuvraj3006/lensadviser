@@ -58,11 +58,29 @@ enum OrderType {
 }
 
 type OfferRuleConfig {
-  comboPrice        Int?
-  discountType      String?
-  discountValue     Int?
-  isSecondPairRule  Boolean?
-  secondPairPercent Int?
+  comboPrice               Int?
+  discountType             String?
+  discountValue            Int?
+  isSecondPairRule         Boolean?
+  secondPairPercent        Int?
+  freeUnderYOPO            String?
+  bonusFreeAllowed         Boolean?
+  triggerMinBill           Int?
+  bonusLimit               Int?
+  bonusCategory            String?
+  eligibleBrands           String[]
+  eligibleCategories       String[]
+  comboType                String?
+  requiredFrameSubCategory String?
+  requiredFrameCategory    String?
+  requiredLensBrandLine    String?
+  requiredVisionType       String?
+  brandLineComboPrice      Int?
+  frameCategoryComboPrice  Int?
+  visionTypeComboPrice     Int?
+  freeProductId            String?
+  lensItCodes              String[]
+  ruleType                 String?
 }
 
 type OrderFrameData {
@@ -468,40 +486,45 @@ model Prescription {
 // LensBrand.name should match LensProduct.brandLine values for consistency
 // This is a loose coupling - LensBrand is not enforced as a foreign key
 model LensBrand {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name        String   @unique // Should match LensProduct.brandLine values
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now()) @db.Date
-  updatedAt   DateTime @updatedAt @db.Date
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String   @unique // Should match LensProduct.brandLine values
+  description  String?
+  isActive     Boolean  @default(true)
+  comboAllowed Boolean  @default(false) // For COMBO eligibility
+  yopoAllowed  Boolean  @default(false) // For YOPO eligibility
+  createdAt    DateTime @default(now()) @db.Date
+  updatedAt    DateTime @updatedAt @db.Date
 
   @@index([isActive])
+  @@index([comboAllowed])
+  @@index([yopoAllowed])
 }
 
 model LensProduct {
-  id             String                     @id @default(auto()) @map("_id") @db.ObjectId
-  itCode         String                     @unique
-  name           String
-  brandLine      String
-  visionType     VisionType
-  lensIndex      LensIndex
-  tintOption     TintOption
-  mrp            Float?                     // MRP (Maximum Retail Price) - optional for backward compatibility
-  baseOfferPrice Float
-  addOnPrice     Float?
-  category       LensCategory
-  yopoEligible   Boolean                    @default(true)
-  deliveryDays   Int                        @default(4)
-  isActive       Boolean                    @default(true)
-  createdAt      DateTime                   @default(now()) @db.Date
-  updatedAt      DateTime                   @updatedAt @db.Date
-  rxRanges       LensRxRange[]
-  benefits       ProductBenefit[]
-  features       ProductFeature[]
-  specs          ProductSpecification[]
-  tintColors     LensProductTintColor[]
-  mirrorCoatings LensProductMirrorCoating[]
-  bandPricing    LensBandPricing[]
+  id                String                     @id @default(auto()) @map("_id") @db.ObjectId
+  itCode            String                     @unique
+  name              String
+  brandLine         String
+  visionType        VisionType
+  lensIndex         LensIndex
+  tintOption        TintOption
+  mrp               Float? // MRP (Maximum Retail Price) - optional for backward compatibility
+  baseOfferPrice    Float
+  addOnPrice        Float?
+  category          LensCategory
+  yopoEligible      Boolean                    @default(true)
+  comboAllowed      Boolean                    @default(false) // For COMBO eligibility (SKU-level)
+  deliveryDays      Int                        @default(4)
+  isActive          Boolean                    @default(true)
+  createdAt         DateTime                   @default(now()) @db.Date
+  updatedAt         DateTime                   @updatedAt @db.Date
+  rxRanges          LensRxRange[]
+  benefits          ProductBenefit[]
+  features          ProductFeature[]
+  specs             ProductSpecification[]
+  tintColors        LensProductTintColor[]
+  mirrorCoatings    LensProductMirrorCoating[]
+  bandPricing       LensBandPricing[]
   powerAddOnPricing LensPowerAddOnPricing[]
 
   @@index([brandLine])
@@ -510,6 +533,7 @@ model LensProduct {
   @@index([category])
   @@index([isActive])
   @@index([yopoEligible])
+  @@index([comboAllowed])
 }
 
 model LensRxRange {
@@ -547,13 +571,13 @@ model LensBandPricing {
 model LensPowerAddOnPricing {
   id          String      @id @default(auto()) @map("_id") @db.ObjectId
   lensId      String      @db.ObjectId
-  sphMin      Float?      // SPH minimum (null = ANY)
-  sphMax      Float?      // SPH maximum (null = ANY)
-  cylMin      Float?      // CYL minimum (null = ANY)
-  cylMax      Float?      // CYL maximum (null = ANY)
-  addMin      Float?      // ADD minimum (null = ANY, optional)
-  addMax      Float?      // ADD maximum (null = ANY, optional)
-  extraCharge Int         // Extra charge in ₹
+  sphMin      Float? // SPH minimum (null = ANY)
+  sphMax      Float? // SPH maximum (null = ANY)
+  cylMin      Float? // CYL minimum (null = ANY)
+  cylMax      Float? // CYL maximum (null = ANY)
+  addMin      Float? // ADD minimum (null = ANY, optional)
+  addMax      Float? // ADD maximum (null = ANY, optional)
+  extraCharge Int // Extra charge in ₹
   createdAt   DateTime    @default(now()) @db.Date
   updatedAt   DateTime    @updatedAt @db.Date
   lens        LensProduct @relation(fields: [lensId], references: [id], onDelete: Cascade)
@@ -665,31 +689,31 @@ enum ContactLensType {
 }
 
 model ContactLensProduct {
-  id           String              @id @default(auto()) @map("_id") @db.ObjectId
-  skuCode      String              @unique
-  brand        String
-  line         String
-  modality     ContactLensModality
-  lensType     ContactLensType
-  material     String?
-  waterContent String?
-  designNotes  String?
-  packSize     Int
-  mrp          Float
-  offerPrice   Float
-  sphMin       Float?
-  sphMax       Float?
-  cylMin       Float?
-  cylMax       Float?
-  axisSteps    String? // JSON array of numbers
-  addMin       Float?
-  addMax       Float?
-  isColorLens  Boolean             @default(false)
-  colorOptions String? // JSON array of color names
+  id            String              @id @default(auto()) @map("_id") @db.ObjectId
+  skuCode       String              @unique
+  brand         String
+  line          String
+  modality      ContactLensModality
+  lensType      ContactLensType
+  material      String?
+  waterContent  String?
+  designNotes   String?
+  packSize      Int
+  mrp           Float
+  offerPrice    Float
+  sphMin        Float?
+  sphMax        Float?
+  cylMin        Float?
+  cylMax        Float?
+  axisSteps     String? // JSON array of numbers
+  addMin        Float?
+  addMax        Float?
+  isColorLens   Boolean             @default(false)
+  colorOptions  String? // JSON array of color names
   benefitScores String? // JSON object: { "B01": 2.5, "B02": 3.0 } - Benefit code to score mapping (0-3 scale)
-  isActive     Boolean             @default(true)
-  createdAt    DateTime            @default(now()) @db.Date
-  updatedAt    DateTime            @updatedAt @db.Date
+  isActive      Boolean             @default(true)
+  createdAt     DateTime            @default(now()) @db.Date
+  updatedAt     DateTime            @updatedAt @db.Date
 
   @@index([brand])
   @@index([modality])
@@ -717,12 +741,16 @@ model ProductBrand {
   name         String              @unique
   isActive     Boolean             @default(true)
   productTypes RetailProductType[]
+  comboAllowed Boolean             @default(false) // For COMBO eligibility (brand-wise)
+  yopoAllowed  Boolean             @default(false) // For YOPO eligibility (brand-wise)
   createdAt    DateTime            @default(now()) @db.Date
   updatedAt    DateTime            @updatedAt @db.Date
   subBrands    ProductSubBrand[]
   products     RetailProduct[]
 
   @@index([isActive])
+  @@index([comboAllowed])
+  @@index([yopoAllowed])
 }
 
 model ProductFeature {
@@ -826,20 +854,24 @@ model RetailProduct {
 }
 
 model Session {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  category         String
-  completedAt      DateTime @db.Date
-  customerCategory String?
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+  category          String
+  completedAt       DateTime      @db.Date
+  customerCategory  String?
   /// Could not determine type: the field only had null or empty values in the sample set.
-  customerEmail    Json?
-  customerName     String
-  customerPhone    String
+  customerEmail     Json?
+  customerName      String
+  customerPhone     String
   /// Could not determine type: the field only had null or empty values in the sample set.
-  prescriptionId   Json?
-  startedAt        DateTime @db.Date
-  status           String
-  storeId          String   @db.ObjectId
-  userId           String   @db.ObjectId
+  prescriptionId    Json?
+  startedAt         DateTime      @db.Date
+  status            String
+  storeId           String        @db.ObjectId
+  userId            String        @db.ObjectId
+  purchaseContext   String? // REGULAR | COMBO | YOPO
+  selectedComboCode String? // Selected combo tier code (BRONZE, SILVER, GOLD, PLATINUM)
+  comboVersionUsed  Int? // Combo tier version used when tier was selected (for safe updates)
+  needsProfile      NeedsProfile? // One-to-one relationship
 
   @@index([storeId])
   @@index([userId])
@@ -847,6 +879,7 @@ model Session {
   @@index([startedAt])
   @@index([category])
   @@index([prescriptionId])
+  @@index([purchaseContext])
 }
 
 model SessionAnswer {
@@ -944,4 +977,106 @@ model User {
   @@index([storeId])
   @@index([role])
   @@index([isActive])
+}
+
+// ============================================
+// Combo + Regular Purchase Flow Models
+// ============================================
+
+// Global Configuration for Combo Feature
+model Config {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt @db.Date
+  createdAt DateTime @default(now()) @db.Date
+}
+
+// Needs Profile from Questionnaire
+model NeedsProfile {
+  id                     String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId              String   @unique @db.ObjectId
+  session                Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  primaryUsage           String? // DAILY | SCREEN | DRIVING | OUTDOOR
+  screenTime             String? // LOW | MEDIUM | HIGH
+  drivingNight           Boolean? @default(false)
+  outdoorFrequency       String? // LOW | MEDIUM | HIGH
+  backupNeed             Boolean? @default(false)
+  lensComplexity         String? // BASIC | ADVANCED | PREMIUM
+  sensitivityFlags       String[] // Array of flags like ["GLARE", "DRY_EYES"]
+  recommendSecondEyewear Boolean? @default(false)
+  createdAt              DateTime @default(now()) @db.Date
+  updatedAt              DateTime @updatedAt @db.Date
+}
+
+// Combo Tier Configuration
+model ComboTier {
+  id             String         @id @default(auto()) @map("_id") @db.ObjectId
+  comboCode      String         @unique // BRONZE, SILVER, GOLD, PLATINUM
+  displayName    String
+  effectivePrice Float
+  badge          String? // MOST_POPULAR, BEST_VALUE, etc.
+  isActive       Boolean        @default(true)
+  comboVersion   Int            @default(1) // Version number for safe updates
+  sortOrder      Int            @default(0) // For display ordering
+  organizationId String?        @db.ObjectId // Optional: org-specific tiers
+  benefits       ComboBenefit[]
+  rules          ComboRule[]
+  createdAt      DateTime       @default(now()) @db.Date
+  updatedAt      DateTime       @updatedAt @db.Date
+
+  @@index([isActive])
+  @@index([organizationId])
+  @@index([comboVersion])
+}
+
+// Combo Tier Benefits
+model ComboBenefit {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  comboCode   String    @db.ObjectId
+  comboTier   ComboTier @relation(fields: [comboCode], references: [id], onDelete: Cascade)
+  benefitType String // frame | lens | eyewear | addon | voucher
+  label       String
+  maxValue    Float? // Optional max value for voucher/benefit
+  constraints String? // JSON string for additional constraints
+  createdAt   DateTime  @default(now()) @db.Date
+  updatedAt   DateTime  @updatedAt @db.Date
+
+  @@index([comboCode])
+  @@index([benefitType])
+}
+
+// Voucher Model (for combo benefits)
+model Voucher {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  orderId    String    @db.ObjectId // Order that issued this voucher
+  sessionId  String?   @db.ObjectId // Session that used this voucher (if used)
+  code       String    @unique // Voucher code
+  value      Float // Voucher value in ₹
+  validFrom  DateTime  @db.Date // Valid from date (next day after issue)
+  validUntil DateTime  @db.Date // Valid until date (90 days after issue)
+  isUsed     Boolean   @default(false)
+  usedAt     DateTime? @db.Date
+  issuedAt   DateTime  @default(now()) @db.Date
+  createdAt  DateTime  @default(now()) @db.Date
+  updatedAt  DateTime  @updatedAt @db.Date
+
+  @@index([orderId])
+  @@index([sessionId])
+  @@index([isUsed])
+  @@index([validFrom, validUntil])
+}
+
+// Combo Rules (for rule-based enforcement)
+model ComboRule {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  comboCode String    @db.ObjectId // FK to ComboTier
+  comboTier ComboTier @relation(fields: [comboCode], references: [id], onDelete: Cascade)
+  ruleType  String // FRAME_BRAND_ALLOW | SUN_BRAND_ALLOW | LENS_SKU_ALLOW | SECOND_EYEWEAR_CHOICE | OFFER_STACK_POLICY | COUPON_POLICY | VOUCHER_POLICY
+  ruleJson  String? // JSON string for rule configuration
+  createdAt DateTime  @default(now()) @db.Date
+  updatedAt DateTime  @updatedAt @db.Date
+
+  @@index([comboCode])
+  @@index([ruleType])
 }

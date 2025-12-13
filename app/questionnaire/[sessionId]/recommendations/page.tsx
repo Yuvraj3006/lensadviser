@@ -6,6 +6,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { formatIndexDisplay } from '@/lib/format-index';
 import { 
   CheckCircle, 
   Star, 
@@ -486,11 +487,51 @@ export default function RecommendationsPage() {
   // Get first 4 recommendations for LA-05 spec
   const topFourRecommendations = sortedForDisplay.slice(0, 4);
 
-  // Get tag for each recommendation based on rank
-  const getRoleTag = (rank: number, allRecs: typeof data.recommendations): 'BEST_RECOMMENDED' | 'CAN_TRY' => {
-    if (rank === 1) return 'BEST_RECOMMENDED';
-    // All others are "Can Try"
-    return 'CAN_TRY';
+  // Sort by matchPercent to find highest match
+  const sortedByMatchPercent = [...data.recommendations].sort((a, b) => {
+    const matchA = a.matchPercent ?? a.matchScore ?? 0;
+    const matchB = b.matchPercent ?? b.matchScore ?? 0;
+    return matchB - matchA; // Descending order
+  });
+
+  // Sort by price to find lowest price
+  const sortedByPrice = [...data.recommendations].sort((a, b) => {
+    const priceA = getLensPrice(a);
+    const priceB = getLensPrice(b);
+    return priceA - priceB; // Ascending order (lowest first)
+  });
+
+  // Get IDs for labeling
+  const highestMatchId = sortedByMatchPercent[0]?.id;
+  const secondHighestMatchId = sortedByMatchPercent[1]?.id;
+  
+  // Find lowest price lens that is NOT the highest or second highest match
+  const lowestPriceId = sortedByPrice.find(rec => 
+    rec.id !== highestMatchId && rec.id !== secondHighestMatchId
+  )?.id || sortedByPrice[0]?.id; // Fallback to absolute lowest if all are top matches
+
+  // Get label for each recommendation
+  const getLabel = (recId: string): string => {
+    if (recId === highestMatchId) {
+      return 'Recommended';
+    } else if (recId === secondHighestMatchId) {
+      return 'Next Best';
+    } else if (recId === lowestPriceId) {
+      return 'Can Try';
+    }
+    return '';
+  };
+
+  // Get tag for each recommendation based on match percent and price
+  const getRoleTag = (recId: string): 'BEST_RECOMMENDED' | 'NEXT_BEST' | 'CAN_TRY' | 'OTHER' => {
+    if (recId === highestMatchId) {
+      return 'BEST_RECOMMENDED';
+    } else if (recId === secondHighestMatchId) {
+      return 'NEXT_BEST';
+    } else if (recId === lowestPriceId) {
+      return 'CAN_TRY';
+    }
+    return 'OTHER';
   };
 
   // Sort all recommendations for View All modal
@@ -563,10 +604,13 @@ export default function RecommendationsPage() {
         {/* LA-05: 4-Card Layout - Grid layout for parallel cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           {topFourRecommendations.map((rec) => {
-            const roleTag = getRoleTag(rec.rank, data.recommendations);
+            const roleTag = getRoleTag(rec.id);
+            const label = getLabel(rec.id);
             const tagConfig = {
-              BEST_RECOMMENDED: { label: 'Best Recommended', color: 'bg-blue-600 text-white' },
+              BEST_RECOMMENDED: { label: 'Recommended', color: 'bg-blue-600 text-white' },
+              NEXT_BEST: { label: 'Next Best', color: 'bg-purple-600 text-white' },
               CAN_TRY: { label: 'Can Try', color: 'bg-green-600 text-white' },
+              OTHER: { label: label || '', color: 'bg-slate-500 text-white' },
             }[roleTag];
             
             const lensPrice = getLensPrice(rec);
@@ -840,19 +884,21 @@ export default function RecommendationsPage() {
                 const lensPrice = getLensPrice(rec);
                 // Get MRP - only use if explicitly set (not null/undefined)
                 const lensMRP = (rec.mrp && rec.mrp > 0) ? rec.mrp : null;
+
                 // Extract index from lensIndex or name
                 const lensIndexStr = rec.lensIndex || rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
-                const lensIndexDisplay = lensIndexStr.replace('INDEX_', '1.').replace(/^1\./, '1.');
+                const lensIndexDisplay = formatIndexDisplay(lensIndexStr);
                 const brandLine = rec.brand || 'Premium';
                 const benefits = rec.features?.slice(0, 3).map(f => f?.name).filter(Boolean) || [];
                 
-                // Get match percentage (prefer matchPercent, fallback to matchScore)
-                const matchPercent = rec.matchPercent ?? Math.round(rec.matchScore);
+                // Get label based on match percent and price (same logic as top 4)
+                const label = getLabel(rec.id);
+                const canTry = rec.id === lowestPriceId;
                 
                 // Get index recommendation data
                 const indexDelta = rec.indexRecommendation?.indexDelta ?? 0;
                 const recommendedIndex = rec.indexRecommendation?.recommendedIndex || data?.recommendedIndex;
-                const recommendedIndexDisplay = recommendedIndex?.replace('INDEX_', '1.').replace(/^1\./, '1.') || '';
+                const recommendedIndexDisplay = formatIndexDisplay(recommendedIndex) || '';
                 const thicknessWarning = rec.thicknessWarning || rec.indexRecommendation?.isWarning || false;
                 const indexInvalid = rec.indexInvalid || rec.indexRecommendation?.isInvalid || false;
                 const validationMessage = rec.indexRecommendation?.validationMessage;
@@ -878,10 +924,27 @@ export default function RecommendationsPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-3 flex-wrap">
                           <h3 className="text-xl font-bold text-slate-900">{rec.name}</h3>
-                          {/* Match % Badge */}
-                          <span className="px-3 py-1 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 text-xs font-bold rounded-full border border-blue-200">
-                            {matchPercent}% Match
-                          </span>
+                          {/* Label Badge */}
+                          {label && (
+                            <span className={`px-3 py-1 text-xs font-bold rounded-full border ${
+                              label === 'Recommended' 
+                                ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 border-blue-200'
+                                : label === 'Premium'
+                                ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 border-purple-200'
+                                : label === 'Value'
+                                ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-200'
+                                : label === 'Lowest Price'
+                                ? 'bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 border-orange-200'
+                                : 'bg-slate-100 text-slate-800 border-slate-200'
+                            }`}>
+                              {label}
+                            </span>
+                          )}
+                          {canTry && (
+                            <span className="px-2.5 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-lg border border-yellow-200">
+                              Can Try
+                            </span>
+                          )}
                           {indexInvalid && (
                             <span className="px-2.5 py-1 bg-red-100 text-red-800 text-xs font-semibold rounded-lg border border-red-200">
                               ❌ Not Suitable

@@ -349,20 +349,71 @@ export default function OfferSummaryPage() {
   const formatOffers = (offerResult: OfferCalculationResult): OfferDetail[] => {
     const offers: OfferDetail[] = [];
     
+    // Primary offer types (only ONE should apply)
+    const primaryOfferTypes = ['COMBO_PRICE', 'YOPO', 'FREE_LENS', 'PERCENT_OFF', 'FLAT_OFF'];
+    let primaryOfferAdded = false;
+    
     // Only show offers that are actually applied (from offersApplied array)
     // This ensures we only show the one offer that was selected/applied
     if (offerResult.offersApplied && offerResult.offersApplied.length > 0) {
       console.log('[OfferSummary] Processing offersApplied:', offerResult.offersApplied);
       offerResult.offersApplied.forEach((offer: OfferApplied) => {
-        // Only add if there's actual savings
-        if (offer.savings > 0) {
+        // Check if this is a primary offer type
+        const isPrimaryOffer = primaryOfferTypes.includes(offer.ruleCode || '') || 
+                              primaryOfferTypes.some(type => offer.description?.toUpperCase().includes(type));
+        
+        // Check if this is a BOGO/BOG50 offer
+        const isBOGOOffer = offer.ruleCode?.includes('BOGO') || offer.ruleCode?.includes('BOG50') || 
+                           offer.description?.toUpperCase().includes('BOGO') || 
+                           offer.description?.toUpperCase().includes('BUY ONE GET');
+        
+        // Check if this is a category discount
+        const isCategoryDiscount = offer.ruleCode === 'CATEGORY' || 
+                                   offer.description?.toUpperCase().includes('DISCOUNT');
+        
+        // Only add primary offer if none has been added yet (only ONE primary offer)
+        if (isPrimaryOffer) {
+          if (!primaryOfferAdded && offer.savings > 0) {
+            const explanation = getOfferExplanation(offer.ruleCode, offer);
+            offers.push({
+              type: offer.ruleCode || 'DISCOUNT',
+              code: offer.ruleCode || '',
+              title: offer.description || 'Discount',
+              description: offer.description || '',
+              discountAmount: offer.savings || 0,
+              explanation,
+            });
+            primaryOfferAdded = true;
+          }
+        } 
+        // Always add BOGO offers (even with 0 savings, to show as available)
+        // BOGO is separate from primary offers
+        else if (isBOGOOffer) {
           const explanation = getOfferExplanation(offer.ruleCode, offer);
-          console.log('[OfferSummary] Offer:', {
-            ruleCode: offer.ruleCode,
-            description: offer.description,
-            savings: offer.savings,
+          offers.push({
+            type: offer.ruleCode || 'DISCOUNT',
+            code: offer.ruleCode || '',
+            title: offer.description || 'Discount',
+            description: offer.description || '',
+            discountAmount: offer.savings || 0,
             explanation,
           });
+        }
+        // Always add category discounts (they are separate from primary offers)
+        else if (isCategoryDiscount && offer.savings > 0) {
+          const explanation = getOfferExplanation(offer.ruleCode, offer);
+          offers.push({
+            type: 'CATEGORY_DISCOUNT',
+            code: offer.ruleCode || '',
+            title: offer.description || 'Category Discount',
+            description: offer.description || '',
+            discountAmount: offer.savings || 0,
+            explanation,
+          });
+        }
+        // Add other offers (coupons, etc.) if they have savings
+        else if (!isPrimaryOffer && !isBOGOOffer && !isCategoryDiscount && offer.savings > 0) {
+          const explanation = getOfferExplanation(offer.ruleCode, offer);
           offers.push({
             type: offer.ruleCode || 'DISCOUNT',
             code: offer.ruleCode || '',
@@ -377,21 +428,26 @@ export default function OfferSummaryPage() {
       console.log('[OfferSummary] No offersApplied found');
     }
 
-    // Also include automatic discounts that are always applied (not user-selected)
-    // Category Discount (automatic based on customer category)
-    if (offerResult.categoryDiscount && offerResult.categoryDiscount.savings > 0) {
-      // Check if not already in offersApplied
-      const alreadyInOffers = offers.some(o => o.type === 'CATEGORY_DISCOUNT');
-      if (!alreadyInOffers) {
-        offers.push({
-          type: 'CATEGORY_DISCOUNT',
-          code: 'CATEGORY',
-          title: offerResult.categoryDiscount.description || 'Category Discount',
-          description: offerResult.categoryDiscount.description || '',
-          discountAmount: offerResult.categoryDiscount.savings || 0,
-          explanation: formatCategoryDiscountExplanation(offerResult.categoryDiscount),
-        });
-      }
+    // Category Discount is already included in offersApplied array (added in service with ruleCode 'CATEGORY')
+    // Check if it's already in the offers list to avoid duplication
+    const categoryDiscountInOffers = offers.some(o => 
+      o.code === 'CATEGORY' || 
+      o.type === 'CATEGORY_DISCOUNT' ||
+      (o.description && offerResult.categoryDiscount?.description && 
+       o.description.toUpperCase() === offerResult.categoryDiscount.description.toUpperCase())
+    );
+    
+    // Only add separately if not already in offersApplied and categoryDiscount exists
+    // This is a fallback in case category discount wasn't added to offersApplied for some reason
+    if (offerResult.categoryDiscount && offerResult.categoryDiscount.savings > 0 && !categoryDiscountInOffers) {
+      offers.push({
+        type: 'CATEGORY_DISCOUNT',
+        code: 'CATEGORY',
+        title: offerResult.categoryDiscount.description || 'Category Discount',
+        description: offerResult.categoryDiscount.description || '',
+        discountAmount: offerResult.categoryDiscount.savings || 0,
+        explanation: formatCategoryDiscountExplanation(offerResult.categoryDiscount),
+      });
     }
 
     // Coupon Discount (user applied)
@@ -410,21 +466,8 @@ export default function OfferSummaryPage() {
       }
     }
 
-    // Second Pair Discount (user enabled)
-    if (offerResult.secondPairDiscount && offerResult.secondPairDiscount.savings > 0) {
-      // Check if not already in offersApplied
-      const alreadyInOffers = offers.some(o => o.type === 'BOGO50' || o.code === 'BOGO50');
-      if (!alreadyInOffers) {
-        offers.push({
-          type: 'BOGO50',
-          code: offerResult.secondPairDiscount.ruleCode || 'BOGO50',
-          title: offerResult.secondPairDiscount.description || 'Second Pair Discount',
-          description: offerResult.secondPairDiscount.description || '',
-          discountAmount: offerResult.secondPairDiscount.savings || 0,
-          explanation: 'Second pair discount applied',
-        });
-      }
-    }
+    // Second Pair Discount is already included in offersApplied array
+    // No need to add it separately here to avoid duplication
 
     return offers;
   };
@@ -1153,9 +1196,23 @@ export default function OfferSummaryPage() {
         {/* Second Pair Selection for BOGO Offers */}
         {(() => {
           // Check if there's a BOGO/BOG50 offer available
-          const hasBOGOOffer = data.allApplicableOffers?.some((o: any) => 
+          // Check in allApplicableOffers, offersApplied, or secondPairDiscount
+          const hasBOGOInAllOffers = data.allApplicableOffers?.some((o: any) => 
             o.type === 'BOGO' || o.type === 'BOG50' || o.code?.includes('BOGO') || o.code?.includes('BOG50')
-          ) || data.offerResult.secondPairDiscount;
+          );
+          const hasBOGOInApplied = data.offerResult?.offersApplied?.some((o: any) => 
+            o.ruleCode?.includes('BOGO') || o.ruleCode?.includes('BOG50') ||
+            o.description?.toUpperCase().includes('BOGO') || o.description?.toUpperCase().includes('BUY ONE GET')
+          );
+          const hasBOGOOffer = hasBOGOInAllOffers || hasBOGOInApplied || data.offerResult?.secondPairDiscount;
+          
+          console.log('[OfferSummary] BOGO Offer Check:', {
+            hasBOGOInAllOffers,
+            hasBOGOInApplied,
+            hasSecondPairDiscount: !!data.offerResult?.secondPairDiscount,
+            hasBOGOOffer,
+            offersApplied: data.offerResult?.offersApplied,
+          });
           
           if (!hasBOGOOffer) return null;
           
@@ -1313,17 +1370,47 @@ export default function OfferSummaryPage() {
           </div>
 
           <div className="space-y-4">
-            {/* Frame MRP */}
-            <div className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
-              <span className="text-slate-300 font-medium">Frame MRP</span>
-              <span className="text-lg font-semibold text-white">₹{Math.round(data.offerResult.frameMRP).toLocaleString()}</span>
-            </div>
-
-            {/* Lens Price */}
-            <div className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
-              <span className="text-slate-300 font-medium">Lens Price</span>
-              <span className="text-lg font-semibold text-white">₹{Math.round(data.offerResult.lensPrice).toLocaleString()}</span>
-            </div>
+            {/* Price Components - Use priceComponents array for accurate breakdown */}
+            {data.offerResult.priceComponents && data.offerResult.priceComponents.length > 0 ? (
+              <>
+                {data.offerResult.priceComponents.map((component: any, index: number) => {
+                  // Show all components - positive amounts are prices, negative are discounts
+                  if (component.amount < 0) {
+                    // Discount component - show with green styling
+                    return (
+                      <div key={index} className="flex justify-between items-center py-3 px-4 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-500/20 rounded-lg border-2 border-green-400/50">
+                        <span className="text-green-200 font-medium">{component.label}</span>
+                        <span className="text-lg font-bold text-green-300">-₹{Math.round(Math.abs(component.amount)).toLocaleString()}</span>
+                      </div>
+                    );
+                  } else {
+                    // Price component
+                    return (
+                      <div key={index} className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                        <span className="text-slate-300 font-medium">{component.label}</span>
+                        <span className="text-lg font-semibold text-white">₹{Math.round(component.amount).toLocaleString()}</span>
+                      </div>
+                    );
+                  }
+                })}
+              </>
+            ) : (
+              <>
+                {/* Fallback to original display if priceComponents not available */}
+                {data.offerResult.frameMRP > 0 && (
+                  <div className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                    <span className="text-slate-300 font-medium">Frame MRP</span>
+                    <span className="text-lg font-semibold text-white">₹{Math.round(data.offerResult.frameMRP).toLocaleString()}</span>
+                  </div>
+                )}
+                {data.offerResult.lensPrice > 0 && (
+                  <div className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                    <span className="text-slate-300 font-medium">Lens Price</span>
+                    <span className="text-lg font-semibold text-white">₹{Math.round(data.offerResult.lensPrice).toLocaleString()}</span>
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Applied Offers */}
             <div className="py-4 border-t border-slate-700">
@@ -1449,28 +1536,54 @@ export default function OfferSummaryPage() {
               })()}
             </div>
 
-            {/* Subtotal */}
+            {/* Show discount components from priceComponents (negative amounts) */}
+            {data.offerResult.priceComponents && data.offerResult.priceComponents
+              .filter((component: any) => component.amount < 0)
+              .map((component: any, index: number) => (
+                <div key={`discount-${index}`} className="flex justify-between items-center py-3 px-4 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-500/20 rounded-lg border-2 border-green-400/50">
+                  <span className="text-slate-200 font-medium">{component.label}</span>
+                  <span className="text-lg font-bold text-green-300">₹{Math.round(Math.abs(component.amount)).toLocaleString()}</span>
+                </div>
+              ))}
+
+            {/* Subtotal - Show effectiveBase if YOPO/Combo is applied, otherwise baseTotal */}
             <div className="flex justify-between items-center py-4 px-4 bg-slate-700/70 rounded-lg border border-slate-600">
               <span className="text-lg font-semibold text-white">Subtotal</span>
-              <span className="text-xl font-semibold text-white">₹{Math.round(data.offerResult.baseTotal).toLocaleString()}</span>
+              <span className="text-xl font-semibold text-white">
+                ₹{Math.round((data.offerResult.effectiveBase ?? data.offerResult.baseTotal)).toLocaleString()}
+              </span>
             </div>
 
-            {/* Total Discount */}
-            {totalDiscount > 0 && (
-              <div className="relative overflow-hidden flex justify-between items-center py-4 px-4 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-500/20 rounded-lg border-2 border-green-400/50 shadow-lg">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
-                <span className="relative text-lg font-bold text-white flex items-center gap-2">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-green-400 rounded-full blur-md animate-ping opacity-75" />
-                    <Percent className="relative text-green-300" size={20} />
+            {/* Total Discount - Only show if there are additional discounts beyond primary offer */}
+            {(() => {
+              // Calculate discount from offersApplied (excluding primary offer which is already in effectiveBase)
+              const additionalDiscount = data.offerResult.categoryDiscount?.savings || 0 
+                + (data.offerResult.couponDiscount?.savings || 0)
+                + (data.offerResult.secondPairDiscount?.savings || 0);
+              
+              // Total discount is baseTotal - finalPayable
+              const actualTotalDiscount = data.offerResult.baseTotal - data.offerResult.finalPayable;
+              
+              // Only show if there's a discount and it's not already shown in priceComponents
+              if (actualTotalDiscount > 0) {
+                return (
+                  <div className="relative overflow-hidden flex justify-between items-center py-4 px-4 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-500/20 rounded-lg border-2 border-green-400/50 shadow-lg">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
+                    <span className="relative text-lg font-bold text-white flex items-center gap-2">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-green-400 rounded-full blur-md animate-ping opacity-75" />
+                        <Percent className="relative text-green-300" size={20} />
+                      </div>
+                      Total Discount
+                    </span>
+                    <span className="relative text-2xl font-bold text-green-300">
+                      -₹{Math.round(actualTotalDiscount).toLocaleString()}
+                    </span>
                   </div>
-                  Total Discount
-                </span>
-                <span className="relative text-2xl font-bold text-green-300">
-                  -₹{Math.round(totalDiscount).toLocaleString()}
-                </span>
-              </div>
-            )}
+                );
+              }
+              return null;
+            })()}
 
             {/* Final Payable */}
             <div className="relative overflow-hidden bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 rounded-lg p-6 border-2 border-green-400/50 shadow-2xl transform hover:scale-[1.01] transition-transform duration-300">
@@ -1505,15 +1618,13 @@ export default function OfferSummaryPage() {
           </Button>
           <Button
             onClick={() => {
-              // Save productId for accessories page
-              localStorage.setItem(`lenstrack_selected_product_${sessionId}`, productId);
-              // Navigate to accessories page
-              router.push(`/questionnaire/${sessionId}/accessories`);
+              // Navigate directly to checkout, skipping accessories page
+              router.push(`/questionnaire/${sessionId}/checkout/${productId}`);
             }}
             className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-3 shadow-lg hover:shadow-green-500/50 transform hover:scale-[1.02] transition-all duration-300 border-2 border-green-400/50"
           >
             <ShoppingCart size={18} className="mr-2" />
-            Add Accessories
+            Proceed to Checkout
             <ArrowRight size={18} className="ml-2" />
           </Button>
         </div>

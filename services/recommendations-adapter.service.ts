@@ -272,7 +272,7 @@ export class RecommendationsAdapterService {
           imageUrl: null,
           category: session.category,
           matchScore: product.finalScore,
-          matchPercent: product.matchPercent,
+          matchPercent: product.matchPercent, // Keep for internal use, but don't display
           benefitComponent: product.benefitComponent,
           finalScore: product.finalScore,
           rank: 0, // Will be set after sorting
@@ -330,8 +330,36 @@ export class RecommendationsAdapterService {
       .filter((r): r is NonNullable<typeof r> => r !== null)
       .sort((a, b) => b.finalScore - a.finalScore);
 
+    // Add labels based on final position after sorting
+    const recommendationsWithLabels = validRecommendations.map((rec, index) => {
+      const totalProducts = validRecommendations.length;
+      let label = '';
+      let canTry = false;
+      
+      if (index === 0) {
+        label = 'Recommended';
+      } else if (index === 1) {
+        label = 'Premium';
+      } else if (index === 2) {
+        label = 'Value';
+      } else if (index === totalProducts - 1) {
+        // Last product - Lowest Price / Anti-Walkout
+        label = 'Lowest Price';
+        canTry = true;
+      } else {
+        // Other products - no label
+        label = '';
+      }
+
+      return {
+        ...rec,
+        label,
+        canTry,
+      };
+    });
+
     // Check if we have any valid recommendations
-    if (validRecommendations.length === 0) {
+    if (recommendationsWithLabels.length === 0) {
       console.error('[RecommendationsAdapter] No valid recommendations found after enrichment');
       console.error('[RecommendationsAdapter] Products from benefit service:', recommendationResult.products.length);
       console.error('[RecommendationsAdapter] Enriched recommendations:', enrichedRecommendations.length);
@@ -356,13 +384,13 @@ export class RecommendationsAdapterService {
     }
 
     // Assign ranks
-    validRecommendations.forEach((rec, index) => {
+    recommendationsWithLabels.forEach((rec, index) => {
       rec.rank = index + 1;
     });
 
     // Generate 4-lens output (will handle empty arrays gracefully)
     const fourLensOutput = this.generateFourLensOutput(
-      validRecommendations,
+      recommendationsWithLabels,
       recommendationResult.recommendedIndex
     );
 
@@ -378,7 +406,7 @@ export class RecommendationsAdapterService {
       sessionId,
       category: session.category,
       customerName: session.customerName,
-      recommendations: validRecommendations,
+      recommendations: recommendationsWithLabels,
       answeredFeatures,
       generatedAt: new Date(),
       recommendedIndex: recommendationResult.recommendedIndex,

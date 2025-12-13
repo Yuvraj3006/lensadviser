@@ -48,6 +48,7 @@ interface CheckoutData {
     frameType?: string;
   };
   offerResult: OfferCalculationResult;
+  purchaseContext?: 'REGULAR' | 'COMBO' | 'YOPO';
 }
 
 export default function CheckoutPage() {
@@ -298,6 +299,15 @@ export default function CheckoutPage() {
       const data = await response.json();
       
       if (data.success) {
+        // Track checkout completed
+        const { analyticsService } = await import('@/services/analytics.service');
+        await analyticsService.checkoutCompleted(
+          sessionId,
+          data.data.id,
+          checkoutData.purchaseContext || 'REGULAR',
+          data.data.finalPrice
+        );
+        
         // Store order info in localStorage for order success page
         localStorage.setItem(`lenstrack_order_${data.data.id}`, JSON.stringify({
           id: data.data.id,
@@ -311,6 +321,7 @@ export default function CheckoutPage() {
           offerData: checkoutData.offerResult, // Save complete offer data
           customerName: customerName || null,
           customerPhone: customerPhone || null,
+          voucherCode: data.data.voucherCode || null, // Include voucher if issued
         }));
         
         showToast('success', 'Order created successfully!');

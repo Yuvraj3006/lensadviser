@@ -93,7 +93,7 @@ export async function PUT(
     console.log('[PUT /api/admin/offers/rules] Request body:', JSON.stringify(body, null, 2));
 
     // Accept any data - validate critical fields manually
-    const validOfferTypes = ['YOPO', 'COMBO_PRICE', 'FREE_LENS', 'PERCENT_OFF', 'FLAT_OFF', 'BOG50', 'CATEGORY_DISCOUNT', 'BONUS_FREE_PRODUCT'];
+    const validOfferTypes = ['YOPO', 'COMBO_PRICE', 'FREE_LENS', 'PERCENT_OFF', 'FLAT_OFF', 'BOG50', 'BOGO', 'CATEGORY_DISCOUNT', 'BONUS_FREE_PRODUCT'];
     if (body.offerType && !validOfferTypes.includes(body.offerType)) {
       console.error('[PUT /api/admin/offers/rules] Invalid offerType:', body.offerType);
       return Response.json(
@@ -209,7 +209,21 @@ export async function PUT(
     
     // Handle config field - merge legacy fields into config JSON
     if (data.config !== undefined && data.config !== null) {
-      updateData.config = data.config;
+      // Normalize config to ensure required array fields are always arrays
+      const normalizedConfig: any = { ...data.config };
+      
+      // Ensure required array fields are always arrays (never null/undefined)
+      if (!Array.isArray(normalizedConfig.eligibleBrands)) {
+        normalizedConfig.eligibleBrands = normalizedConfig.eligibleBrands ? [normalizedConfig.eligibleBrands] : [];
+      }
+      if (!Array.isArray(normalizedConfig.eligibleCategories)) {
+        normalizedConfig.eligibleCategories = normalizedConfig.eligibleCategories ? [normalizedConfig.eligibleCategories] : [];
+      }
+      if (!Array.isArray(normalizedConfig.lensItCodes)) {
+        normalizedConfig.lensItCodes = normalizedConfig.lensItCodes ? [normalizedConfig.lensItCodes] : [];
+      }
+      
+      updateData.config = normalizedConfig;
     } else {
       // Build config from legacy fields if provided
       const config: any = {};
@@ -234,9 +248,21 @@ export async function PUT(
       // Only set config if we have at least one field
       if (Object.keys(config).length > 0) {
         // Merge with existing config
-        updateData.config = existingRule.config 
-          ? { ...(existingRule.config as object), ...config }
-          : config;
+        const existingConfig = existingRule.config as any || {};
+        const mergedConfig = { ...existingConfig, ...config };
+        
+        // Ensure required array fields are always arrays
+        if (!Array.isArray(mergedConfig.eligibleBrands)) {
+          mergedConfig.eligibleBrands = mergedConfig.eligibleBrands ? [mergedConfig.eligibleBrands] : (existingConfig.eligibleBrands || []);
+        }
+        if (!Array.isArray(mergedConfig.eligibleCategories)) {
+          mergedConfig.eligibleCategories = mergedConfig.eligibleCategories ? [mergedConfig.eligibleCategories] : (existingConfig.eligibleCategories || []);
+        }
+        if (!Array.isArray(mergedConfig.lensItCodes)) {
+          mergedConfig.lensItCodes = mergedConfig.lensItCodes ? [mergedConfig.lensItCodes] : (existingConfig.lensItCodes || []);
+        }
+        
+        updateData.config = mergedConfig;
       }
     }
 
@@ -260,9 +286,43 @@ export async function PUT(
 
     console.log('[PUT /api/admin/offers/rules] Update data:', JSON.stringify(cleanedData, null, 2));
 
+    // For MongoDB nested types, use 'set' syntax for config if it's being updated
+    const updatePayload: any = { ...cleanedData };
+    if (updatePayload.config) {
+      // Final normalization - ensure required array fields are always arrays
+      const configToSet = { ...updatePayload.config };
+      const existingConfig = existingRule.config as any || {};
+      
+      // Ensure required array fields are always arrays (never null/undefined)
+      // These fields are required in the Prisma schema as String[]
+      // If field is explicitly provided (even as null), convert to empty array
+      // If field is not provided, preserve existing value or default to empty array
+      if (configToSet.hasOwnProperty('eligibleBrands')) {
+        configToSet.eligibleBrands = Array.isArray(configToSet.eligibleBrands) ? configToSet.eligibleBrands : [];
+      } else {
+        configToSet.eligibleBrands = existingConfig.eligibleBrands || [];
+      }
+      
+      if (configToSet.hasOwnProperty('eligibleCategories')) {
+        configToSet.eligibleCategories = Array.isArray(configToSet.eligibleCategories) ? configToSet.eligibleCategories : [];
+      } else {
+        configToSet.eligibleCategories = existingConfig.eligibleCategories || [];
+      }
+      
+      if (configToSet.hasOwnProperty('lensItCodes')) {
+        configToSet.lensItCodes = Array.isArray(configToSet.lensItCodes) ? configToSet.lensItCodes : [];
+      } else {
+        configToSet.lensItCodes = existingConfig.lensItCodes || [];
+      }
+      
+      updatePayload.config = {
+        set: configToSet,
+      };
+    }
+
     const rule = await prisma.offerRule.update({
       where: { id },
-      data: cleanedData,
+      data: updatePayload,
     });
 
     // Transform rule to include discount fields from config for frontend compatibility

@@ -85,14 +85,23 @@ export default function QuestionnaireBuilderPage() {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     // Allow dropping on main questions for reordering
+    // Only set dragOverOption if we're not already dragging over an option
     const targetQuestion = allQuestions.find((q) => q.id === questionId);
-    if (targetQuestion && !targetQuestion.parentAnswerId) {
+    if (targetQuestion && !targetQuestion.parentAnswerId && (!dragOverOption || dragOverOption.optionId === '')) {
       setDragOverOption({ questionId, optionId: '' });
     }
   };
 
   // Handle drag over answer option (for creating sub-questions)
   const handleOptionDragOver = (e: React.DragEvent, questionId: string, optionId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'link';
+    setDragOverOption({ questionId, optionId });
+  };
+
+  // Handle drag enter answer option
+  const handleOptionDragEnter = (e: React.DragEvent, questionId: string, optionId: string) => {
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'link';
@@ -152,10 +161,59 @@ export default function QuestionnaireBuilderPage() {
       
       if (draggedIndex === -1 || targetIndex === -1) return;
       
-      // Calculate new displayOrder
-      const newDisplayOrder = targetQuestion.displayOrder || targetQuestion.order || 0;
+      // First, fetch the full question data to ensure we have all option details
+      const fullQuestionResponse = await fetch(`/api/admin/questions/${draggedQuestion.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const fullQuestionData = await fullQuestionResponse.json();
       
-      // Update displayOrder of dragged question
+      if (!fullQuestionData.success || !fullQuestionData.data) {
+        showToast('error', 'Failed to fetch question details');
+        return;
+      }
+      
+      const fullQuestion = fullQuestionData.data;
+      
+      // Calculate new displayOrder based on target position
+      // If moving down, use target's displayOrder, if moving up, use target's displayOrder - 0.5
+      let newDisplayOrder: number;
+      if (draggedIndex < targetIndex) {
+        // Moving down - place after target
+        newDisplayOrder = (targetQuestion.displayOrder || targetQuestion.order || 0) + 1;
+      } else {
+        // Moving up - place before target
+        newDisplayOrder = (targetQuestion.displayOrder || targetQuestion.order || 0) - 0.5;
+      }
+      
+      // Ensure displayOrder is positive
+      if (newDisplayOrder < 1) {
+        newDisplayOrder = 1;
+      }
+      
+      // Prepare options with all mappings preserved
+      const optionsWithMappings = (fullQuestion.options || []).map((opt: any) => {
+        const subQuestionId = opt.subQuestionId || null;
+        const nextQuestionIds = opt.nextQuestionIds || (subQuestionId ? [subQuestionId] : []);
+        // If subQuestionId exists, ensure triggersSubQuestion is true
+        const triggersSubQuestion = subQuestionId ? true : (opt.triggersSubQuestion || false);
+        
+        return {
+          id: opt.id,
+          key: opt.key,
+          textEn: opt.textEn,
+          textHi: opt.textHi,
+          textHiEn: opt.textHiEn,
+          icon: opt.icon,
+          order: opt.order,
+          displayOrder: opt.displayOrder || opt.order,
+          triggersSubQuestion: triggersSubQuestion,
+          subQuestionId: subQuestionId,
+          nextQuestionIds: nextQuestionIds,
+          benefitMapping: opt.benefitMapping || {},
+        };
+      });
+      
+      // Update displayOrder of dragged question with all options preserved
       const response = await fetch(`/api/admin/questions/${draggedQuestion.id}`, {
         method: 'PUT',
         headers: {
@@ -163,8 +221,9 @@ export default function QuestionnaireBuilderPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          ...draggedQuestion,
+          ...fullQuestion,
           displayOrder: newDisplayOrder,
+          options: optionsWithMappings, // Include all options with mappings
         }),
       });
 
@@ -176,6 +235,7 @@ export default function QuestionnaireBuilderPage() {
         showToast('error', data.error?.message || 'Failed to update question order');
       }
     } catch (error) {
+      console.error('Error updating question order:', error);
       showToast('error', 'An error occurred while updating question order');
     } finally {
       setDraggedQuestion(null);
@@ -188,10 +248,16 @@ export default function QuestionnaireBuilderPage() {
     e.stopPropagation();
     setDragOverOption(null);
 
-    if (!draggedQuestion) return;
+    if (!draggedQuestion || !draggedQuestion.id) {
+      console.warn('[handleOptionDrop] No dragged question or missing ID');
+      return;
+    }
+
+    // Store dragged question ID early to avoid race conditions
+    const draggedQuestionId = draggedQuestion.id;
 
     // Don't allow dropping question on its own option
-    if (draggedQuestion.id === questionId) {
+    if (draggedQuestionId === questionId) {
       showToast('error', 'Cannot make a question a sub-question of itself');
       return;
     }
@@ -204,31 +270,141 @@ export default function QuestionnaireBuilderPage() {
 
     try {
       const token = localStorage.getItem('lenstrack_token');
+      if (!token) {
+        showToast('error', 'Authentication required');
+        return;
+      }
       
-      // Find the target question and option
-      const targetQuestion = allQuestions.find((q) => q.id === questionId);
-      if (!targetQuestion) {
-        showToast('error', 'Target question not found');
+      // Fetch full question data for both target and dragged questions
+      const [targetQuestionResponse, draggedQuestionResponse] = await Promise.all([
+        fetch(`/api/admin/questions/${questionId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`/api/admin/questions/${draggedQuestionId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      const [targetQuestionData, draggedQuestionData] = await Promise.all([
+        targetQuestionResponse.json(),
+        draggedQuestionResponse.json(),
+      ]);
+
+      if (!targetQuestionData.success || !targetQuestionData.data) {
+        showToast('error', 'Failed to fetch target question details');
         return;
       }
 
-      const targetOption = targetQuestion.options?.find((opt: any) => opt.id === optionId);
+      if (!draggedQuestionData.success || !draggedQuestionData.data) {
+        showToast('error', 'Failed to fetch dragged question details');
+        return;
+      }
+
+      const fullTargetQuestion = targetQuestionData.data;
+      const fullDraggedQuestion = draggedQuestionData.data;
+
+      const targetOption = fullTargetQuestion.options?.find((opt: any) => opt.id === optionId);
       if (!targetOption) {
         showToast('error', 'Target option not found');
         return;
       }
 
+      console.log('[handleOptionDrop] Linking subquestion:', {
+        draggedQuestionId: draggedQuestionId,
+        targetQuestionId: questionId,
+        targetOptionId: optionId,
+        targetOption: targetOption,
+      });
+
       // Update the option to link the dragged question as sub-question
-      const updatedOptions = targetQuestion.options.map((opt: any) => {
+      // Preserve all option fields including benefitMapping, textHi, etc.
+      const updatedOptions = (fullTargetQuestion.options || []).map((opt: any) => {
         if (opt.id === optionId) {
-          return {
-            ...opt,
-            triggersSubQuestion: true,
-            subQuestionId: draggedQuestion.id,
-            nextQuestionIds: [draggedQuestion.id], // Also update new format
+          const updatedOption = {
+            id: opt.id,
+            key: opt.key,
+            textEn: opt.textEn,
+            textHi: opt.textHi || null,
+            textHiEn: opt.textHiEn || null,
+            icon: opt.icon || null,
+            order: opt.order,
+            displayOrder: opt.displayOrder || opt.order,
+            triggersSubQuestion: true, // Set to true when linking subquestion
+            subQuestionId: draggedQuestionId,
+            nextQuestionIds: [draggedQuestionId], // Also update new format
+            benefitMapping: opt.benefitMapping || {},
           };
+          console.log('[handleOptionDrop] Updated option:', updatedOption);
+          return updatedOption;
         }
-        return opt;
+        // Preserve all other options with their full data
+        const preservedOption = {
+          id: opt.id,
+          key: opt.key,
+          textEn: opt.textEn,
+          textHi: opt.textHi || null,
+          textHiEn: opt.textHiEn || null,
+          icon: opt.icon || null,
+          order: opt.order,
+          displayOrder: opt.displayOrder || opt.order,
+          triggersSubQuestion: opt.triggersSubQuestion || false,
+          subQuestionId: opt.subQuestionId || null,
+          nextQuestionIds: opt.nextQuestionIds || (opt.subQuestionId ? [opt.subQuestionId] : []),
+          benefitMapping: opt.benefitMapping || {},
+        };
+        return preservedOption;
+      });
+
+      // Prepare dragged question options with all fields preserved
+      const draggedQuestionOptions = (fullDraggedQuestion.options || []).map((opt: any) => {
+        const subQuestionId = opt.subQuestionId || null;
+        const nextQuestionIds = opt.nextQuestionIds || (subQuestionId ? [subQuestionId] : []);
+        const triggersSubQuestion = subQuestionId ? true : (opt.triggersSubQuestion || false);
+        
+        return {
+          id: opt.id,
+          key: opt.key,
+          textEn: opt.textEn,
+          textHi: opt.textHi,
+          textHiEn: opt.textHiEn,
+          icon: opt.icon,
+          order: opt.order,
+          displayOrder: opt.displayOrder || opt.order,
+          triggersSubQuestion: triggersSubQuestion,
+          subQuestionId: subQuestionId,
+          nextQuestionIds: nextQuestionIds,
+          benefitMapping: opt.benefitMapping || {},
+        };
+      });
+
+      // Prepare request bodies
+      const targetQuestionBody = {
+        ...fullTargetQuestion,
+        options: updatedOptions,
+      };
+      
+      const draggedQuestionBody = {
+        ...fullDraggedQuestion,
+        parentAnswerId: optionId,
+        options: draggedQuestionOptions, // Preserve all options
+      };
+
+      console.log('[handleOptionDrop] Sending update requests:', {
+        targetQuestionBody: {
+          ...targetQuestionBody,
+          options: targetQuestionBody.options.map((opt: any) => ({
+            id: opt.id,
+            key: opt.key,
+            textEn: opt.textEn,
+            triggersSubQuestion: opt.triggersSubQuestion,
+            subQuestionId: opt.subQuestionId,
+            nextQuestionIds: opt.nextQuestionIds,
+          })),
+        },
+        draggedQuestionBody: {
+          ...draggedQuestionBody,
+          parentAnswerId: draggedQuestionBody.parentAnswerId,
+        },
       });
 
       // Update both: the target question's option AND the dragged question's parentAnswerId
@@ -240,22 +416,16 @@ export default function QuestionnaireBuilderPage() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            ...targetQuestion,
-            options: updatedOptions,
-          }),
+          body: JSON.stringify(targetQuestionBody),
         }),
         // Update the dragged question to set parentAnswerId
-        fetch(`/api/admin/questions/${draggedQuestion.id}`, {
+        fetch(`/api/admin/questions/${draggedQuestionId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            ...draggedQuestion,
-            parentAnswerId: optionId,
-          }),
+          body: JSON.stringify(draggedQuestionBody),
         }),
       ]);
 
@@ -264,11 +434,28 @@ export default function QuestionnaireBuilderPage() {
         questionUpdateResponse.json(),
       ]);
 
+      console.log('[handleOptionDrop] API responses:', {
+        optionUpdateSuccess: optionData.success,
+        optionUpdateError: optionData.error,
+        questionUpdateSuccess: questionData.success,
+        questionUpdateError: questionData.error,
+      });
+
       if (optionData.success && questionData.success) {
         showToast('success', `Sub-question linked successfully`);
         fetchQuestions();
       } else {
         const errorMsg = optionData.error?.message || questionData.error?.message || 'Failed to link sub-question';
+        console.error('[handleOptionDrop] Error linking sub-question:', { 
+          optionData, 
+          questionData,
+          targetQuestionBody: targetQuestionBody.options.map((opt: any) => ({
+            id: opt.id,
+            key: opt.key,
+            triggersSubQuestion: opt.triggersSubQuestion,
+            subQuestionId: opt.subQuestionId,
+          })),
+        });
         showToast('error', errorMsg);
       }
     } catch (error) {
@@ -334,7 +521,26 @@ export default function QuestionnaireBuilderPage() {
       }
 
       const data = await response.json();
-      console.log('[fetchQuestions] Response:', { success: data.success, count: data.data?.length, data: data.data });
+      console.log('[fetchQuestions] Response:', { success: data.success, count: data.data?.length });
+      
+      // Debug: Check if mappingCount and answerCount are in the response
+      if (data.success && data.data && data.data.length > 0) {
+        const firstQuestion = data.data[0];
+        console.log('[fetchQuestions] Sample question from API:', {
+          id: firstQuestion.id,
+          key: firstQuestion.key,
+          textEn: firstQuestion.textEn,
+          mappingCount: firstQuestion.mappingCount,
+          answerCount: firstQuestion.answerCount,
+          optionCount: firstQuestion.optionCount,
+        });
+        
+        // Check all questions for mapping/answer counts
+        const questionsWithMappings = data.data.filter((q: any) => (q.mappingCount || 0) > 0);
+        const questionsWithAnswers = data.data.filter((q: any) => (q.answerCount || 0) > 0);
+        console.log(`[fetchQuestions] Questions with mappings: ${questionsWithMappings.length}/${data.data.length}`);
+        console.log(`[fetchQuestions] Questions with answers: ${questionsWithAnswers.length}/${data.data.length}`);
+      }
       
       if (data.success) {
         // Store all questions for table view
@@ -489,13 +695,22 @@ export default function QuestionnaireBuilderPage() {
             onDragStart={(e) => handleDragStart(e, question)}
             onDragEnd={handleDragEnd}
             onDragOver={(e) => {
-              if (!question.parentAnswerId) {
+              // Only handle drag over for main questions, and only if not dragging over an option
+              if (!question.parentAnswerId && (!dragOverOption || dragOverOption.optionId === '')) {
                 handleDragOver(e, question.id);
               }
             }}
-            onDragLeave={handleDragLeave}
+            onDragLeave={(e) => {
+              // Only handle drag leave if we're not entering an option drop zone
+              const target = e.currentTarget as HTMLElement;
+              const relatedTarget = e.relatedTarget as HTMLElement;
+              if (!target.contains(relatedTarget) && (!dragOverOption || dragOverOption.optionId === '')) {
+                handleDragLeave();
+              }
+            }}
             onDrop={(e) => {
-              if (!question.parentAnswerId) {
+              // Only handle drop for main questions, and only if not dropping on an option
+              if (!question.parentAnswerId && (!dragOverOption || dragOverOption.optionId === '')) {
                 handleDrop(e, question.id);
               }
             }}
@@ -590,14 +805,18 @@ export default function QuestionnaireBuilderPage() {
                   >
                     {/* Option Row - Drop Zone for Sub-Questions */}
                     <div
+                      onDragEnter={(e) => handleOptionDragEnter(e, question.id, option.id)}
                       onDragOver={(e) => handleOptionDragOver(e, question.id, option.id)}
                       onDragLeave={handleOptionDragLeave}
                       onDrop={(e) => handleOptionDrop(e, question.id, option.id)}
-                      className={`p-2 rounded border transition-colors ${
+                      className={`p-2 rounded border transition-colors min-h-[32px] ${
                         isDragOver 
                           ? 'border-blue-500 bg-blue-50 border-2' 
+                          : draggedQuestion
+                          ? 'border-slate-300 bg-slate-100 hover:border-blue-400'
                           : 'border-slate-200 bg-slate-50'
                       } ${draggedQuestion ? 'cursor-pointer' : ''}`}
+                      style={{ pointerEvents: 'auto' }}
                     >
                       <div className="flex items-center gap-2">
                         <ChevronRight size={12} className="text-slate-400" />

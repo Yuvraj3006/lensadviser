@@ -102,14 +102,53 @@ export class BenefitRecommendationService {
     const scored = await this.scoreProducts(
       candidateProducts,
       benefitScores,
-      answers
+      answers,
+      recommendedIndex
     );
 
-    // 6. Sort by final score
-    const sorted = scored.sort((a, b) => b.finalScore - a.finalScore);
+    // 6. Sort by final score with tie-breakers
+    const sorted = scored.sort((a, b) => {
+      // Primary: Sort by finalScore (descending)
+      if (b.finalScore !== a.finalScore) {
+        return b.finalScore - a.finalScore;
+      }
+      
+      // Tie-breaker 1: Sort by index (thinner index = higher rank)
+      const getIndexRank = (index: string): number => {
+        const rankMap: Record<string, number> = {
+          'INDEX_156': 1,
+          'INDEX_160': 2,
+          'INDEX_167': 3,
+          'INDEX_174': 4,
+        };
+        return rankMap[index] || 0;
+      };
+      const aIndexRank = getIndexRank(a.lensIndex || 'INDEX_156');
+      const bIndexRank = getIndexRank(b.lensIndex || 'INDEX_156');
+      if (bIndexRank !== aIndexRank) {
+        return bIndexRank - aIndexRank; // Thinner index first
+      }
+      
+      // Tie-breaker 2: Sort by price (lower price first for same score)
+      const aPrice = a.offerPrice || a.mrp || 0;
+      const bPrice = b.offerPrice || b.mrp || 0;
+      return aPrice - bPrice;
+    });
 
     // 7. Calculate match percent and add index recommendations with advanced validation
     const maxScore = sorted[0]?.finalScore || 1;
+    
+    console.log('[BenefitRecommendationService] Calculating matchPercent:', {
+      productCount: sorted.length,
+      maxScore,
+      topScores: sorted.slice(0, 5).map(p => ({ itCode: p.itCode, finalScore: p.finalScore })),
+    });
+
+    if (maxScore === 0 || maxScore === 1) {
+      console.error('[BenefitRecommendationService] ❌ maxScore is 0 or 1! All matchPercent will be 0');
+      console.error('[BenefitRecommendationService] Check: AnswerBenefit mappings, ProductBenefit mappings, benefit code matching');
+    }
+
     const productsWithMatchPercent = sorted.map((p) => {
       const indexDelta = this.indexService.calculateIndexDelta(p.lensIndex, recommendedIndex);
       
@@ -120,9 +159,22 @@ export class BenefitRecommendationService {
         frame || null
       );
       
+      // Calculate matchPercent with 1 decimal place for better differentiation
+      // This helps distinguish products with similar but not identical scores
+      const matchPercentRaw = (p.finalScore / maxScore) * 100;
+      const matchPercent = Math.round(matchPercentRaw * 10) / 10; // Round to 1 decimal place
+      
+      if (matchPercent === 0 && p.itCode === sorted[0]?.itCode) {
+        console.warn(`[BenefitRecommendationService] Product ${p.itCode} has matchPercent = 0`, {
+          finalScore: p.finalScore,
+          maxScore,
+          benefitComponent: p.benefitComponent,
+        });
+      }
+      
       return {
         ...p,
-        matchPercent: Math.round((p.finalScore / maxScore) * 100),
+        matchPercent,
         indexRecommendation: {
           recommendedIndex,
           indexDelta,
@@ -133,6 +185,14 @@ export class BenefitRecommendationService {
         thicknessWarning: indexDelta < 0 || indexValidation.isWarning, // Show warning if chosen index is thicker than recommended or invalid
         indexInvalid: !indexValidation.isValid, // Mark as invalid if violates rules (e.g., INDEX_156 for rimless)
       };
+    });
+
+    console.log('[BenefitRecommendationService] MatchPercent calculated:', {
+      topMatchPercents: productsWithMatchPercent.slice(0, 5).map(p => ({ 
+        itCode: p.itCode, 
+        matchPercent: p.matchPercent,
+        finalScore: p.finalScore,
+      })),
     });
 
     return {
@@ -151,7 +211,13 @@ export class BenefitRecommendationService {
   ): Promise<BenefitScores> {
     const answerIds = answersInput.flatMap((a) => a.answerIds);
 
+    console.log('[BenefitRecommendationService] computeBenefitScores:', {
+      answerCount: answerIds.length,
+      organizationId,
+    });
+
     if (answerIds.length === 0) {
+      console.warn('[BenefitRecommendationService] No answer IDs found!');
       return {};
     }
 
@@ -162,6 +228,12 @@ export class BenefitRecommendationService {
       },
     });
 
+    console.log('[BenefitRecommendationService] AnswerBenefit mappings found:', answerBenefits.length);
+
+    if (answerBenefits.length === 0) {
+      console.error('[BenefitRecommendationService] ❌ NO ANSWERBENEFIT MAPPINGS! This will cause matchPercent = 0');
+    }
+
     // Get benefit IDs and fetch benefits from unified BenefitFeature model
     const benefitIds = [...new Set(answerBenefits.map((ab: any) => ab.benefitId))];
     const benefits = await (prisma as any).benefitFeature.findMany({
@@ -171,6 +243,16 @@ export class BenefitRecommendationService {
         organizationId,
       },
     });
+
+    console.log('[BenefitRecommendationService] Benefits found:', {
+      benefitIdsCount: benefitIds.length,
+      benefitsFound: benefits.length,
+      benefitCodes: benefits.map((b: any) => b.code),
+    });
+
+    if (benefits.length === 0) {
+      console.error('[BenefitRecommendationService] ❌ NO BENEFITS FOUND! Check organizationId:', organizationId);
+    }
 
     // Create a map of benefit ID to benefit object
     const benefitMap = new Map(benefits.map((b: any) => [b.id, b]));
@@ -191,6 +273,12 @@ export class BenefitRecommendationService {
           benefitScores[code] = (benefitScores[code] || 0) + weightedPoints;
         }
       }
+    }
+
+    console.log('[BenefitRecommendationService] Calculated benefit scores:', benefitScores);
+
+    if (Object.keys(benefitScores).length === 0) {
+      console.error('[BenefitRecommendationService] ❌ NO BENEFIT SCORES CALCULATED! This will cause matchPercent = 0');
     }
 
     return benefitScores;
@@ -265,18 +353,68 @@ export class BenefitRecommendationService {
       where: { productId: { in: productIds } },
     });
 
-    // Fetch benefit details from BenefitFeature (not old Benefit model)
-    const benefitIds = [...new Set(productBenefits.map((pb: any) => String(pb.benefitId)))];
-    const benefits = benefitIds.length > 0
+    // Map old Benefit IDs to BenefitFeature IDs
+    // ProductBenefit uses old Benefit IDs, but we need BenefitFeature IDs
+    const oldBenefitIds = [...new Set(productBenefits.map((pb: any) => String(pb.benefitId)))];
+    
+    // Get old Benefit records to get their codes
+    const oldBenefits = oldBenefitIds.length > 0
+      ? await prisma.benefit.findMany({
+          where: { id: { in: oldBenefitIds as string[] } },
+        })
+      : [];
+    
+    // Create mapping: old Benefit.id -> BenefitFeature.id (by code and organizationId)
+    const oldBenefitIdToCodeMap = new Map(oldBenefits.map(b => [b.id, b.code]));
+    const benefitCodeToFeatureIdMap = new Map<string, string>();
+    
+    if (oldBenefits.length > 0) {
+      const benefitCodes = [...new Set(oldBenefits.map(b => b.code))];
+      const benefitFeatures = await (prisma as any).benefitFeature.findMany({
+        where: {
+          type: 'BENEFIT',
+          code: { in: benefitCodes },
+          organizationId,
+        },
+      });
+      
+      benefitFeatures.forEach((bf: any) => {
+        benefitCodeToFeatureIdMap.set(bf.code, bf.id);
+      });
+    }
+    
+    // Create final mapping: old Benefit.id -> BenefitFeature.id
+    const oldIdToNewIdMap = new Map<string, string>();
+    oldBenefitIdToCodeMap.forEach((code, oldId) => {
+      const newId = benefitCodeToFeatureIdMap.get(code);
+      if (newId) {
+        oldIdToNewIdMap.set(oldId, newId);
+      }
+    });
+
+    // Fetch benefit details from BenefitFeature using mapped IDs
+    const benefitFeatureIds = [...oldIdToNewIdMap.values()];
+    const benefits = benefitFeatureIds.length > 0
       ? await (prisma as any).benefitFeature.findMany({
           where: {
             type: 'BENEFIT',
-            id: { in: benefitIds },
+            id: { in: benefitFeatureIds },
             organizationId,
           },
         })
       : [];
+    
+    // Create map: BenefitFeature.id -> BenefitFeature object
     const benefitMap = new Map(benefits.map((b: any) => [b.id, b]));
+    
+    // Also create map: old Benefit.id -> BenefitFeature object (for lookup)
+    const oldBenefitIdToBenefitMap = new Map<string, any>();
+    oldIdToNewIdMap.forEach((newId, oldId) => {
+      const benefit = benefitMap.get(newId);
+      if (benefit) {
+        oldBenefitIdToBenefitMap.set(oldId, benefit);
+      }
+    });
 
     // Attach benefits to products
     const productsWithRelations = products.map((p: any) => ({
@@ -284,9 +422,10 @@ export class BenefitRecommendationService {
       benefits: productBenefits
         .filter((pb: any) => pb.productId === p.id)
         .map((pb: any) => {
-          const benefit = benefitMap.get(pb.benefitId);
+          // Map old Benefit ID to BenefitFeature
+          const benefit = oldBenefitIdToBenefitMap.get(String(pb.benefitId));
           if (!benefit) {
-            console.warn(`[BenefitRecommendationService] Benefit not found for benefitId: ${pb.benefitId}`);
+            console.warn(`[BenefitRecommendationService] Benefit not found for old benefitId: ${pb.benefitId}`);
             return null;
           }
           return {
@@ -349,14 +488,27 @@ export class BenefitRecommendationService {
   private async scoreProducts(
     products: any[],
     benefitScores: BenefitScores,
-    answersInput: AnswerSelection[]
+    answersInput: AnswerSelection[],
+    recommendedIndex?: string
   ) {
     const selectedAnswerIds = new Set(answersInput.flatMap((a) => a.answerIds));
 
-    return products.map((p) => {
+    console.log('[BenefitRecommendationService] scoreProducts:', {
+      productCount: products.length,
+      benefitScoresCount: Object.keys(benefitScores).length,
+      benefitScores: benefitScores,
+      recommendedIndex,
+    });
+
+    const scored = products.map((p) => {
       // Calculate benefit component (Answer Boosts removed - all scoring via Benefits only)
       // Formula: Σ(answer.points × lens.benefitStrength × benefit.pointWeight)
       let benefitComponent = 0;
+      
+      if (!p.benefits || p.benefits.length === 0) {
+        console.warn(`[BenefitRecommendationService] Product ${p.itCode} has no benefits!`);
+      }
+
       for (const pb of p.benefits) {
         // Handle both old Benefit model and new BenefitFeature model
         const benefit = pb.benefit;
@@ -370,10 +522,40 @@ export class BenefitRecommendationService {
         const benefitWeight = (benefit as any).pointWeight || 1.0; // Default weight is 1.0
         
         // Multiply user benefit score by product benefit score by benefit weight
-        benefitComponent += userBenefitScore * productBenefitScore * benefitWeight;
+        const contribution = userBenefitScore * productBenefitScore * benefitWeight;
+        benefitComponent += contribution;
+        
+        if (contribution > 0 && p.itCode === products[0]?.itCode) {
+          // Log first product's scoring for debugging
+          console.log(`[BenefitRecommendationService] ${p.itCode} benefit ${code}: ${userBenefitScore} × ${productBenefitScore} × ${benefitWeight} = ${contribution}`);
+        }
       }
 
-      const finalScore = benefitComponent; // No direct boost component
+      // Add small boosts for differentiation (to avoid all products showing same matchPercent)
+      let indexBoost = 0;
+      if (recommendedIndex && p.lensIndex === recommendedIndex) {
+        // Small boost (0.1-0.5) for matching recommended index
+        indexBoost = 0.3;
+      }
+      
+      // Add tiny boost based on number of benefits (more benefits = slightly better)
+      // This creates small differences between products with same benefit scores
+      const benefitCountBoost = (p.benefits?.length || 0) * 0.01; // 0.01 per benefit
+      
+      // Add tiny boost based on product price (lower price = slightly better for same score)
+      // This helps differentiate products with same benefit scores
+      const priceBoost = Math.max(0, (10000 - (p.baseOfferPrice || p.mrp || 10000)) / 100000); // Max 0.1 boost
+
+      // Round finalScore to 3 decimal places to avoid floating point precision issues
+      const finalScore = Math.round((benefitComponent + indexBoost + benefitCountBoost + priceBoost) * 1000) / 1000;
+
+      if (finalScore === 0 && p.itCode === products[0]?.itCode) {
+        console.warn(`[BenefitRecommendationService] ❌ Product ${p.itCode} has finalScore = 0!`, {
+          benefitCount: p.benefits?.length || 0,
+          benefitScoresKeys: Object.keys(benefitScores),
+          productBenefitCodes: p.benefits?.map((pb: any) => pb.benefit?.code).filter(Boolean),
+        });
+      }
 
       return {
         itCode: p.itCode || p.sku,
@@ -390,6 +572,18 @@ export class BenefitRecommendationService {
         finalScore,
       };
     });
+
+    const maxScore = Math.max(...scored.map(p => p.finalScore), 1);
+    console.log('[BenefitRecommendationService] Scoring complete:', {
+      maxScore,
+      scores: scored.slice(0, 3).map(p => ({ itCode: p.itCode, finalScore: p.finalScore })),
+    });
+
+    if (maxScore === 0) {
+      console.error('[BenefitRecommendationService] ❌ ALL PRODUCTS HAVE finalScore = 0! This will cause all matchPercent = 0');
+    }
+
+    return scored;
   }
 
   /**

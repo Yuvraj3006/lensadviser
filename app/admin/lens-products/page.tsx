@@ -27,6 +27,13 @@ interface Feature {
   description?: string | null;
 }
 
+interface Benefit {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+}
+
 interface LensProduct {
   id: string;
   itCode: string;
@@ -55,6 +62,7 @@ export default function LensProductsPage() {
   const [products, setProducts] = useState<LensProduct[]>([]);
   const [brands, setBrands] = useState<LensBrand[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
+  const [benefits, setBenefits] = useState<Benefit[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterBrandId, setFilterBrandId] = useState<string>('');
@@ -76,18 +84,34 @@ export default function LensProductsPage() {
     mrp: 0,
     baseOfferPrice: 0,
     addOnPrice: 0,
-    sphMin: -10,
-    sphMax: 10,
-    cylMax: 4,
-    addMin: 0,
-    addMax: 4,
+    rxRanges: [
+      {
+        sphMin: -10,
+        sphMax: 10,
+        cylMin: -4,
+        cylMax: 4,
+        addMin: null as number | null,
+        addMax: null as number | null,
+        addOnPrice: 0,
+      },
+    ] as Array<{
+      sphMin: number;
+      sphMax: number;
+      cylMin: number;
+      cylMax: number;
+      addMin: number | null;
+      addMax: number | null;
+      addOnPrice: number;
+    }>,
     yopoEligible: false,
     featureCodes: [] as string[],
+    benefitScores: {} as Record<string, number>, // Benefit code -> score (0-3)
   });
 
   useEffect(() => {
     fetchBrands();
     fetchFeatures();
+    fetchBenefits();
     fetchProducts();
   }, [filterBrandId, filterType, filterIndex]);
 
@@ -124,6 +148,24 @@ export default function LensProductsPage() {
       }
     } catch (error) {
       console.error('Failed to load features');
+    }
+  };
+
+  const fetchBenefits = async () => {
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch('/api/admin/benefits', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setBenefits(data.data || []);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load benefits');
     }
   };
 
@@ -171,19 +213,103 @@ export default function LensProductsPage() {
       mrp: 0,
       baseOfferPrice: 0,
       addOnPrice: 0,
-      sphMin: -10,
-      sphMax: 10,
-      cylMax: 4,
-      addMin: 0,
-      addMax: 4,
+      rxRanges: [
+        {
+          sphMin: -10,
+          sphMax: 10,
+          cylMin: -4,
+          cylMax: 4,
+          addMin: null,
+          addMax: null,
+          addOnPrice: 0,
+        },
+      ],
       yopoEligible: false,
       featureCodes: [],
+      benefitScores: {},
     });
     setEditingId(null);
     setIsModalOpen(true);
   };
 
-  const handleEdit = (product: LensProduct) => {
+  const handleEdit = async (product: LensProduct) => {
+    // Load benefit scores for this product
+    let benefitScores: Record<string, number> = {};
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const response = await fetch(`/api/admin/lens-products/${product.id}/benefits`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          // Convert array to object: { B01: 3, B02: 2, ... }
+          data.data.forEach((item: any) => {
+            benefitScores[item.benefitCode] = item.score || 0;
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load benefit scores');
+    }
+
+    // Fetch all RX ranges for this product
+    let rxRanges: Array<{
+      sphMin: number;
+      sphMax: number;
+      cylMin: number;
+      cylMax: number;
+      addMin: number | null;
+      addMax: number | null;
+      addOnPrice: number;
+    }> = [];
+    
+    try {
+      const token = localStorage.getItem('lenstrack_token');
+      const rxResponse = await fetch(`/api/admin/lens-products/${product.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (rxResponse.ok) {
+        const rxData = await rxResponse.json();
+        if (rxData.success && rxData.data?.rxRanges) {
+          rxRanges = rxData.data.rxRanges.map((r: any) => ({
+            sphMin: r.sphMin,
+            sphMax: r.sphMax,
+            cylMin: r.cylMin,
+            cylMax: r.cylMax,
+            addMin: r.addMin ?? null,
+            addMax: r.addMax ?? null,
+            addOnPrice: r.addOnPrice || 0,
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load RX ranges');
+      // Fallback to single range from product data
+      rxRanges = [{
+        sphMin: product.sphMin ?? -10,
+        sphMax: product.sphMax ?? 10,
+        cylMin: (product as any).cylMin ?? -4,
+        cylMax: product.cylMax ?? 4,
+        addMin: product.addMin ?? null,
+        addMax: product.addMax ?? null,
+        addOnPrice: (product as any).rxRangeAddOnPrice || 0,
+      }];
+    }
+
+    // If no RX ranges, add a default one
+    if (rxRanges.length === 0) {
+      rxRanges = [{
+        sphMin: -10,
+        sphMax: 10,
+        cylMin: -4,
+        cylMax: 4,
+        addMin: null,
+        addMax: null,
+        addOnPrice: 0,
+      }];
+    }
+
     setFormData({
       itCode: product.itCode,
       name: product.name,
@@ -196,13 +322,10 @@ export default function LensProductsPage() {
       mrp: product.mrp || product.baseOfferPrice || 0,
       baseOfferPrice: product.baseOfferPrice || (product as any).offerPrice || 0,
       addOnPrice: product.addOnPrice || 0,
-      sphMin: product.sphMin,
-      sphMax: product.sphMax,
-      cylMax: product.cylMax,
-      addMin: product.addMin || 0,
-      addMax: product.addMax || 0,
+      rxRanges,
       yopoEligible: product.yopoEligible,
       featureCodes: (product as any).featureCodes || [],
+      benefitScores,
     });
     setEditingId(product.id);
     setIsModalOpen(true);
@@ -211,6 +334,12 @@ export default function LensProductsPage() {
   const handleSubmit = async () => {
     if (!formData.itCode.trim() || !formData.name.trim() || !formData.lensBrandId) {
       showToast('error', 'Please fill all required fields');
+      return;
+    }
+
+    // Validate RX ranges
+    if (formData.rxRanges.length === 0) {
+      showToast('error', 'Please add at least one RX range');
       return;
     }
 
@@ -231,9 +360,9 @@ export default function LensProductsPage() {
         body: JSON.stringify({
           ...formData,
           addOnPrice: formData.addOnPrice || null,
-          addMin: formData.addMin || null,
-          addMax: formData.addMax || null,
+          rxRanges: formData.rxRanges || [],
           featureCodes: formData.featureCodes || [],
+          benefitScores: formData.benefitScores || {},
         }),
       });
 
@@ -242,12 +371,36 @@ export default function LensProductsPage() {
         showToast('success', editingId ? 'Lens product updated' : 'Lens product created');
         setIsModalOpen(false);
         
-        // If creating new lens, redirect to detail page to add RX Add-On Pricing
-        if (!editingId && data.data?.id) {
-          router.push(`/admin/lenses/${data.data.id}`);
-        } else {
-          fetchProducts();
-        }
+        // Reset form and refresh list - no redirect
+        setFormData({
+          itCode: '',
+          name: '',
+          lensBrandId: '',
+          type: 'SINGLE_VISION' as LensType,
+          index: 'INDEX_156' as LensIndex,
+          tintOption: 'CLEAR' as 'CLEAR' | 'TINT' | 'PHOTOCHROMIC' | 'TRANSITION',
+          category: 'STANDARD' as 'ECONOMY' | 'STANDARD' | 'PREMIUM' | 'ULTRA',
+          deliveryDays: 4,
+          mrp: 0,
+          baseOfferPrice: 0,
+          addOnPrice: 0,
+          rxRanges: [
+            {
+              sphMin: -10,
+              sphMax: 10,
+              cylMin: -4,
+              cylMax: 4,
+              addMin: null,
+              addMax: null,
+              addOnPrice: 0,
+            },
+          ],
+          yopoEligible: false,
+          featureCodes: [] as string[],
+          benefitScores: {},
+        });
+        setEditingId(null);
+        fetchProducts();
       } else {
         showToast('error', data.error?.message || 'Failed to save lens product');
       }
@@ -313,9 +466,20 @@ export default function LensProductsPage() {
     {
       key: 'index',
       header: 'Index',
-      render: (product) => (
-        <span className="text-slate-600">{product.index.replace('INDEX_', '')}</span>
-      ),
+      render: (product) => {
+        const formatIndex = (index: string) => {
+          if (!index) return 'N/A';
+          if (index.startsWith('INDEX_')) {
+            const numPart = index.replace('INDEX_', '');
+            if (numPart.length >= 3 && numPart.startsWith('1')) {
+              return `1.${numPart.substring(1)}`;
+            }
+            return index.replace('INDEX_', '1.');
+          }
+          return index;
+        };
+        return <span className="text-slate-600">{formatIndex(product.index)}</span>;
+      },
     },
     {
       key: 'pricing',
@@ -355,16 +519,8 @@ export default function LensProductsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push(`/admin/lenses/${product.id}`)}
-            title="View Details (RX Add-On Pricing, Features, etc.)"
-          >
-            <Eye size={16} />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
             onClick={() => handleEdit(product)}
-            title="Quick Edit"
+            title="Edit Lens Product"
           >
             <Edit2 size={16} />
           </Button>
@@ -464,10 +620,41 @@ export default function LensProductsPage() {
         )}
       </div>
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Modal - Simplified: All fields in one place, no redirects */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingId(null);
+          // Reset form on close
+          setFormData({
+            itCode: '',
+            name: '',
+            lensBrandId: '',
+            type: 'SINGLE_VISION' as LensType,
+            index: 'INDEX_156' as LensIndex,
+            tintOption: 'CLEAR' as 'CLEAR' | 'TINT' | 'PHOTOCHROMIC' | 'TRANSITION',
+            category: 'STANDARD' as 'ECONOMY' | 'STANDARD' | 'PREMIUM' | 'ULTRA',
+            deliveryDays: 4,
+            mrp: 0,
+            baseOfferPrice: 0,
+            addOnPrice: 0,
+            rxRanges: [
+              {
+                sphMin: -10,
+                sphMax: 10,
+                cylMin: -4,
+                cylMax: 4,
+                addMin: null,
+                addMax: null,
+                addOnPrice: 0,
+              },
+            ],
+            yopoEligible: false,
+            featureCodes: [] as string[],
+            benefitScores: {},
+          });
+        }}
         title={editingId ? 'Edit Lens Product' : 'Create Lens Product'}
         size="lg"
       >
@@ -631,6 +818,58 @@ export default function LensProductsPage() {
             </div>
           </div>
 
+          {/* Benefits Section - Required for Recommendation Scoring */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-700">Benefits (Required for Scoring)</h3>
+              <span className="text-xs text-slate-500">Score: 0 = No benefit, 1 = Weak, 2 = Medium, 3 = Strong</span>
+            </div>
+            <div className="max-h-64 overflow-y-auto space-y-3 border border-slate-200 rounded-lg p-4">
+              {benefits.length === 0 ? (
+                <p className="text-sm text-slate-500">Loading benefits...</p>
+              ) : (
+                benefits.map((benefit) => (
+                  <div key={benefit.id} className="flex items-center gap-4 p-2 rounded hover:bg-slate-50">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-semibold text-slate-700 text-sm">{benefit.code}</span>
+                        <span className="font-medium text-slate-900 text-sm">{benefit.name}</span>
+                      </div>
+                      {benefit.description && (
+                        <p className="text-xs text-slate-500 mt-0.5">{benefit.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="3"
+                        step="0.5"
+                        value={formData.benefitScores[benefit.code] || 0}
+                        onChange={(e) => {
+                          const score = parseFloat(e.target.value) || 0;
+                          setFormData({
+                            ...formData,
+                            benefitScores: {
+                              ...formData.benefitScores,
+                              [benefit.code]: Math.max(0, Math.min(3, score)),
+                            },
+                          });
+                        }}
+                        className="w-20 text-center"
+                        placeholder="0"
+                      />
+                      <span className="text-xs text-slate-500 w-8">/ 3</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              💡 <strong>Important:</strong> Benefits are used for recommendation scoring. At least one benefit with score &gt; 0 is recommended.
+            </p>
+          </div>
+
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -673,67 +912,177 @@ export default function LensProductsPage() {
           </div>
 
           <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Rx Ranges</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  SPH Min *
-                </label>
-                <Input
-                  type="number"
-                  step="0.25"
-                  value={formData.sphMin}
-                  onChange={(e) => setFormData({ ...formData, sphMin: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  SPH Max *
-                </label>
-                <Input
-                  type="number"
-                  step="0.25"
-                  value={formData.sphMax}
-                  onChange={(e) => setFormData({ ...formData, sphMax: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  CYL Max *
-                </label>
-                <Input
-                  type="number"
-                  step="0.25"
-                  value={formData.cylMax}
-                  onChange={(e) => setFormData({ ...formData, cylMax: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-              {formData.type === 'PROGRESSIVE' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      ADD Min
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.25"
-                      value={formData.addMin}
-                      onChange={(e) => setFormData({ ...formData, addMin: parseFloat(e.target.value) || 0 })}
-                    />
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-700">Rx Ranges with Add-on Prices</h3>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFormData({
+                    ...formData,
+                    rxRanges: [
+                      ...formData.rxRanges,
+                      {
+                        sphMin: -10,
+                        sphMax: 10,
+                        cylMin: -4,
+                        cylMax: 4,
+                        addMin: null,
+                        addMax: null,
+                        addOnPrice: 0,
+                      },
+                    ],
+                  });
+                }}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add RX Range
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              {formData.rxRanges.map((rxRange, index) => (
+                <div key={index} className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-slate-700">RX Range #{index + 1}</span>
+                    {formData.rxRanges.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            rxRanges: formData.rxRanges.filter((_, i) => i !== index),
+                          });
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      ADD Max
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.25"
-                      value={formData.addMax}
-                      onChange={(e) => setFormData({ ...formData, addMax: parseFloat(e.target.value) || 0 })}
-                    />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        SPH Min *
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={rxRange.sphMin}
+                        onChange={(e) => {
+                          const newRanges = [...formData.rxRanges];
+                          newRanges[index].sphMin = parseFloat(e.target.value) || 0;
+                          setFormData({ ...formData, rxRanges: newRanges });
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        SPH Max *
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={rxRange.sphMax}
+                        onChange={(e) => {
+                          const newRanges = [...formData.rxRanges];
+                          newRanges[index].sphMax = parseFloat(e.target.value) || 0;
+                          setFormData({ ...formData, rxRanges: newRanges });
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        CYL Min *
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={rxRange.cylMin}
+                        onChange={(e) => {
+                          const newRanges = [...formData.rxRanges];
+                          newRanges[index].cylMin = parseFloat(e.target.value) || 0;
+                          setFormData({ ...formData, rxRanges: newRanges });
+                        }}
+                      />
+                      <p className="text-xs text-slate-500 mt-1">Usually negative (e.g., -4)</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        CYL Max *
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.25"
+                        value={rxRange.cylMax}
+                        onChange={(e) => {
+                          const newRanges = [...formData.rxRanges];
+                          newRanges[index].cylMax = parseFloat(e.target.value) || 0;
+                          setFormData({ ...formData, rxRanges: newRanges });
+                        }}
+                      />
+                      <p className="text-xs text-slate-500 mt-1">Usually positive (e.g., 4)</p>
+                    </div>
+                    {(formData.type === 'PROGRESSIVE' || formData.type === 'BIFOCAL') && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                            ADD Min (Optional)
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.25"
+                            value={rxRange.addMin ?? ''}
+                            onChange={(e) => {
+                              const newRanges = [...formData.rxRanges];
+                              newRanges[index].addMin = e.target.value ? parseFloat(e.target.value) : null;
+                              setFormData({ ...formData, rxRanges: newRanges });
+                            }}
+                            placeholder="Leave empty if not applicable"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                            ADD Max (Optional)
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.25"
+                            value={rxRange.addMax ?? ''}
+                            onChange={(e) => {
+                              const newRanges = [...formData.rxRanges];
+                              newRanges[index].addMax = e.target.value ? parseFloat(e.target.value) : null;
+                              setFormData({ ...formData, rxRanges: newRanges });
+                            }}
+                            placeholder="Leave empty if not applicable"
+                          />
+                        </div>
+                      </>
+                    )}
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Add-on Price (₹) *
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={rxRange.addOnPrice}
+                        onChange={(e) => {
+                          const newRanges = [...formData.rxRanges];
+                          newRanges[index].addOnPrice = parseFloat(e.target.value) || 0;
+                          setFormData({ ...formData, rxRanges: newRanges });
+                        }}
+                        placeholder="0"
+                      />
+                      <p className="text-xs text-slate-500 mt-1">Extra charge for this RX range</p>
+                    </div>
                   </div>
-                </>
-              )}
+                </div>
+              ))}
             </div>
           </div>
 

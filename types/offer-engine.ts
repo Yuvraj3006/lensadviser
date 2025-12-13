@@ -17,6 +17,7 @@ export interface LensInput {
   price: number; // Offer Price from product catalog
   brandLine: string; // BrandLine enum string
   yopoEligible: boolean;
+  name?: string; // Product name (optional, for matching brandLine keywords)
 }
 
 export type CustomerCategoryCode =
@@ -83,6 +84,10 @@ export interface OfferCalculationInput {
   // For CONTACT_LENS_ONLY mode
   mode?: 'FRAME_AND_LENS' | 'ONLY_LENS' | 'CONTACT_LENS_ONLY';
   otherItems?: (ContactLensItem | AccessoryItem)[]; // For CL and accessories
+  // Purchase context for Combo/Regular flow
+  purchaseContext?: 'REGULAR' | 'COMBO' | 'YOPO' | null; // REGULAR = all offers, COMBO = no discounts (only coupon)
+  // Combo tier selection (for COMBO context)
+  selectedComboCode?: string | null; // BRONZE, SILVER, GOLD, PLATINUM
 }
 
 export interface UpsellSuggestion {

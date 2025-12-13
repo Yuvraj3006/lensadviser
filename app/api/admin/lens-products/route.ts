@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         rxRanges: {
-          take: 1, // Get first Rx range for backward compatibility
           orderBy: { createdAt: 'asc' },
         },
         features: {
@@ -73,7 +72,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: products.map((product) => {
         const brand = brandMap.get(product.brandLine);
-        const rxRange = product.rxRanges[0]; // Get first Rx range
+        const rxRange = product.rxRanges[0]; // Get first Rx range for backward compatibility
         return {
           id: product.id,
           itCode: product.itCode,
@@ -91,11 +90,18 @@ export async function GET(request: NextRequest) {
           offerPrice: product.baseOfferPrice,
           baseOfferPrice: product.baseOfferPrice,
           addOnPrice: product.addOnPrice,
-          sphMin: rxRange?.sphMin ?? -10, // Default values if no Rx range
+          sphMin: rxRange?.sphMin ?? -10, // Default values if no Rx range (backward compat)
           sphMax: rxRange?.sphMax ?? 10,
+          cylMin: rxRange?.cylMin ?? -4,
           cylMax: rxRange?.cylMax ?? 4,
-          addMin: null, // Note: addMin/addMax not stored in LensRxRange schema
-          addMax: null, // Note: addMin/addMax not stored in LensRxRange schema
+          rxRangeAddOnPrice: rxRange?.addOnPrice ?? 0,
+          rxRanges: product.rxRanges.map((r) => ({
+            sphMin: r.sphMin,
+            sphMax: r.sphMax,
+            cylMin: r.cylMin,
+            cylMax: r.cylMax,
+            addOnPrice: r.addOnPrice,
+          })),
           featureCodes: product.features.map((pf) => pf.feature.code), // Include feature codes
           yopoEligible: product.yopoEligible,
           isActive: product.isActive,
@@ -124,14 +130,19 @@ const createLensProductSchema = z.object({
   offerPrice: z.number().min(0).optional(),
   baseOfferPrice: z.number().min(0).optional(),
   addOnPrice: z.number().min(0).optional().nullable(),
-  sphMin: z.number().optional(),
-  sphMax: z.number().optional(),
-  cylMax: z.number().optional(),
-  addMin: z.number().optional().nullable(),
-  addMax: z.number().optional().nullable(),
+  rxRanges: z.array(z.object({
+    sphMin: z.number(),
+    sphMax: z.number(),
+    cylMin: z.number(),
+    cylMax: z.number(),
+    addMin: z.number().nullable().optional(),
+    addMax: z.number().nullable().optional(),
+    addOnPrice: z.number().min(0),
+  })).optional(),
   yopoEligible: z.boolean().optional().default(false),
   isActive: z.boolean().optional().default(true),
   featureCodes: z.array(z.string()).optional().default([]), // Feature codes for mapping
+  benefitScores: z.record(z.string(), z.number().min(0).max(3)).optional().default({}), // Benefit code -> score (0-3)
 });
 
 export async function POST(request: NextRequest) {
@@ -188,6 +199,22 @@ export async function POST(request: NextRequest) {
         })
       : [];
 
+    // Get benefit IDs from codes if provided
+    const benefitCodes = validated.benefitScores 
+      ? Object.keys(validated.benefitScores).filter(code => (validated.benefitScores?.[code] || 0) > 0)
+      : [];
+    
+    const benefits = benefitCodes.length > 0
+      ? await (prisma as any).benefitFeature.findMany({
+          where: {
+            organizationId: user.organizationId,
+            type: 'BENEFIT',
+            code: { in: benefitCodes },
+          },
+          select: { id: true, code: true },
+        })
+      : [];
+
     // Create lens product
     const baseOfferPrice = validated.baseOfferPrice || validated.offerPrice || 0;
     const mrp = validated.mrp || baseOfferPrice; // Use MRP if provided, otherwise use baseOfferPrice as MRP
@@ -206,18 +233,26 @@ export async function POST(request: NextRequest) {
         yopoEligible: validated.yopoEligible ?? false,
         deliveryDays: validated.deliveryDays ?? 4,
         isActive: validated.isActive ?? true,
-        rxRanges: (validated.sphMin !== undefined || validated.sphMax !== undefined) ? {
-          create: [{
-            sphMin: validated.sphMin ?? -10,
-            sphMax: validated.sphMax ?? 10,
-            cylMin: validated.cylMax !== undefined ? -validated.cylMax : -4,
-            cylMax: validated.cylMax ?? 4,
-            addOnPrice: 0,
-          }],
+        rxRanges: validated.rxRanges && validated.rxRanges.length > 0 ? {
+          create: validated.rxRanges.map((range) => ({
+            sphMin: range.sphMin,
+            sphMax: range.sphMax,
+            cylMin: range.cylMin,
+            cylMax: range.cylMax,
+            addMin: range.addMin ?? null,
+            addMax: range.addMax ?? null,
+            addOnPrice: range.addOnPrice,
+          })),
         } : undefined,
         features: features.length > 0 ? {
           create: features.map((f) => ({
             featureId: f.id,
+          })),
+        } : undefined,
+        benefits: benefits.length > 0 ? {
+          create: benefits.map((b: { id: string; code: string }) => ({
+            benefitId: b.id,
+            score: validated.benefitScores?.[b.code] || 0,
           })),
         } : undefined,
       },

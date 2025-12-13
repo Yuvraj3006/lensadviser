@@ -50,6 +50,9 @@ const createOrderSchema = z.object({
   offerData: z.any(),
   orderType: z.enum(['EYEGLASSES', 'LENS_ONLY', 'POWER_SUNGLASS', 'CONTACT_LENS_ONLY']).optional(),
   finalPrice: z.number().positive(),
+  sessionId: z.string().nullable().optional(), // For purchase context validation
+  purchaseContext: z.enum(['REGULAR', 'COMBO', 'YOPO']).nullable().optional(),
+  voucherCode: z.string().nullable().optional(), // Voucher code if applying
 });
 
 /**
@@ -134,6 +137,73 @@ export async function POST(request: NextRequest) {
 
     if (!store) {
       throw new ValidationError('Store not found');
+    }
+
+    // Server-side validation: Block mixed contexts and offer stacking in COMBO
+    const purchaseContext = validated.purchaseContext || null;
+    
+    // Voucher Policy Enforcement: Voucher cannot be used on same bill
+    // If voucherCode is provided, check if it was issued from a previous order
+    // and block usage on same session/bill
+    if (validated.voucherCode) {
+      const voucher = await prisma.voucher.findUnique({
+        where: { code: validated.voucherCode },
+      });
+
+      if (!voucher) {
+        throw new ValidationError('Invalid voucher code');
+      }
+
+      if (voucher.isUsed) {
+        throw new ValidationError('Voucher has already been used');
+      }
+
+      // Check if voucher is valid (within date range)
+      const now = new Date();
+      if (voucher.validFrom > now || voucher.validUntil < now) {
+        throw new ValidationError('Voucher is not valid at this time');
+      }
+
+      // Block voucher usage on same bill (if orderId matches current order being created)
+      // This is checked at checkout, so we just validate the voucher exists and is valid
+      // The actual "same bill" check happens if user tries to use voucher from current order
+    }
+
+    if (purchaseContext === 'COMBO' && validated.offerData) {
+      // In COMBO context, only coupon discounts are allowed
+      // Check if offerData contains disallowed offers (category, brand, YOPO, second pair)
+      const offersApplied = validated.offerData.offersApplied || [];
+      const disallowedOffers = offersApplied.filter((offer: any) => {
+        const ruleCode = offer.ruleCode || '';
+        const description = (offer.description || '').toLowerCase();
+        
+        // Block category discounts
+        if (ruleCode === 'CATEGORY' || description.includes('category discount')) {
+          return true;
+        }
+        // Block YOPO
+        if (ruleCode === 'YOPO_AUTO' || description.includes('yopo')) {
+          return true;
+        }
+        // Block second pair offers
+        if (description.includes('second pair') || description.includes('bogo') || description.includes('buy one get')) {
+          return true;
+        }
+        // Block brand offers (except combo pricing itself)
+        if (ruleCode && !ruleCode.includes('COMBO') && !ruleCode.includes('COUPON')) {
+          // Check if it's a brand-specific discount
+          if (description.includes('brand') && !description.includes('combo')) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (disallowedOffers.length > 0) {
+        throw new ValidationError(
+          `Offer stacking is not allowed in COMBO context. The following offers are disallowed: ${disallowedOffers.map((o: any) => o.description || o.ruleCode).join(', ')}`
+        );
+      }
     }
 
     // Business Rule: Staff selection is mandatory for STAFF_ASSISTED mode
@@ -471,12 +541,67 @@ export async function POST(request: NextRequest) {
       // #endregion
       console.log('[order/create] ✅ Order created successfully:', order.id);
       
+      // Issue voucher if this is a COMBO order (as per combo benefits - VOUCHER_NEXT_VISIT)
+      let voucherCode: string | null = null;
+      if (purchaseContext === 'COMBO' && order.finalPrice > 0) {
+        try {
+          // Calculate voucher value (e.g., 10% of order value, max ₹500)
+          const voucherValue = Math.min(order.finalPrice * 0.1, 500);
+          const validFrom = new Date();
+          validFrom.setDate(validFrom.getDate() + 1); // Valid from next day
+          const validUntil = new Date();
+          validUntil.setDate(validUntil.getDate() + 90); // Valid for 90 days
+
+          // Generate unique voucher code
+          const code = `VOUCHER-${order.id.slice(-6)}-${Date.now().toString(36).toUpperCase()}`;
+
+          const voucher = await prisma.voucher.create({
+            data: {
+              orderId: order.id,
+              code,
+              value: voucherValue,
+              validFrom,
+              validUntil,
+              isUsed: false,
+              issuedAt: new Date(),
+            },
+          });
+
+          voucherCode = voucher.code;
+          console.log('[Order] Voucher issued:', { code: voucher.code, value: voucherValue });
+        } catch (voucherError: any) {
+          console.error('[Order] Failed to issue voucher:', voucherError);
+          // Don't fail order creation if voucher creation fails
+        }
+      }
+
+      // Mark voucher as used if one was applied
+      if (validated.voucherCode) {
+        try {
+          await prisma.voucher.update({
+            where: { code: validated.voucherCode },
+            data: {
+              isUsed: true,
+              usedAt: new Date(),
+              sessionId: validated.sessionId || null,
+            },
+          });
+          console.log('[Order] Voucher marked as used:', validated.voucherCode);
+        } catch (voucherUpdateError: any) {
+          console.error('[Order] Failed to mark voucher as used:', voucherUpdateError);
+          // Don't fail order creation if voucher update fails
+        }
+      }
+      
       // Serialize the order response to handle BigInt and Date fields
       const serializedOrder = deepSerialize(order);
 
       return Response.json({
         success: true,
-        data: serializedOrder,
+        data: {
+          ...serializedOrder,
+          voucherCode, // Include voucher code if issued
+        },
       });
     } catch (prismaError: any) {
       // #region agent log

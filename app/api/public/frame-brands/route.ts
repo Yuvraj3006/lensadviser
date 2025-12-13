@@ -2,13 +2,15 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { handleApiError } from '@/lib/errors';
 
-// GET /api/public/frame-brands?storeCode=STORE-CODE
+// GET /api/public/frame-brands?storeCode=STORE-CODE&context=COMBO|REGULAR
 // Public endpoint to get frame brands for a store
 // Gets brands and sub-brands from Products table
+// Supports context filtering: COMBO filters by combo_allowed=true
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const storeCode = searchParams.get('storeCode');
+    const context = searchParams.get('context'); // COMBO | REGULAR | null
 
     if (!storeCode) {
       return Response.json(
@@ -47,12 +49,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Build where clause with context filtering
+    const whereClause: any = {
+      isActive: true,
+      productTypes: { has: 'FRAME' }, // Only frame brands
+    };
+
+    // If context is COMBO, filter by combo_allowed=true
+    if (context === 'COMBO') {
+      whereClause.comboAllowed = true;
+    }
+    // REGULAR shows all brands (no filtering needed)
+
     // Get brands and sub-brands from ProductBrand table (new unified brand system)
     const brands = await prisma.productBrand.findMany({
-      where: {
-        isActive: true,
-        productTypes: { has: 'FRAME' }, // Only frame brands
-      },
+      where: whereClause,
       include: {
         subBrands: {
           where: {
