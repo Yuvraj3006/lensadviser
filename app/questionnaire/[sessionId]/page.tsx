@@ -238,7 +238,7 @@ export default function QuestionnaireSessionPage() {
         )}
 
         {/* Question Card */}
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 mb-6">
+        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 mb-6">
           {/* Question Text */}
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-white mb-2">

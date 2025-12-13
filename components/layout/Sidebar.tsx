@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +25,8 @@ import {
   TrendingUp,
   Eye,
   Settings,
+  Menu,
+  X,
 } from 'lucide-react';
 // UserRole enum - defined inline since Prisma doesn't export unused enums
 enum UserRole {
@@ -177,31 +180,79 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ isOpen: controlledIsOpen, onClose }: SidebarProps = {}) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024); // lg breakpoint
+      if (window.innerWidth >= 1024) {
+        setIsMobileOpen(false);
+      }
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    if (isMobile) {
+      setIsMobileOpen(false);
+      onClose?.();
+    }
+  }, [pathname, isMobile, onClose]);
+
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : isMobileOpen;
+  const handleToggle = () => {
+    if (controlledIsOpen === undefined) {
+      setIsMobileOpen(!isMobileOpen);
+    }
+    onClose?.();
+  };
 
   const visibleItems = navItems.filter(
     (item) => !item.roles || (user && item.roles.includes(user.role))
   );
 
-  return (
-    <aside className="w-64 bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0">
+  const sidebarContent = (
+    <>
       {/* Logo */}
-      <div className="p-6 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-            <Glasses size={24} />
+      <div className="p-4 lg:p-6 border-b border-slate-800">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 lg:gap-3">
+            <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Glasses size={20} className="lg:w-6 lg:h-6" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-base lg:text-lg font-bold truncate">LensTrack</h1>
+              <p className="text-xs text-slate-400 hidden lg:block">Admin Panel</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold">LensTrack</h1>
-            <p className="text-xs text-slate-400">Admin Panel</p>
-          </div>
+          {/* Mobile close button */}
+          {isMobile && (
+            <button
+              onClick={handleToggle}
+              className="lg:hidden p-2 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <X size={20} />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 overflow-y-auto">
+      <nav className="flex-1 p-2 lg:p-4 overflow-y-auto">
         <ul className="space-y-1">
           {visibleItems.map((item) => {
             const isActive = pathname === item.href;
@@ -210,15 +261,16 @@ export function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={handleToggle}
                   className={clsx(
-                    'flex items-center gap-3 px-4 py-3 rounded-lg transition-colors',
+                    'flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-2 lg:py-3 rounded-lg transition-colors text-sm lg:text-base',
                     isActive
                       ? 'bg-blue-600 text-white'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   )}
                 >
-                  {item.icon}
-                  <span className="font-medium">{item.label}</span>
+                  <span className="flex-shrink-0">{item.icon}</span>
+                  <span className="font-medium truncate">{item.label}</span>
                 </Link>
               </li>
             );
@@ -227,21 +279,75 @@ export function Sidebar() {
       </nav>
 
       {/* User Info & Logout */}
-      <div className="p-4 border-t border-slate-800">
-        <div className="mb-3">
-          <p className="text-sm font-medium text-white">{user?.name}</p>
-          <p className="text-xs text-slate-400">{user?.email}</p>
-          <p className="text-xs text-blue-400 mt-1">{user?.role.replace('_', ' ')}</p>
+      <div className="p-3 lg:p-4 border-t border-slate-800">
+        <div className="mb-2 lg:mb-3">
+          <p className="text-xs lg:text-sm font-medium text-white truncate">{user?.name}</p>
+          <p className="text-xs text-slate-400 truncate hidden lg:block">{user?.email}</p>
+          <p className="text-xs text-blue-400 mt-1 hidden lg:block">{user?.role.replace('_', ' ')}</p>
         </div>
         <button
-          onClick={logout}
-          className="flex items-center gap-2 px-4 py-2 w-full rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+          onClick={() => {
+            handleToggle();
+            logout();
+          }}
+          className="flex items-center gap-2 px-3 lg:px-4 py-2 w-full rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-sm lg:text-base"
         >
-          <LogOut size={18} />
+          <LogOut size={16} className="lg:w-[18px] lg:h-[18px]" />
           <span className="font-medium">Logout</span>
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile Overlay */}
+      {isMobile && isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={handleToggle}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={clsx(
+          'bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0 z-50 transition-transform duration-300 ease-in-out',
+          'w-64 lg:w-64', // Fixed width
+          isMobile
+            ? isOpen
+              ? 'translate-x-0'
+              : '-translate-x-full'
+            : 'translate-x-0'
+        )}
+      >
+        {sidebarContent}
+      </aside>
+    </>
+  );
+}
+
+// Mobile menu button component
+export function SidebarToggle() {
+  const [isMobile, setIsMobile] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  if (!isMobile) return null;
+
+  return (
+    <button
+      onClick={() => setIsOpen(!isOpen)}
+      className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg hover:bg-slate-800 transition-colors"
+    >
+      <Menu size={24} />
+    </button>
   );
 }
 

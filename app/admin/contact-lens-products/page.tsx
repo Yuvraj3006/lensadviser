@@ -460,16 +460,16 @@ export default function ContactLensProductsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Contact Lens Products</h1>
-          <p className="text-slate-600 mt-1">Manage contact lens product catalog</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Contact Lens Products</h1>
+          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage contact lens product catalog</p>
         </div>
         <Button onClick={() => {
           setEditingProduct(null);
           resetForm();
           setIsModalOpen(true);
-        }}>
+        }} className="w-full sm:w-auto">
           <Plus size={20} className="mr-2" />
           Add Contact Lens Product
         </Button>

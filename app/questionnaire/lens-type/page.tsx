@@ -117,12 +117,12 @@ export default function LensTypePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl w-full">
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-2xl">
+        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 shadow-2xl">
           {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">What are you looking for?</h1>
+          <div className="text-center mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">What are you looking for?</h1>
             <p className="text-slate-400">Select the type of lens you need</p>
           </div>
 
@@ -131,8 +131,50 @@ export default function LensTypePage() {
             {categories.map((category) => (
               <button
                 key={category.value}
-                onClick={() => setSelectedCategory(category.value)}
-                className={`p-6 rounded-xl border-2 transition-all ${
+                onClick={async () => {
+                  setSelectedCategory(category.value);
+                  // Save selection immediately
+                  localStorage.setItem('lenstrack_lens_type', category.value);
+                  
+                  // If ACCESSORIES is selected, create session and go directly to accessories page
+                  if (category.value === ProductCategory.ACCESSORIES) {
+                    try {
+                      // Get store code from localStorage or use default
+                      const storeCode = localStorage.getItem('lenstrack_store_code') || 'MAIN-001';
+                      
+                      // Create session for accessories
+                      const response = await fetch('/api/public/questionnaire/sessions', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                          storeCode: storeCode,
+                          category: 'ACCESSORIES',
+                          customerName: 'Guest',
+                          customerPhone: '0000000000',
+                        }),
+                      });
+
+                      const data = await response.json();
+                      
+                      if (data.success && data.data?.sessionId) {
+                        // Navigate directly to accessories page
+                        router.push(`/questionnaire/${data.data.sessionId}/accessories`);
+                      } else {
+                        showToast('error', data.error?.message || 'Failed to start accessories flow');
+                      }
+                    } catch (error: any) {
+                      console.error('Failed to create session:', error);
+                      showToast('error', 'Failed to start accessories flow');
+                    }
+                    return;
+                  }
+                  
+                  // For other categories, navigate to prescription
+                  router.push('/questionnaire/prescription');
+                }}
+                className={`p-6 rounded-xl border-2 transition-all cursor-pointer ${
                   selectedCategory === category.value
                     ? 'border-blue-500 bg-blue-500/10'
                     : 'border-slate-700 bg-slate-700/50 hover:border-slate-600'
@@ -147,8 +189,8 @@ export default function LensTypePage() {
             ))}
           </div>
 
-          {/* Navigation */}
-          <div className="flex justify-between pt-6 border-t border-slate-700">
+          {/* Navigation - Only Back button now */}
+          <div className="flex justify-start pt-6 border-t border-slate-700">
             <Button
               variant="outline"
               onClick={() => router.push('/questionnaire/language')}
@@ -156,14 +198,6 @@ export default function LensTypePage() {
             >
               <ArrowLeft size={18} />
               Back
-            </Button>
-            <Button
-              onClick={handleNext}
-              disabled={!selectedCategory}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
-            >
-              Next: Prescription
-              <ArrowRight size={18} />
             </Button>
           </div>
         </div>

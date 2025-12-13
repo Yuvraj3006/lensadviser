@@ -170,18 +170,19 @@ export default function ComboTiersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">Combo Tiers</h1>
-              <p className="text-slate-600 mt-1">Manage combo offer tiers - Simple & Functional</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Combo Tiers</h1>
+              <p className="text-sm sm:text-base text-slate-600 mt-1">Manage combo offer tiers - Simple & Functional</p>
             </div>
             <Button
               onClick={() => router.push('/admin/combo-tiers/new?edit=true')}
               icon={<Plus size={16} />}
+              className="w-full sm:w-auto"
             >
               Create New Tier
             </Button>

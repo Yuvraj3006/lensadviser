@@ -65,14 +65,14 @@ export default function LensAdvisorPage() {
         />
       )}
       
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         {/* Step Header */}
         <StepHeader steps={steps} currentStep={currentStep} />
 
-        <div className="grid lg:grid-cols-4 gap-6 mt-6">
+        <div className="grid lg:grid-cols-4 gap-4 sm:gap-6 mt-4 sm:mt-6">
           {/* Main Content */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
               {currentStep === 1 && <PrescriptionForm />}
               {currentStep === 2 && <FrameEntryForm />}
               {currentStep === 3 && <QuestionnaireWizard />}

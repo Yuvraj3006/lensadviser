@@ -33,12 +33,12 @@ const tools = [
 
 export default function ToolsPage() {
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">Admin Tools</h1>
-          <p className="text-slate-600 mt-1">Utility tools for system management and testing</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Admin Tools</h1>
+          <p className="text-sm sm:text-base text-slate-600 mt-1">Utility tools for system management and testing</p>
         </div>
 
         {/* Tools Grid */}

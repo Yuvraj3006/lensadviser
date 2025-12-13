@@ -262,13 +262,13 @@ export default function BenefitFeaturesPage() {
   ];
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex justify-between items-center">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Benefits & Features Master</h1>
-          <p className="text-slate-600 mt-1">Unified management for Benefits and Features</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Benefits & Features Master</h1>
+          <p className="text-sm sm:text-base text-slate-600 mt-1">Unified management for Benefits and Features</p>
         </div>
-        <Button onClick={handleCreate} className="flex items-center gap-2">
+        <Button onClick={handleCreate} className="flex items-center gap-2 w-full sm:w-auto">
           <Plus size={20} />
           Create New
         </Button>

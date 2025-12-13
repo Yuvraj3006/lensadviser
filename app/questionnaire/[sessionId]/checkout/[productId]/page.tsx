@@ -352,7 +352,7 @@ export default function CheckoutPage() {
   if (!checkoutData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
-        <div className="text-center max-w-md bg-slate-800/50 backdrop-blur rounded-xl p-8 border border-slate-700 shadow-lg">
+        <div className="text-center max-w-md bg-slate-800/50 backdrop-blur rounded-xl p-6 sm:p-8 border border-slate-700 shadow-lg">
           <div className="text-5xl mb-4">⚠️</div>
           <h2 className="text-xl font-semibold text-white mb-2">Unable to Load Checkout</h2>
           <p className="text-slate-400 mb-6">

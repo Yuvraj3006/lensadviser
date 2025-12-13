@@ -38,22 +38,22 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left Side - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-white">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-white">
         <div className="w-full max-w-md">
           {/* Logo */}
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Glasses className="text-white" size={28} />
+          <div className="flex items-center gap-2 sm:gap-3 mb-6 sm:mb-8">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Glasses className="text-white" size={24} className="sm:w-7 sm:h-7" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">LensTrack</h1>
-              <p className="text-sm text-slate-600">Optical Store Management</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">LensTrack</h1>
+              <p className="text-xs sm:text-sm text-slate-600">Optical Store Management</p>
             </div>
           </div>
 
           {/* Login Form */}
-          <div className="mb-6">
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Welcome Back</h2>
+          <div className="mb-4 sm:mb-6">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-2">Welcome Back</h2>
             <p className="text-sm text-slate-600">
               Sign in to access your dashboard
             </p>
@@ -110,9 +110,9 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Branding */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-blue-600 via-purple-600 to-purple-700 p-12 items-center justify-center">
+      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-blue-600 via-purple-600 to-purple-700 p-8 lg:p-12 items-center justify-center">
         <div className="max-w-lg text-white">
-          <h2 className="text-4xl font-bold mb-6">
+          <h2 className="text-3xl lg:text-4xl font-bold mb-4 lg:mb-6">
             Intelligent Product Recommendations
           </h2>
           <p className="text-lg mb-8 text-blue-100">

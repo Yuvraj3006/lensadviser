@@ -151,16 +151,17 @@ export default function DashboardPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-600 mt-1">Overview of your store performance</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Dashboard</h1>
+          <p className="text-sm sm:text-base text-slate-600 mt-1">Overview of your store performance</p>
         </div>
         <Button
           variant="outline"
           icon={<RefreshCw size={18} />}
           onClick={loadDashboardData}
           loading={loading}
+          className="w-full sm:w-auto"
         >
           Refresh
         </Button>
@@ -198,9 +199,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Sessions */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-bold text-slate-900">Recent Sessions</h2>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200">
+          <h2 className="text-base sm:text-lg font-bold text-slate-900">Recent Sessions</h2>
         </div>
         <DataTable
           columns={columns}

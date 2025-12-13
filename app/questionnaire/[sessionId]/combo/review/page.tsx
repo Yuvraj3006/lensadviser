@@ -125,32 +125,32 @@ export default function ComboReviewPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="container mx-auto px-4 py-16">
+      <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 lg:py-16">
         <div className="max-w-4xl mx-auto">
           <Button
             onClick={() => router.back()}
             variant="ghost"
-            className="mb-6 text-slate-400 hover:text-white"
+            className="mb-4 sm:mb-6 text-slate-400 hover:text-white w-full sm:w-auto"
           >
             <ArrowLeft className="mr-2" size={20} />
             Back
           </Button>
 
-          <h1 className="text-3xl font-bold text-white mb-8">Review Your Combo</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-6 sm:mb-8">Review Your Combo</h1>
 
           {/* Combo Tier Summary */}
           <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-purple-700 p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
               <div>
-                <h2 className="text-2xl font-bold text-white">{comboTier.display_name} Combo</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-white">{comboTier.display_name} Combo</h2>
                 {comboTier.badge && (
                   <span className="inline-block mt-2 px-3 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-full">
                     {comboTier.badge}
                   </span>
                 )}
               </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-purple-400">
+              <div className="text-left sm:text-right">
+                <div className="text-2xl sm:text-3xl font-bold text-purple-400">
                   ₹{comboTier.effective_price.toLocaleString()}
                 </div>
                 <div className="text-sm text-slate-400">Effective Price</div>

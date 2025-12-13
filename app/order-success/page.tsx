@@ -50,15 +50,15 @@ function OrderSuccessContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
+      <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-6 sm:p-8">
         {/* WF-10: Large animated checkmark */}
-        <div className="text-center mb-8">
-          <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
-            <CheckCircle className="text-green-600" size={56} />
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 animate-bounce">
+            <CheckCircle className="text-green-600" size={48} className="sm:w-14 sm:h-14" />
           </div>
           
           {/* WF-10: Title */}
-          <h1 className="text-3xl font-bold text-slate-900 mb-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
             Order Created Successfully!
           </h1>
         </div>

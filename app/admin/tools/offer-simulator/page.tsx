@@ -80,17 +80,17 @@ export default function OfferSimulatorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2 flex items-center gap-3">
-            <Calculator size={32} className="text-blue-600" />
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 flex items-center gap-2 sm:gap-3">
+            <Calculator size={24} className="sm:w-8 sm:h-8 text-blue-600" />
             Offer Simulator
           </h1>
-          <p className="text-slate-600">Test offer calculations for different frame and lens combinations</p>
+          <p className="text-sm sm:text-base text-slate-600">Test offer calculations for different frame and lens combinations</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           {/* Left: Input Form */}
           <Card className="p-6">
             <h2 className="text-xl font-semibold text-slate-900 mb-6">Input Parameters</h2>

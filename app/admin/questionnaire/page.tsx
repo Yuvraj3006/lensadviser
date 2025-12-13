@@ -865,16 +865,16 @@ export default function QuestionnaireBuilderPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Questions Management</h1>
-          <p className="text-slate-600 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Questions Management</h1>
+          <p className="text-sm sm:text-base text-slate-600 mt-1">
             {viewMode === 'tree' 
               ? 'Build questions with subquestions (Tree View)' 
               : 'Manage all questions (Table View)'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
             <button
               onClick={() => setViewMode('tree')}

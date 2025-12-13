@@ -419,7 +419,7 @@ export default function RecommendationsPage() {
   if (!data || !data.recommendations || data.recommendations.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
-        <div className="text-center max-w-md bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-xl">
+        <div className="text-center max-w-md bg-slate-800/50 backdrop-blur rounded-2xl p-6 sm:p-8 border border-slate-700 shadow-xl">
           <div className="text-7xl mb-6 animate-bounce">🔍</div>
           <h2 className="text-2xl font-bold text-white mb-3">No Recommendations Found</h2>
           <p className="text-slate-300 mb-6 text-base">
@@ -554,14 +554,14 @@ export default function RecommendationsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* LA-05: Header */}
-      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 py-8 px-6 shadow-xl">
+      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 py-6 sm:py-8 px-4 sm:px-6 shadow-xl">
         <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between flex-wrap gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white drop-shadow-lg mb-2">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white drop-shadow-lg mb-2">
                 Best Lenses for You
               </h1>
-              <p className="text-emerald-50 text-base font-medium">
+              <p className="text-emerald-50 text-sm sm:text-base font-medium">
                 We analyzed your power, frame and lifestyle to recommend 4 options.
               </p>
             </div>
@@ -580,9 +580,9 @@ export default function RecommendationsPage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         {/* Sorting Controls */}
-        <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-slate-300">Sort by:</span>
             <select

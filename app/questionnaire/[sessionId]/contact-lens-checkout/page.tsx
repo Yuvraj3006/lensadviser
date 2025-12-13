@@ -289,11 +289,11 @@ export default function ContactLensCheckoutPage() {
   const powerData = finalPower ? JSON.parse(finalPower) : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-2xl">
-          <h1 className="text-3xl font-bold text-white mb-6 flex items-center gap-3">
-            <ShoppingBag size={32} />
+        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 shadow-2xl">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+            <ShoppingBag size={24} className="sm:w-8 sm:h-8" />
             Checkout
           </h1>
 

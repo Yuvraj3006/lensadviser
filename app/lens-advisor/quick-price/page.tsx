@@ -41,8 +41,8 @@ export default function QuickPricePage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-900">Quick Price Check</h1>
-          <p className="text-slate-600 mt-1">Fast flow for phone enquiries</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Quick Price Check</h1>
+          <p className="text-sm sm:text-base text-slate-600 mt-1">Fast flow for phone enquiries</p>
         </div>
 
         {/* Step Indicator */}

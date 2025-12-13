@@ -20,21 +20,21 @@ export default function LanguagePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
       <div className="max-w-md w-full">
         {/* WF-01: Lenstrack Logo (center) */}
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-4xl shadow-lg shadow-blue-500/30 mx-auto mb-4">
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl shadow-lg shadow-blue-500/30 mx-auto mb-3 sm:mb-4">
             👓
           </div>
-          <div className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+          <div className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
             LensTrack
           </div>
         </div>
 
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-2xl">
+        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-6 sm:p-8 border border-slate-700 shadow-2xl">
           {/* WF-01: Title */}
-          <h2 className="text-2xl font-bold text-white mb-2 text-center">
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2 text-center">
             Choose Your Language
           </h2>
           <p className="text-slate-400 text-center mb-8">अपनी भाषा चुनें</p>

@@ -171,17 +171,17 @@ export default function BandPricingPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" icon={<ArrowLeft size={18} />} onClick={() => router.back()}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <Button variant="outline" icon={<ArrowLeft size={18} />} onClick={() => router.back()} className="w-full sm:w-auto">
             Back
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Band Pricing</h1>
-            <p className="text-slate-600 mt-1">Manage power-based extra charges for this lens</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Band Pricing</h1>
+            <p className="text-sm sm:text-base text-slate-600 mt-1">Manage power-based extra charges for this lens</p>
           </div>
         </div>
-        <Button icon={<Plus size={18} />} onClick={handleCreate}>
+        <Button icon={<Plus size={18} />} onClick={handleCreate} className="w-full sm:w-auto">
           Add Band Pricing
         </Button>
       </div>

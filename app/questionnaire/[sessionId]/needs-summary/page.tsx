@@ -125,7 +125,7 @@ export default function NeedsSummaryPage() {
           </h1>
 
           {/* Summary Card */}
-          <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-8 mb-8">
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8">
             <div className="flex items-start gap-4">
               <CheckCircle className="text-green-400 flex-shrink-0 mt-1" size={24} />
               <div className="text-left">

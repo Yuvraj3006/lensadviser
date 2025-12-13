@@ -352,7 +352,7 @@ export default function OfferSummaryPage() {
   if (!data) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
-        <div className="text-center max-w-md bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-xl">
+        <div className="text-center max-w-md bg-slate-800/50 backdrop-blur rounded-2xl p-6 sm:p-8 border border-slate-700 shadow-xl">
           <div className="text-7xl mb-6">⚠️</div>
           <h2 className="text-2xl font-bold text-white mb-3">Unable to Load Offer Summary</h2>
           <p className="text-slate-300 mb-6">

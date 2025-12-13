@@ -162,12 +162,12 @@ export default function ContactLensQuestionnairePage() {
   const progress = ((currentQuestion + 1) / questions.length) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-3xl mx-auto">
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-2xl">
+        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 shadow-2xl">
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-              <Contact size={32} />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 flex items-center gap-2 sm:gap-3">
+              <Contact size={24} className="sm:w-8 sm:h-8" />
               Contact Lens Questionnaire
             </h1>
             <p className="text-slate-300">Help us recommend the best contact lenses for you</p>
@@ -188,7 +188,7 @@ export default function ContactLensQuestionnairePage() {
           </div>
 
           {/* Question Card */}
-          <div className="bg-white rounded-xl p-8 mb-6">
+          <div className="bg-white rounded-xl p-4 sm:p-6 lg:p-8 mb-6">
             <h2 className="text-2xl font-bold text-slate-900 mb-6">{currentQ.question}</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

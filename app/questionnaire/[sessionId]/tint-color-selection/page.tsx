@@ -190,10 +190,10 @@ export default function TintColorSelectionPage() {
   const mirrorAddOn = selectedMirrorObj?.addOnPrice || 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-2xl">
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 shadow-2xl">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 flex items-center gap-2 sm:gap-3">
             <Palette size={32} />
             Select Tint Color & Mirror Coating
           </h1>

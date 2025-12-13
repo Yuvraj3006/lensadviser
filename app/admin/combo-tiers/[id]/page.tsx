@@ -460,28 +460,28 @@ function ComboTierDetailPageContent() {
   const displayTier = editing ? { ...tier, ...formData } : tier;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
           <Button
             variant="outline"
             onClick={() => router.push('/admin/combo-tiers')}
-            className="mb-4"
+            className="mb-4 w-full sm:w-auto"
           >
             <ArrowLeft size={18} className="mr-2" />
             Back to Combo Tiers
           </Button>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
                 {isNew ? 'Create Combo Tier' : displayTier?.displayName || 'Combo Tier'}
               </h1>
               {!isNew && displayTier && (
-                <p className="text-slate-600 mt-1">Code: {displayTier.comboCode} • Version: {displayTier.comboVersion}</p>
+                <p className="text-sm sm:text-base text-slate-600 mt-1">Code: {displayTier.comboCode} • Version: {displayTier.comboVersion}</p>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               {!isNew && !editing && (
                 <Button
                   variant="outline"

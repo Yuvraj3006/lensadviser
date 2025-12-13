@@ -682,8 +682,8 @@ export default function ProductsPage() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-900 mb-1">Products</h1>
-        <p className="text-slate-600">Manage products, brands, and sub-brands</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">Products</h1>
+        <p className="text-sm sm:text-base text-slate-600">Manage products, brands, and sub-brands</p>
       </div>
 
       {/* Product Type Tabs */}

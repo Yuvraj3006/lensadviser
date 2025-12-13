@@ -439,16 +439,16 @@ export default function AdminLensDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Button variant="outline" onClick={() => router.push('/admin/lenses')}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex-1">
+          <Button variant="outline" onClick={() => router.push('/admin/lenses')} className="mb-4 w-full sm:w-auto">
             ← Back
           </Button>
-          <h1 className="text-3xl font-bold text-slate-900 mt-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-2 sm:mt-4">
             {lensId === 'new' ? 'New Lens' : formData.name || 'Edit Lens'}
           </h1>
         </div>
-        <Button onClick={handleSave} loading={submitting}>
+        <Button onClick={handleSave} loading={submitting} className="w-full sm:w-auto">
           Save Lens
         </Button>
       </div>
@@ -686,9 +686,9 @@ export default function AdminLensDetailPage() {
         {/* RX Ranges Tab */}
         {activeTab === 'rxRanges' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">RX Ranges</h3>
-              <Button onClick={addRxRange} size="sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h3 className="text-base sm:text-lg font-semibold text-slate-900">RX Ranges</h3>
+              <Button onClick={addRxRange} size="sm" className="w-full sm:w-auto">
                 + Add RX Range
               </Button>
             </div>
@@ -785,10 +785,10 @@ export default function AdminLensDetailPage() {
         {/* RX Add-On Pricing Tab */}
         {activeTab === 'powerAddOnPricing' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">RX Add-On Pricing</h3>
-                <p className="text-sm text-slate-500 mt-1">
+                <h3 className="text-base sm:text-lg font-semibold text-slate-900">RX Add-On Pricing</h3>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1">
                   Configure combined SPH + CYL + ADD based extra charges. All conditions in a band must match together.
                 </p>
               </div>
@@ -1010,9 +1010,9 @@ export default function AdminLensDetailPage() {
         {/* Specifications Tab */}
         {activeTab === 'specifications' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Specifications</h3>
-              <Button onClick={addSpec} size="sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h3 className="text-base sm:text-lg font-semibold text-slate-900">Specifications</h3>
+              <Button onClick={addSpec} size="sm" className="w-full sm:w-auto">
                 + Add Specification
               </Button>
             </div>

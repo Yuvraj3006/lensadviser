@@ -44,9 +44,9 @@ export default function ModeSelectionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
       <div className="max-w-2xl w-full">
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-2xl">
+        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 shadow-2xl">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2 text-center">Select Mode</h1>
             <p className="text-slate-400 text-center">Choose how you want to proceed</p>

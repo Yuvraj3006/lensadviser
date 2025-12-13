@@ -190,12 +190,12 @@ export default function CategoryDiscountsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Category Discounts</h1>
-          <p className="text-slate-600 mt-1">Manage customer category discounts</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Category Discounts</h1>
+          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage customer category discounts</p>
         </div>
-        <Button onClick={handleCreate}>
+        <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus size={20} className="mr-2" />
           Create Discount
         </Button>

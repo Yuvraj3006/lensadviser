@@ -202,18 +202,18 @@ export default function ComboProductsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="container mx-auto px-4 py-16">
+      <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 lg:py-16">
         <div className="max-w-4xl mx-auto">
           <Button
             onClick={() => router.back()}
             variant="ghost"
-            className="mb-6 text-slate-400 hover:text-white"
+            className="mb-4 sm:mb-6 text-slate-400 hover:text-white w-full sm:w-auto"
           >
             <ArrowLeft className="mr-2" size={20} />
             Back
           </Button>
 
-          <h1 className="text-3xl font-bold text-white mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-6 sm:mb-8">
             Select Your Products
           </h1>
 

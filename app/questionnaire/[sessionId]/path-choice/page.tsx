@@ -161,7 +161,7 @@ export default function PathChoicePage() {
           {/* Path Options */}
           <div className="grid md:grid-cols-2 gap-6">
             {/* REGULAR Path */}
-            <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-8 hover:border-blue-500 transition-all cursor-pointer">
+            <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-4 sm:p-6 lg:p-8 hover:border-blue-500 transition-all cursor-pointer">
               <div className="flex flex-col items-center text-center">
                 <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mb-4 border border-blue-500/30">
                   <ShoppingBag className="text-blue-400" size={32} />

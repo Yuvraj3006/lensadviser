@@ -141,17 +141,17 @@ export default function ComboTiersPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="container mx-auto px-4 py-16">
+      <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 lg:py-16">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
-          <div className="text-center mb-12">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <Package className="text-purple-400" size={32} />
-              <h1 className="text-4xl font-bold text-white">
+          <div className="text-center mb-8 sm:mb-12">
+            <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <Package className="text-purple-400" size={24} className="sm:w-8 sm:h-8" />
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">
                 Smart Value Combo
               </h1>
             </div>
-            <p className="text-slate-300 text-lg">
+            <p className="text-slate-300 text-base sm:text-lg">
               Choose the combo tier that works best for you
             </p>
           </div>
