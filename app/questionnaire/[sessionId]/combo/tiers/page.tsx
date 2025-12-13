@@ -146,7 +146,7 @@ export default function ComboTiersPage() {
           {/* Header */}
           <div className="text-center mb-8 sm:mb-12">
             <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-              <Package className="text-purple-400" size={24} className="sm:w-8 sm:h-8" />
+              <Package className="text-purple-400 sm:w-8 sm:h-8" size={24} />
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">
                 Smart Value Combo
               </h1>

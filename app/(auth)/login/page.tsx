@@ -43,7 +43,7 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="flex items-center gap-2 sm:gap-3 mb-6 sm:mb-8">
             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Glasses className="text-white" size={24} className="sm:w-7 sm:h-7" />
+              <Glasses className="text-white sm:w-7 sm:h-7" size={24} />
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">LensTrack</h1>

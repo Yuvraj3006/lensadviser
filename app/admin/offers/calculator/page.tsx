@@ -120,7 +120,7 @@ export default function OfferCalculatorPage() {
     <div>
       <div className="mb-6">
         <div className="flex items-center gap-2 sm:gap-3 mb-2">
-          <Calculator className="text-blue-500" size={24} className="sm:w-7 sm:h-7" />
+          <Calculator className="text-blue-500 sm:w-7 sm:h-7" size={24} />
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Offer Calculator</h1>
         </div>
         <p className="text-sm sm:text-base text-slate-600">Calculate offers for frame + lens combinations</p>

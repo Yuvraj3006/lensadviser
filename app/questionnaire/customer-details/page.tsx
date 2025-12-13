@@ -149,7 +149,7 @@ export default function CustomerDetailsPage() {
           {/* Header */}
           <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
             <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <User className="text-white" size={24} className="sm:w-8 sm:h-8" />
+              <User className="text-white sm:w-8 sm:h-8" size={24} />
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">Customer Details</h1>

@@ -249,7 +249,7 @@ export default function AccessoriesCheckoutPage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-3 sm:gap-4">
             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-500/30">
-              <ShoppingCart className="text-blue-400" size={20} className="sm:w-6 sm:h-6" />
+              <ShoppingCart className="text-blue-400 sm:w-6 sm:h-6" size={20} />
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-white mb-1">Checkout</h1>

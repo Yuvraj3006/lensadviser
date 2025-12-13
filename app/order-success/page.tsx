@@ -54,7 +54,7 @@ function OrderSuccessContent() {
         {/* WF-10: Large animated checkmark */}
         <div className="text-center mb-6 sm:mb-8">
           <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 animate-bounce">
-            <CheckCircle className="text-green-600" size={48} className="sm:w-14 sm:h-14" />
+            <CheckCircle className="text-green-600 sm:w-14 sm:h-14" size={48} />
           </div>
           
           {/* WF-10: Title */}
