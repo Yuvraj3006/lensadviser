@@ -210,6 +210,50 @@ export default function OfferSummaryPage() {
   const fetchOfferSummary = async () => {
     setLoading(true);
     try {
+      // ✅ BEST PRACTICE: Load category discount from session (database) first, then localStorage as fallback
+      let customerCategoryToUse: string | null = appliedCategory || null;
+      
+      // Try to get from session first (database)
+      try {
+        const sessionResponse = await fetch(
+          `/api/public/questionnaire/sessions/${sessionId}`
+        );
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          if (sessionData.success && sessionData.data?.session?.customerCategory) {
+            customerCategoryToUse = sessionData.data.session.customerCategory;
+            // Update state if not already set
+            if (customerCategoryToUse && !appliedCategory) {
+              setAppliedCategory(customerCategoryToUse);
+            }
+            console.log('[OfferSummary] ✅ Loaded category discount from session (database):', customerCategoryToUse);
+          }
+        }
+      } catch (sessionError) {
+        console.warn('[OfferSummary] Could not load from session, trying localStorage...', sessionError);
+      }
+      
+      // Fallback to localStorage if session doesn't have it
+      if (!customerCategoryToUse) {
+        const savedCategoryDiscount = localStorage.getItem('lenstrack_category_discount');
+        if (savedCategoryDiscount) {
+          try {
+            const categoryData = JSON.parse(savedCategoryDiscount);
+            customerCategoryToUse = categoryData.category || null;
+            // Update state if not already set
+            if (customerCategoryToUse && !appliedCategory) {
+              setAppliedCategory(customerCategoryToUse);
+              if (categoryData.idImage) {
+                setCategoryIdImagePreview(categoryData.idImage);
+              }
+            }
+            console.log('[OfferSummary] Loaded category discount from localStorage (fallback):', customerCategoryToUse);
+          } catch (e) {
+            console.error('[OfferSummary] Failed to parse saved category discount:', e);
+          }
+        }
+      }
+      
       // Get selected product from recommendations
       const recommendationsResponse = await fetch(
         `/api/public/questionnaire/sessions/${sessionId}/recommendations`
@@ -239,7 +283,7 @@ export default function OfferSummaryPage() {
       const tintSelection = localStorage.getItem(`lenstrack_tint_selection_${sessionId}`);
       const tintData = tintSelection ? JSON.parse(tintSelection) : null;
       
-      // Calculate offers using offer engine
+      // Calculate offers using offer engine (include category discount from localStorage)
       const offersResponse = await fetch(
         `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
         {
@@ -248,7 +292,7 @@ export default function OfferSummaryPage() {
           body: JSON.stringify({
             productId: productId,
             couponCode: null,
-            customerCategory: appliedCategory || null,
+            customerCategory: customerCategoryToUse,
             secondPair: null,
             tintSelection: tintData, // Include tint selection for mirror add-on price
           }),
@@ -950,7 +994,12 @@ export default function OfferSummaryPage() {
               {availableCategories.length > 0 ? (
                 <Select
                   value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedCategory(e.target.value);
+                    // Reset image when category changes
+                    setCategoryIdImage(null);
+                    setCategoryIdImagePreview(null);
+                  }}
                   options={[
                     { value: '', label: 'Select Category' },
                     ...(() => {
@@ -981,12 +1030,20 @@ export default function OfferSummaryPage() {
                 </div>
               )}
               
-              {selectedCategory && availableCategories.find(c => c.customerCategory === selectedCategory && c.categoryVerificationRequired) && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Upload ID Proof <span className="text-red-400">*</span>
-                    </label>
+              {selectedCategory && (() => {
+                const selectedCat = availableCategories.find(c => c.customerCategory === selectedCategory);
+                const requiresVerification = selectedCat?.categoryVerificationRequired === true;
+                console.log('[OfferSummary] Selected category:', selectedCategory);
+                console.log('[OfferSummary] Selected cat object:', selectedCat);
+                console.log('[OfferSummary] Requires verification:', requiresVerification);
+                
+                // Show upload option for all selected categories
+                return (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Upload ID Proof {requiresVerification && <span className="text-red-400">*</span>}
+                      </label>
                     <div className="flex items-center gap-3">
                       <label className="flex-1 cursor-pointer">
                         <input
@@ -1034,9 +1091,10 @@ export default function OfferSummaryPage() {
                         />
                       </div>
                     )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
               
               <Button
                 onClick={async () => {
@@ -1049,6 +1107,10 @@ export default function OfferSummaryPage() {
                   
                   setApplyingCategory(true);
                   try {
+                    console.log('[OfferSummary] Applying category discount:', selectedCategory);
+                    console.log('[OfferSummary] Product ID:', productId);
+                    console.log('[OfferSummary] Session ID:', sessionId);
+                    
                     // Convert image to base64 if exists
                     let idImageBase64 = null;
                     if (categoryIdImage) {
@@ -1060,47 +1122,90 @@ export default function OfferSummaryPage() {
                     }
                     
                     // Recalculate offers with category
+                    const requestBody = {
+                      productId: productId,
+                      couponCode: null,
+                      customerCategory: selectedCategory,
+                      secondPair: null,
+                    };
+                    console.log('[OfferSummary] Request body:', requestBody);
+                    
                     const offersResponse = await fetch(
                       `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
                       {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          productId: productId,
-                          couponCode: null,
-                          customerCategory: selectedCategory,
-                          secondPair: null,
-                        }),
+                        body: JSON.stringify(requestBody),
                       }
                     );
                     
+                    console.log('[OfferSummary] Response status:', offersResponse.status);
                     const offersData = await offersResponse.json();
+                    console.log('[OfferSummary] Response data:', offersData);
+                    
                     if (offersData.success && offersData.data) {
+                      console.log('[OfferSummary] Category discount in response:', offersData.data.categoryDiscount);
+                      console.log('[OfferSummary] Full offer result:', offersData.data);
+                      
+                      // Apply category discount if it exists (even if savings is 0, to show it's applied)
                       if (offersData.data.categoryDiscount) {
                         setAppliedCategory(selectedCategory);
+                        
+                        // ✅ BEST PRACTICE: Update session in database (not just localStorage)
+                        try {
+                          const sessionUpdateResponse = await fetch(
+                            `/api/public/questionnaire/sessions/${sessionId}`,
+                            {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                customerCategory: selectedCategory,
+                              }),
+                            }
+                          );
+                          
+                          if (sessionUpdateResponse.ok) {
+                            console.log('[OfferSummary] ✅ Session updated with category discount in database');
+                          } else {
+                            console.warn('[OfferSummary] ⚠️ Failed to update session, but continuing...');
+                          }
+                        } catch (sessionError) {
+                          console.error('[OfferSummary] Error updating session:', sessionError);
+                          // Continue even if session update fails (non-critical)
+                        }
+                        
                         // Update data with new offer result
                         setData(prev => prev ? {
                           ...prev,
                           offerResult: offersData.data,
                         } : null);
-                        // Save to localStorage
+                        
+                        // Also save to localStorage as fallback (for backward compatibility)
                         localStorage.setItem('lenstrack_category_discount', JSON.stringify({
                           category: selectedCategory,
                           idImage: idImageBase64,
                         }));
+                        
                         const discountAmount = offersData.data.categoryDiscount.savings || 0;
                         
                         // Fetch all applicable offers after category is applied
                         await fetchAllApplicableOffers(offersData.data);
                         
-                        showToast('success', `Category discount applied! You saved ₹${Math.round(discountAmount).toLocaleString()}`);
+                        if (discountAmount > 0) {
+                          showToast('success', `Category discount applied! You saved ₹${Math.round(discountAmount).toLocaleString()}`);
+                        } else {
+                          showToast('success', 'Category discount applied!');
+                        }
                       } else {
+                        console.warn('[OfferSummary] No category discount in response');
                         showToast('warning', 'No discount available for this category');
                       }
                     } else {
+                      console.error('[OfferSummary] API error:', offersData.error);
                       showToast('error', offersData.error?.message || 'Failed to apply category discount');
                     }
                   } catch (error) {
+                    console.error('[OfferSummary] Exception applying category discount:', error);
                     showToast('error', 'Failed to apply category discount');
                   } finally {
                     setApplyingCategory(false);
@@ -1373,26 +1478,57 @@ export default function OfferSummaryPage() {
             {/* Price Components - Use priceComponents array for accurate breakdown */}
             {data.offerResult.priceComponents && data.offerResult.priceComponents.length > 0 ? (
               <>
-                {data.offerResult.priceComponents.map((component: any, index: number) => {
-                  // Show all components - positive amounts are prices, negative are discounts
-                  if (component.amount < 0) {
-                    // Discount component - show with green styling
-                    return (
-                      <div key={index} className="flex justify-between items-center py-3 px-4 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-500/20 rounded-lg border-2 border-green-400/50">
-                        <span className="text-green-200 font-medium">{component.label}</span>
-                        <span className="text-lg font-bold text-green-300">-₹{Math.round(Math.abs(component.amount)).toLocaleString()}</span>
-                      </div>
-                    );
-                  } else {
-                    // Price component
-                    return (
-                      <div key={index} className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                        <span className="text-slate-300 font-medium">{component.label}</span>
-                        <span className="text-lg font-semibold text-white">₹{Math.round(component.amount).toLocaleString()}</span>
-                      </div>
-                    );
-                  }
-                })}
+                {data.offerResult.priceComponents
+                  .filter((component: any) => {
+                    // Filter out category discounts from price breakdown
+                    // Category discounts should only show in applicable offers section
+                    const labelLower = (component.label || '').toLowerCase();
+                    const isCategoryDiscount = labelLower.includes('category') || 
+                                              labelLower.includes('student') ||
+                                              labelLower.includes('doctor') ||
+                                              labelLower.includes('teacher') ||
+                                              labelLower.includes('senior') ||
+                                              labelLower.includes('corporate') ||
+                                              labelLower.includes('armed') ||
+                                              labelLower.includes('forces');
+                    
+                    // Filter out any component with 0 discount amount
+                    const hasZeroDiscount = component.amount < 0 && Math.abs(component.amount) === 0;
+                    
+                    // Filter out components with "0 off" or "₹0" in label
+                    const hasZeroInLabel = labelLower.includes('₹0') || 
+                                          labelLower.includes('0 off') ||
+                                          labelLower.includes('flat ₹0') ||
+                                          labelLower.includes('flat 0');
+                    
+                    return !isCategoryDiscount && !hasZeroDiscount && !hasZeroInLabel;
+                  })
+                  .map((component: any, index: number) => {
+                    // Show all components - positive amounts are prices, negative are discounts
+                    if (component.amount < 0) {
+                      // Discount component - show with green styling
+                      // Don't show if discount is 0
+                      if (Math.abs(component.amount) === 0) {
+                        return null;
+                      }
+                      return (
+                        <div key={index} className="flex justify-between items-center py-3 px-4 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-500/20 rounded-lg border-2 border-green-400/50">
+                          <span className="text-green-200 font-medium">{component.label}</span>
+                          <span className="text-lg font-bold text-green-300">-₹{Math.round(Math.abs(component.amount)).toLocaleString()}</span>
+                        </div>
+                      );
+                    } else {
+                      // Price component
+                      return (
+                        <div key={index} className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                          <span className="text-slate-300 font-medium">{component.label}</span>
+                          <span className="text-lg font-semibold text-white">₹{Math.round(component.amount).toLocaleString()}</span>
+                        </div>
+                      );
+                    }
+                  })
+                  .filter(Boolean) // Remove null entries (0 discounts)
+                }
               </>
             ) : (
               <>
@@ -1536,15 +1672,7 @@ export default function OfferSummaryPage() {
               })()}
             </div>
 
-            {/* Show discount components from priceComponents (negative amounts) */}
-            {data.offerResult.priceComponents && data.offerResult.priceComponents
-              .filter((component: any) => component.amount < 0)
-              .map((component: any, index: number) => (
-                <div key={`discount-${index}`} className="flex justify-between items-center py-3 px-4 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-500/20 rounded-lg border-2 border-green-400/50">
-                  <span className="text-slate-200 font-medium">{component.label}</span>
-                  <span className="text-lg font-bold text-green-300">₹{Math.round(Math.abs(component.amount)).toLocaleString()}</span>
-                </div>
-              ))}
+            {/* Discount components are already shown above, no need to duplicate */}
 
             {/* Subtotal - Show effectiveBase if YOPO/Combo is applied, otherwise baseTotal */}
             <div className="flex justify-between items-center py-4 px-4 bg-slate-700/70 rounded-lg border border-slate-600">

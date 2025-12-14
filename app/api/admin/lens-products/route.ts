@@ -19,10 +19,16 @@ export async function GET(request: NextRequest) {
     const brandLine = searchParams.get('brandLine') || searchParams.get('brandId'); // Support both for backward compat
     const visionType = searchParams.get('visionType') || searchParams.get('type') as VisionType | null;
     const lensIndex = searchParams.get('lensIndex') || searchParams.get('index') as LensIndex | null;
+    const comboAllowed = searchParams.get('comboAllowed'); // Filter by comboAllowed
 
     const where: any = {
       isActive: true,
     };
+    
+    // Filter by comboAllowed if specified
+    if (comboAllowed === 'true') {
+      where.comboAllowed = true;
+    }
 
     if (brandLine) {
       where.brandLine = brandLine; // LensProduct uses brandLine string, not lensBrandId
@@ -104,6 +110,7 @@ export async function GET(request: NextRequest) {
           })),
           featureCodes: product.features.map((pf) => pf.feature.code), // Include feature codes
           yopoEligible: product.yopoEligible,
+          comboAllowed: product.comboAllowed,
           isActive: product.isActive,
           createdAt: product.createdAt,
           updatedAt: product.updatedAt,
@@ -140,6 +147,7 @@ const createLensProductSchema = z.object({
     addOnPrice: z.number().min(0),
   })).optional(),
   yopoEligible: z.boolean().optional().default(false),
+  comboAllowed: z.boolean().optional().default(false),
   isActive: z.boolean().optional().default(true),
   featureCodes: z.array(z.string()).optional().default([]), // Feature codes for mapping
   benefitScores: z.record(z.string(), z.number().min(0).max(3)).optional().default({}), // Benefit code -> score (0-3)
@@ -231,6 +239,7 @@ export async function POST(request: NextRequest) {
         addOnPrice: validated.addOnPrice || null,
         category: validated.category as any || 'STANDARD',
         yopoEligible: validated.yopoEligible ?? false,
+        comboAllowed: validated.comboAllowed ?? false,
         deliveryDays: validated.deliveryDays ?? 4,
         isActive: validated.isActive ?? true,
         rxRanges: validated.rxRanges && validated.rxRanges.length > 0 ? {
@@ -273,6 +282,7 @@ export async function POST(request: NextRequest) {
         baseOfferPrice: lens.baseOfferPrice,
         addOnPrice: lens.addOnPrice,
         yopoEligible: lens.yopoEligible,
+        comboAllowed: lens.comboAllowed,
         isActive: lens.isActive,
         createdAt: lens.createdAt,
         updatedAt: lens.updatedAt,

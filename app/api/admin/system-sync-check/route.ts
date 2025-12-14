@@ -147,9 +147,23 @@ export async function GET(request: NextRequest) {
           break;
           
         case 'FREE_LENS':
-          if (!config.ruleType) {
-            reason = 'Missing ruleType in config';
+          // FREE_LENS requires ruleType to be set
+          // Valid values: 'PERCENT_OF_FRAME', 'VALUE_LIMIT', or null/undefined (fully free)
+          // However, the offer engine service requires ruleType, so we validate it
+          if (!config.ruleType || config.ruleType === null || config.ruleType === '') {
+            reason = 'Missing ruleType in config. Valid values: PERCENT_OF_FRAME, VALUE_LIMIT, or FULL (for fully free lens)';
+          } else if (config.ruleType === 'PERCENT_OF_FRAME') {
+            // If PERCENT_OF_FRAME, percentLimit is required
+            if (config.percentLimit === null || config.percentLimit === undefined) {
+              reason = 'ruleType is PERCENT_OF_FRAME but missing percentLimit in config';
+            }
+          } else if (config.ruleType === 'VALUE_LIMIT') {
+            // If VALUE_LIMIT, valueLimit is required
+            if (config.valueLimit === null || config.valueLimit === undefined) {
+              reason = 'ruleType is VALUE_LIMIT but missing valueLimit in config';
+            }
           }
+          // If ruleType is 'FULL' or other valid value, it's okay
           break;
           
         case 'BOG50':

@@ -158,7 +158,40 @@ export default function CheckoutPage() {
         quantity: 1,
       }));
       
-      // Calculate offers using offer engine (include accessories)
+      // ✅ BEST PRACTICE: Load category discount from session (database) first, then localStorage as fallback
+      let customerCategory: string | null = null;
+      
+      // Try to get from session first (database)
+      try {
+        const sessionResponse = await fetch(
+          `/api/public/questionnaire/sessions/${sessionId}`
+        );
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          if (sessionData.success && sessionData.data?.session?.customerCategory) {
+            customerCategory = sessionData.data.session.customerCategory;
+            console.log('[Checkout] ✅ Loaded category discount from session (database):', customerCategory);
+          }
+        }
+      } catch (sessionError) {
+        console.warn('[Checkout] Could not load from session, trying localStorage...', sessionError);
+      }
+      
+      // Fallback to localStorage if session doesn't have it
+      if (!customerCategory) {
+        const savedCategoryDiscount = localStorage.getItem('lenstrack_category_discount');
+        if (savedCategoryDiscount) {
+          try {
+            const categoryData = JSON.parse(savedCategoryDiscount);
+            customerCategory = categoryData.category || null;
+            console.log('[Checkout] Loaded category discount from localStorage (fallback):', customerCategory);
+          } catch (e) {
+            console.error('[Checkout] Failed to parse saved category discount:', e);
+          }
+        }
+      }
+      
+      // Calculate offers using offer engine (include accessories and category discount)
       const offersResponse = await fetch(
         `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
         {
@@ -167,6 +200,7 @@ export default function CheckoutPage() {
           body: JSON.stringify({
             productId: productId,
             couponCode: null,
+            customerCategory: customerCategory,
             secondPair: null,
             accessories: otherItems.length > 0 ? otherItems : undefined,
           }),

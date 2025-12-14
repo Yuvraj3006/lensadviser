@@ -6,6 +6,8 @@ import { AppProviders } from "@/components/providers/AppProviders";
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+  display: "swap", // Optimize font loading - use fallback font until Inter loads
+  preload: true, // Explicitly enable preloading
 });
 
 export const metadata: Metadata = {

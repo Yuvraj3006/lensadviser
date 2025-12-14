@@ -20,8 +20,7 @@ interface ComboBenefit {
   frameSubBrands?: string[]; // Multiple sub-brands
   framePriceMin?: number;
   framePriceMax?: number;
-  lensBrands?: string[]; // Multiple brands
-  lensSubBrands?: string[]; // Multiple sub-brands
+  lensProductIds?: string[]; // Multiple lens product IDs (direct selection)
   lensPriceMin?: number;
   lensPriceMax?: number;
   showAllLenses?: boolean;
@@ -57,8 +56,6 @@ const BENEFIT_TEMPLATES = [
 ];
 
 function ComboTierDetailPageContent() {
-  console.log('🟡🟡🟡 ComboTierDetailPageContent FUNCTION CALLED 🟡🟡🟡');
-  
   const router = useRouter();
   const params = useParams();
   const { showToast } = useToast();
@@ -70,13 +67,12 @@ function ComboTierDetailPageContent() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      setIsEditMode(urlParams.get('edit') === 'true');
+      const editMode = urlParams.get('edit') === 'true';
+      setIsEditMode(editMode);
     }
   }, []);
   
   const isNew = tierId === 'new' || !tierId || (isEditMode && !tierId);
-  
-  console.log('🟡 Initial values:', { tierId, isEditMode, isNew, paramsId: params?.id });
   
   // For new tiers, don't show loading at all
   const [loading, setLoading] = useState(true);
@@ -87,7 +83,7 @@ function ComboTierDetailPageContent() {
   
   // Data for constraints
   const [frameBrands, setFrameBrands] = useState<Array<{ id: string; name: string; subBrands: Array<{ id: string; name: string }> }>>([]);
-  const [lensBrands, setLensBrands] = useState<Array<{ id: string; name: string; subBrands: Array<{ id: string; name: string }> }>>([]);
+  const [lensProducts, setLensProducts] = useState<Array<{ id: string; itCode: string; name: string; brandLine: string; baseOfferPrice: number }>>([]);
   const [accessories, setAccessories] = useState<Array<{ id: string; name: string; brand?: { name: string } }>>([]);
   
   // Form state
@@ -102,99 +98,102 @@ function ComboTierDetailPageContent() {
   });
 
   useEffect(() => {
-    console.log('🔵 ComboTierDetailPage useEffect START:', { tierId, isNew, isEditMode, params: params?.id });
+    // Always fetch brands for constraints (needed for both new and existing tiers)
+    fetchBrands().catch(err => console.error('❌ Error fetching brands:', err));
     
     // Initialize based on whether it's a new tier or existing
     if (isNew) {
-      console.log('✅ Setting up new tier - loading=false, editing=true');
       // For new tiers, set loading to false and editing to true immediately
       setLoading(false);
       setEditing(true);
-      // Still fetch brands for constraints (non-blocking)
-      fetchBrands().catch(err => console.error('❌ Error fetching brands:', err));
     } else if (tierId && tierId !== 'new') {
-      console.log('📥 Fetching existing tier:', tierId);
       // For existing tiers, fetch the tier data
       fetchTier();
     } else {
-      console.log('⏳ Waiting for tierId...');
       // Fallback: if tierId is not available yet, keep loading
       setLoading(true);
     }
-    
-    console.log('🔵 ComboTierDetailPage useEffect END');
-  }, [tierId, isNew, isEditMode]);
+  }, [tierId, isNew]);
 
   const fetchBrands = async () => {
     try {
       const token = localStorage.getItem('lenstrack_token');
       
+      if (!token) {
+        console.error('[fetchBrands] No token found in localStorage');
+        return;
+      }
+      
+      console.log('[fetchBrands] Starting to fetch brands...');
+      
       // Fetch frame brands (with sub-brands)
       const frameResponse = await fetch('/api/admin/brands', {
         headers: { Authorization: `Bearer ${token}` },
       });
+      
+      console.log('[fetchBrands] Frame brands response status:', frameResponse.status);
+      
       if (frameResponse.ok) {
         const frameData = await frameResponse.json();
+        console.log('[fetchBrands] Frame brands data:', { success: frameData.success, count: frameData.data?.length || 0 });
+        
         if (frameData.success) {
           // Filter brands that have FRAME or SUNGLASS in productTypes
           const frameBrandsData = frameData.data.filter((b: any) => 
             b.productTypes?.includes('FRAME') || b.productTypes?.includes('SUNGLASS')
           );
+          console.log('[fetchBrands] Filtered frame brands:', frameBrandsData.length);
           setFrameBrands(frameBrandsData);
-        }
-      }
-      
-      // Fetch lens brands - use brands API directly to get brands with subBrands
-      // We'll use brands API and filter for all brands (lens brands might share same structure)
-      const brandsResponse = await fetch('/api/admin/brands', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (brandsResponse.ok) {
-        const brandsData = await brandsResponse.json();
-        if (brandsData.success) {
-          // Use all brands from brands API that have subBrands
-          // This ensures we have subBrands available
-          const allBrandsWithSubBrands = brandsData.data
-            .filter((b: any) => b.subBrands && b.subBrands.length > 0)
-            .map((b: any) => ({
-              id: b.id,
-              name: b.name,
-              subBrands: b.subBrands || [],
-            }));
-          
-          console.log('[Lens Brands] Using brands API for lens brands with subBrands:', allBrandsWithSubBrands.length);
-          setLensBrands(allBrandsWithSubBrands);
         } else {
-          // Fallback: fetch lens-brands API
-          const lensResponse = await fetch('/api/admin/lens-brands', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (lensResponse.ok) {
-            const lensData = await lensResponse.json();
-            if (lensData.success) {
-              setLensBrands((lensData.data || []).map((b: any) => ({
-                id: b.id,
-                name: b.name,
-                subBrands: [],
-              })));
-            }
-          }
+          console.error('[fetchBrands] Frame brands API returned error:', frameData.error);
         }
       } else {
-        // Fallback: fetch lens-brands API
-        const lensResponse = await fetch('/api/admin/lens-brands', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (lensResponse.ok) {
-          const lensData = await lensResponse.json();
-          if (lensData.success) {
-            setLensBrands((lensData.data || []).map((b: any) => ({
-              id: b.id,
-              name: b.name,
-              subBrands: [],
-            })));
-          }
+        const errorText = await frameResponse.text();
+        console.error('[fetchBrands] Frame brands fetch failed:', frameResponse.status, errorText);
+      }
+      
+      // Fetch combo-allowed lens products directly (no brands/sub-brands)
+      console.log('[fetchBrands] Fetching combo-allowed lens products...');
+      const comboLensesResponse = await fetch('/api/admin/lens-products?comboAllowed=true', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      console.log('[fetchBrands] Lens products response status:', comboLensesResponse.status);
+      
+      if (comboLensesResponse.ok) {
+        const comboLensesData = await comboLensesResponse.json();
+        console.log('[fetchBrands] Lens products data:', { success: comboLensesData.success, count: comboLensesData.data?.length || 0, error: comboLensesData.error });
+        
+        if (comboLensesData.success && comboLensesData.data && comboLensesData.data.length > 0) {
+          // Map lens products to a simpler format
+          const products = comboLensesData.data.map((lens: any) => ({
+            id: lens.id,
+            itCode: lens.itCode || '',
+            name: lens.name || '',
+            brandLine: lens.brandLine || '',
+            baseOfferPrice: lens.baseOfferPrice || 0,
+          }));
+          
+          // Sort by brandLine and name for better organization
+          products.sort((a: { id: string; itCode: string; name: string; brandLine: string; baseOfferPrice: number }, b: { id: string; itCode: string; name: string; brandLine: string; baseOfferPrice: number }) => {
+            const brandLineA = a.brandLine || '';
+            const brandLineB = b.brandLine || '';
+            if (brandLineA !== brandLineB) {
+              return brandLineA.localeCompare(brandLineB);
+            }
+            return (a.name || '').localeCompare(b.name || '');
+          });
+          
+          console.log('[fetchBrands] Loaded combo-allowed lens products:', products.length);
+          setLensProducts(products);
+        } else {
+          console.warn('[fetchBrands] No combo-allowed lens products found');
+          setLensProducts([]);
         }
+      } else {
+        const errorText = await comboLensesResponse.text();
+        console.error('[fetchBrands] Failed to fetch lens products:', comboLensesResponse.status, errorText);
+        setLensProducts([]);
       }
       
       // Fetch accessories for addon benefits
@@ -251,9 +250,8 @@ function ComboTierDetailPageContent() {
               if (parsedConstraints.frameBrand && !parsedConstraints.frameBrands) {
                 parsedConstraints.frameBrands = [parsedConstraints.frameBrand];
               }
-              if (parsedConstraints.lensBrand && !parsedConstraints.lensBrands) {
-                parsedConstraints.lensBrands = [parsedConstraints.lensBrand];
-              }
+              // Backward compatibility: convert old lensBrand/lensBrands to lensProductIds if needed
+              // (Old format won't be converted automatically, but we'll handle it in the UI)
             } catch (e) {
               parsedConstraints = {};
             }
@@ -302,7 +300,7 @@ function ComboTierDetailPageContent() {
 
       // Prepare benefits with constraints as JSON string
       const benefitsToSave = formData.benefits.map(b => {
-        const { frameBrands, frameSubBrands, framePriceMin, framePriceMax, lensBrands, lensSubBrands, lensPriceMin, lensPriceMax, showAllLenses, accessoryIds, ...rest } = b;
+        const { frameBrands, frameSubBrands, framePriceMin, framePriceMax, lensProductIds, lensPriceMin, lensPriceMax, showAllLenses, accessoryIds, ...rest } = b;
         
         // Build constraints object
         const constraints: any = {};
@@ -313,8 +311,7 @@ function ComboTierDetailPageContent() {
           if (framePriceMax !== undefined) constraints.framePriceMax = framePriceMax;
         } else if (b.benefitType === 'lens') {
           if (showAllLenses) constraints.showAllLenses = true;
-          if (lensBrands && lensBrands.length > 0) constraints.lensBrands = lensBrands;
-          if (lensSubBrands && lensSubBrands.length > 0) constraints.lensSubBrands = lensSubBrands;
+          if (lensProductIds && lensProductIds.length > 0) constraints.lensProductIds = lensProductIds;
           if (lensPriceMin !== undefined) constraints.lensPriceMin = lensPriceMin;
           if (lensPriceMax !== undefined) constraints.lensPriceMax = lensPriceMax;
         } else if (b.benefitType === 'addon') {
@@ -434,19 +431,7 @@ function ComboTierDetailPageContent() {
     }
   };
 
-  // Debug logging
-  console.log('🟢 ComboTierDetailPage RENDER:', { 
-    loading, 
-    editing, 
-    isNew, 
-    tierId, 
-    isEditMode,
-    paramsId: params?.id,
-    benefitsCount: formData.benefits.length 
-  });
-
   if (loading) {
-    console.log('⏳ Showing loading spinner - loading=true');
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <Spinner size="lg" />
@@ -454,8 +439,6 @@ function ComboTierDetailPageContent() {
       </div>
     );
   }
-  
-  console.log('✅ Not loading, rendering form');
 
   const displayTier = editing ? { ...tier, ...formData } : tier;
 
@@ -843,7 +826,7 @@ function ComboTierDetailPageContent() {
                             {/* Lens Constraints */}
                             {benefit.benefitType === 'lens' && (
                               <div className="pl-4 border-l-2 border-blue-200 space-y-2 bg-blue-50/50 p-3 rounded">
-                                <div className="text-sm font-medium text-slate-700 mb-2">Lens Selection Constraints</div>
+                                <div className="text-sm font-medium text-slate-700 mb-2">Lens Selection</div>
                                 <div className="space-y-2">
                                   <div className="flex items-center gap-2">
                                     <input
@@ -854,148 +837,76 @@ function ComboTierDetailPageContent() {
                                       className="w-4 h-4"
                                     />
                                     <label htmlFor={`show-all-${idx}`} className="text-sm text-slate-700">
-                                      Show All Lenses
+                                      Show All Combo-Allowed Lenses
                                     </label>
                                   </div>
                                   {!benefit.showAllLenses && (
-                                    <div className="space-y-3">
-                                      <div>
-                                        <label className="block text-xs text-slate-600 mb-2">Brands (Select Multiple)</label>
-                                        <div className="max-h-40 overflow-y-auto border border-slate-200 rounded p-2 bg-white">
-                                          {lensBrands.length === 0 ? (
-                                            <p className="text-xs text-slate-500 py-2">No brands available</p>
-                                          ) : (
-                                            <div className="space-y-1">
-                                              {lensBrands.map((brand) => {
-                                                const isSelected = (benefit.lensBrands || []).includes(brand.id);
-                                                return (
-                                                  <label
-                                                    key={brand.id}
-                                                    className="flex items-center gap-2 p-1 hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                                                  >
-                                                    <input
-                                                      type="checkbox"
-                                                      checked={isSelected}
-                                                      onChange={(e) => {
-                                                        const currentBrands = benefit.lensBrands || [];
-                                                        const newBrands = e.target.checked
-                                                          ? [...currentBrands, brand.id]
-                                                          : currentBrands.filter((id) => id !== brand.id);
-                                                        updateBenefitConstraint(idx, 'lensBrands', newBrands.length > 0 ? newBrands : undefined);
-                                                      }}
-                                                      className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                                                    />
-                                                    <span className="text-sm text-slate-700">{brand.name}</span>
-                                                  </label>
-                                                );
-                                              })}
-                                            </div>
-                                          )}
-                                        </div>
-                                        {(benefit.lensBrands || []).length > 0 && (
-                                          <p className="text-xs text-slate-500 mt-1">
-                                            {(benefit.lensBrands || []).length} brand(s) selected
-                                          </p>
-                                        )}
-                                      </div>
-                                      <div>
-                                        <label className="block text-xs text-slate-600 mb-2">Sub Brands (Select Multiple)</label>
-                                        <div className="max-h-60 overflow-y-auto border border-slate-200 rounded p-2 bg-white">
-                                          {(!benefit.lensBrands || benefit.lensBrands.length === 0) ? (
-                                            <p className="text-xs text-slate-500 py-2">Please select brands first to see sub-brands</p>
-                                          ) : (() => {
-                                            // Group subbrands by brand for better organization
-                                            console.log('[SubBrands] Checking subbrands for lens benefit:', {
-                                              lensBrands: lensBrands.length,
-                                              selectedBrandIds: benefit.lensBrands,
-                                              benefitLensBrands: benefit.lensBrands,
-                                            });
-                                            
-                                            const selectedBrands = lensBrands.filter(b => {
-                                              const isSelected = benefit.lensBrands?.includes(b.id);
-                                              console.log(`[SubBrands] Brand ${b.name} (${b.id}): selected=${isSelected}, subBrands=${b.subBrands?.length || 0}`);
-                                              return isSelected;
-                                            });
-                                            
-                                            console.log('[SubBrands] Selected brands:', selectedBrands.map(b => ({ name: b.name, subBrands: b.subBrands?.length || 0 })));
-                                            
-                                            const brandsWithSubBrands = selectedBrands.filter(b => b.subBrands && b.subBrands.length > 0);
-                                            
-                                            console.log('[SubBrands] Brands with subBrands:', brandsWithSubBrands.length);
-                                            
-                                            if (brandsWithSubBrands.length === 0) {
-                                              return <p className="text-xs text-slate-500 py-2">No sub-brands available for selected brands</p>;
-                                            }
-                                            
-                                            return (
-                                              <div className="space-y-3">
-                                                {brandsWithSubBrands.map((brand) => (
-                                                  <div key={brand.id} className="border-b border-slate-200 last:border-b-0 pb-2 last:pb-0">
-                                                    <div className="text-xs font-semibold text-slate-700 mb-1.5 px-1">
-                                                      {brand.name}
-                                                    </div>
-                                                    <div className="space-y-1 pl-2">
-                                                      {brand.subBrands?.map((subBrand) => {
-                                                        const isSelected = (benefit.lensSubBrands || []).includes(subBrand.id);
-                                                        return (
-                                                          <label
-                                                            key={subBrand.id}
-                                                            className="flex items-center gap-2 p-1.5 hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                                                          >
-                                                            <input
-                                                              type="checkbox"
-                                                              checked={isSelected}
-                                                              onChange={(e) => {
-                                                                const currentSubBrands = benefit.lensSubBrands || [];
-                                                                const newSubBrands = e.target.checked
-                                                                  ? [...currentSubBrands, subBrand.id]
-                                                                  : currentSubBrands.filter((id) => id !== subBrand.id);
-                                                                updateBenefitConstraint(idx, 'lensSubBrands', newSubBrands.length > 0 ? newSubBrands : undefined);
-                                                              }}
-                                                              className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                                                            />
-                                                            <span className="text-sm text-slate-700">
-                                                              {subBrand.name}
-                                                            </span>
-                                                          </label>
-                                                        );
-                                                      })}
+                                    <div>
+                                      <label className="block text-xs text-slate-600 mb-2">Select Lens Products (Multiple)</label>
+                                      <div className="max-h-60 overflow-y-auto border border-slate-200 rounded p-2 bg-white">
+                                        {lensProducts.length === 0 ? (
+                                          <p className="text-xs text-slate-500 py-2">No combo-allowed lens products available. Please mark lenses as "Combo Lens" first.</p>
+                                        ) : (
+                                          <div className="space-y-1">
+                                            {lensProducts.map((lens) => {
+                                              const isSelected = (benefit.lensProductIds || []).includes(lens.id);
+                                              return (
+                                                <label
+                                                  key={lens.id}
+                                                  className="flex items-center gap-2 p-2 hover:bg-blue-50 rounded cursor-pointer transition-colors border-b border-slate-100 last:border-b-0"
+                                                >
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={(e) => {
+                                                      const currentProducts = benefit.lensProductIds || [];
+                                                      const newProducts = e.target.checked
+                                                        ? [...currentProducts, lens.id]
+                                                        : currentProducts.filter((id) => id !== lens.id);
+                                                      updateBenefitConstraint(idx, 'lensProductIds', newProducts.length > 0 ? newProducts : undefined);
+                                                    }}
+                                                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                                  />
+                                                  <div className="flex-1">
+                                                    <div className="text-sm font-medium text-slate-700">{lens.name}</div>
+                                                    <div className="text-xs text-slate-500">
+                                                      {lens.brandLine} • {lens.itCode} • ₹{lens.baseOfferPrice.toLocaleString()}
                                                     </div>
                                                   </div>
-                                                ))}
-                                              </div>
-                                            );
-                                          })()}
-                                        </div>
-                                        {(benefit.lensSubBrands || []).length > 0 && (
-                                          <p className="text-xs text-slate-500 mt-1">
-                                            {(benefit.lensSubBrands || []).length} sub-brand(s) selected
-                                          </p>
+                                                </label>
+                                              );
+                                            })}
+                                          </div>
                                         )}
                                       </div>
-                                      <div>
-                                        <label className="block text-xs text-slate-600 mb-1">Add-on Price Range</label>
-                                        <div className="flex gap-2">
-                                          <Input
-                                            type="number"
-                                            value={benefit.lensPriceMin || ''}
-                                            onChange={(e) => updateBenefitConstraint(idx, 'lensPriceMin', e.target.value ? parseFloat(e.target.value) : undefined)}
-                                            placeholder="Min"
-                                            min="0"
-                                            className="flex-1"
-                                          />
-                                          <Input
-                                            type="number"
-                                            value={benefit.lensPriceMax || ''}
-                                            onChange={(e) => updateBenefitConstraint(idx, 'lensPriceMax', e.target.value ? parseFloat(e.target.value) : undefined)}
-                                            placeholder="Max"
-                                            min="0"
-                                            className="flex-1"
-                                          />
-                                        </div>
-                                      </div>
+                                      {(benefit.lensProductIds || []).length > 0 && (
+                                        <p className="text-xs text-slate-500 mt-1">
+                                          {(benefit.lensProductIds || []).length} lens product(s) selected
+                                        </p>
+                                      )}
                                     </div>
                                   )}
+                                  <div>
+                                    <label className="block text-xs text-slate-600 mb-1">Price Range (Optional)</label>
+                                    <div className="flex gap-2">
+                                      <Input
+                                        type="number"
+                                        value={benefit.lensPriceMin || ''}
+                                        onChange={(e) => updateBenefitConstraint(idx, 'lensPriceMin', e.target.value ? parseFloat(e.target.value) : undefined)}
+                                        placeholder="Min"
+                                        min="0"
+                                        className="flex-1"
+                                      />
+                                      <Input
+                                        type="number"
+                                        value={benefit.lensPriceMax || ''}
+                                        onChange={(e) => updateBenefitConstraint(idx, 'lensPriceMax', e.target.value ? parseFloat(e.target.value) : undefined)}
+                                        placeholder="Max"
+                                        min="0"
+                                        className="flex-1"
+                                      />
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -1221,8 +1132,6 @@ function ComboTierDetailPageContent() {
 }
 
 export default function ComboTierDetailPage() {
-  console.log('🔴🔴🔴 ComboTierDetailPage (Suspense wrapper) RENDERED 🔴🔴🔴');
-  
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">

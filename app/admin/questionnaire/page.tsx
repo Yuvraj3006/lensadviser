@@ -69,8 +69,10 @@ export default function QuestionnaireBuilderPage() {
 
   // Drag and Drop handlers - for reordering main questions AND creating sub-questions
   const handleDragStart = (e: React.DragEvent, question: Question) => {
+    console.log('[handleDragStart] Drag started', { questionId: question.id, textEn: question.textEn, parentAnswerId: question.parentAnswerId });
     setDraggedQuestion(question);
-    e.dataTransfer.effectAllowed = question.parentAnswerId ? 'link' : 'move'; // 'link' for sub-questions, 'move' for main questions
+    // Allow both 'move' and 'link' effects so questions can be reordered OR linked as subquestions
+    e.dataTransfer.effectAllowed = 'all'; // Changed from conditional to 'all' to allow both move and link
     e.dataTransfer.setData('text/plain', question.id);
     // Store question data for sub-question creation
     e.dataTransfer.setData('application/json', JSON.stringify({ questionId: question.id, isSubQuestion: !!question.parentAnswerId }));
@@ -94,10 +96,12 @@ export default function QuestionnaireBuilderPage() {
 
   // Handle drag over answer option (for creating sub-questions)
   const handleOptionDragOver = (e: React.DragEvent, questionId: string, optionId: string) => {
+    // Note: preventDefault is already called in inline handler, but keeping it here for safety
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'link';
     setDragOverOption({ questionId, optionId });
+    console.log('[handleOptionDragOver] Drag over option', { questionId, optionId, draggedQuestion: draggedQuestion?.id });
   };
 
   // Handle drag enter answer option
@@ -115,8 +119,13 @@ export default function QuestionnaireBuilderPage() {
     // Only clear if we're leaving the option area, not entering a child
     const target = e.currentTarget as HTMLElement;
     const relatedTarget = e.relatedTarget as HTMLElement;
-    if (!target.contains(relatedTarget)) {
+    // Don't clear dragOverOption if we're moving to a child element (like a badge or text)
+    // Only clear if we're truly leaving the drop zone
+    if (relatedTarget && !target.contains(relatedTarget)) {
+      console.log('[handleOptionDragLeave] Leaving option drop zone', { target: target.className, relatedTarget: relatedTarget.className });
       setDragOverOption(null);
+    } else {
+      console.log('[handleOptionDragLeave] Not leaving - moving within option zone', { hasRelatedTarget: !!relatedTarget });
     }
   };
 
@@ -249,6 +258,13 @@ export default function QuestionnaireBuilderPage() {
     e.stopPropagation();
     setDragOverOption(null);
 
+    console.log('[handleOptionDrop] DROP EVENT TRIGGERED', {
+      questionId,
+      optionId,
+      draggedQuestion: draggedQuestion ? { id: draggedQuestion.id, textEn: draggedQuestion.textEn } : null,
+      eventType: e.type,
+    });
+
     if (!draggedQuestion || !draggedQuestion.id) {
       console.warn('[handleOptionDrop] No dragged question or missing ID');
       return;
@@ -314,7 +330,20 @@ export default function QuestionnaireBuilderPage() {
         draggedQuestionId: draggedQuestionId,
         targetQuestionId: questionId,
         targetOptionId: optionId,
-        targetOption: targetOption,
+        targetOption: {
+          id: targetOption.id,
+          key: targetOption.key,
+          textEn: targetOption.textEn,
+          triggersSubQuestion: targetOption.triggersSubQuestion,
+          subQuestionId: targetOption.subQuestionId,
+        },
+        fullTargetQuestionOptions: fullTargetQuestion.options?.map((opt: any) => ({
+          id: opt.id,
+          key: opt.key,
+          textEn: opt.textEn,
+          triggersSubQuestion: opt.triggersSubQuestion,
+          subQuestionId: opt.subQuestionId,
+        })),
       });
 
       // Update the option to link the dragged question as sub-question
@@ -397,8 +426,11 @@ export default function QuestionnaireBuilderPage() {
       };
 
       console.log('[handleOptionDrop] Sending update requests:', {
+        targetQuestionId: questionId,
         targetQuestionBody: {
-          ...targetQuestionBody,
+          id: targetQuestionBody.id,
+          key: targetQuestionBody.key,
+          textEn: targetQuestionBody.textEn,
           options: targetQuestionBody.options.map((opt: any) => ({
             id: opt.id,
             key: opt.key,
@@ -406,11 +438,16 @@ export default function QuestionnaireBuilderPage() {
             triggersSubQuestion: opt.triggersSubQuestion,
             subQuestionId: opt.subQuestionId,
             nextQuestionIds: opt.nextQuestionIds,
+            benefitMapping: opt.benefitMapping ? Object.keys(opt.benefitMapping).length + ' benefits' : 'no benefits',
           })),
         },
+        draggedQuestionId: draggedQuestionId,
         draggedQuestionBody: {
-          ...draggedQuestionBody,
+          id: draggedQuestionBody.id,
+          key: draggedQuestionBody.key,
+          textEn: draggedQuestionBody.textEn,
           parentAnswerId: draggedQuestionBody.parentAnswerId,
+          optionsCount: draggedQuestionBody.options?.length || 0,
         },
       });
 
@@ -446,11 +483,49 @@ export default function QuestionnaireBuilderPage() {
         optionUpdateError: optionData.error,
         questionUpdateSuccess: questionData.success,
         questionUpdateError: questionData.error,
+        optionUpdateData: optionData.data ? {
+          id: optionData.data.id,
+          options: optionData.data.options?.map((opt: any) => ({
+            id: opt.id,
+            key: opt.key,
+            textEn: opt.textEn,
+            triggersSubQuestion: opt.triggersSubQuestion,
+            subQuestionId: opt.subQuestionId,
+            nextQuestionIds: opt.nextQuestionIds,
+          })) || [],
+        } : null,
+        questionUpdateData: questionData.data ? {
+          id: questionData.data.id,
+          parentAnswerId: questionData.data.parentAnswerId,
+        } : null,
       });
 
       if (optionData.success && questionData.success) {
-        showToast('success', `Sub-question linked successfully`);
-        fetchQuestions();
+        // Verify the update was successful by checking the returned data
+        const updatedOption = optionData.data?.options?.find((opt: any) => opt.id === optionId);
+        const updatedQuestion = questionData.data;
+        
+        console.log('[handleOptionDrop] Verification:', {
+          optionUpdated: updatedOption ? {
+            id: updatedOption.id,
+            triggersSubQuestion: updatedOption.triggersSubQuestion,
+            subQuestionId: updatedOption.subQuestionId,
+            nextQuestionIds: updatedOption.nextQuestionIds,
+          } : 'NOT FOUND',
+          questionUpdated: updatedQuestion ? {
+            id: updatedQuestion.id,
+            parentAnswerId: updatedQuestion.parentAnswerId,
+          } : 'NOT FOUND',
+        });
+        
+        if (updatedOption && updatedOption.subQuestionId === draggedQuestionId && updatedQuestion && updatedQuestion.parentAnswerId === optionId) {
+          showToast('success', `Sub-question linked successfully`);
+          fetchQuestions();
+        } else {
+          console.warn('[handleOptionDrop] Update may not have been applied correctly, refreshing anyway');
+          showToast('warning', `Sub-question link may not have been saved correctly. Please verify.`);
+          fetchQuestions();
+        }
       } else {
         const errorMsg = optionData.error?.message || questionData.error?.message || 'Failed to link sub-question';
         console.error('[handleOptionDrop] Error linking sub-question:', { 
@@ -562,6 +637,17 @@ export default function QuestionnaireBuilderPage() {
         const rootQuestions = allQuestionsList.filter((q: Question) => !q.parentAnswerId);
         console.log('[fetchQuestions] Root questions:', rootQuestions.length);
         
+        // Debug: Check for questions with parentAnswerId
+        const questionsWithParent = allQuestionsList.filter((q: Question) => q.parentAnswerId);
+        console.log('[fetchQuestions] Questions with parentAnswerId:', questionsWithParent.length, questionsWithParent.map((q: Question) => ({ id: q.id, textEn: q.textEn, parentAnswerId: q.parentAnswerId })));
+        
+        // Debug: Check for options with subquestions
+        const optionsWithSubquestions = allQuestionsList.flatMap((q: Question) => 
+          (q.options || []).filter((opt: any) => opt.triggersSubQuestion && opt.subQuestionId)
+            .map((opt: any) => ({ questionId: q.id, questionText: q.textEn, optionId: opt.id, optionText: opt.textEn, subQuestionId: opt.subQuestionId }))
+        );
+        console.log('[fetchQuestions] Options with subquestions:', optionsWithSubquestions.length, optionsWithSubquestions);
+        
         // Build tree: attach sub-questions to their parent answer options
         const buildTree = (questions: Question[]): Question[] => {
           return questions.map((q) => {
@@ -573,7 +659,12 @@ export default function QuestionnaireBuilderPage() {
                   const subQ = allQuestionsList.find((sq: Question) => sq.id === opt.subQuestionId);
                   if (subQ) {
                     subQuestions.push(subQ);
+                    console.log(`[buildTree] Found subquestion ${subQ.id} (${subQ.textEn}) linked to option ${opt.id} (${opt.textEn}) of question ${q.id}`);
+                  } else {
+                    console.warn(`[buildTree] Subquestion ${opt.subQuestionId} not found in allQuestionsList for option ${opt.id} of question ${q.id}`);
                   }
+                } else if (opt.triggersSubQuestion && !opt.subQuestionId) {
+                  console.warn(`[buildTree] Option ${opt.id} has triggersSubQuestion=true but no subQuestionId`);
                 }
               });
             }
@@ -703,8 +794,13 @@ export default function QuestionnaireBuilderPage() {
             onDragEnd={handleDragEnd}
             onDragOver={(e) => {
               // Only handle drag over for main questions, and only if not dragging over an option
+              // If dragging over an option, don't prevent default - let the option handle it
               if (!question.parentAnswerId && (!dragOverOption || dragOverOption.optionId === '')) {
                 handleDragOver(e, question.id);
+              } else if (dragOverOption && dragOverOption.optionId !== '') {
+                // If dragging over an option, don't prevent default - let the option's onDragOver handle it
+                // Don't call preventDefault here, let the option's handler do it
+                return;
               }
             }}
             onDragLeave={(e) => {
@@ -717,8 +813,15 @@ export default function QuestionnaireBuilderPage() {
             }}
             onDrop={(e) => {
               // Only handle drop for main questions, and only if not dropping on an option
+              // If we're dropping on an option, let the option handle it (it will stop propagation)
               if (!question.parentAnswerId && (!dragOverOption || dragOverOption.optionId === '')) {
+                e.preventDefault();
+                e.stopPropagation();
                 handleDrop(e, question.id);
+              } else if (dragOverOption && dragOverOption.optionId !== '') {
+                // If dropping on an option, don't handle it here - let the option handle it
+                // The option's onDrop will stop propagation
+                return;
               }
             }}
             onClick={() => handleQuestionSelect(question)}
@@ -812,10 +915,22 @@ export default function QuestionnaireBuilderPage() {
                   >
                     {/* Option Row - Drop Zone for Sub-Questions */}
                     <div
-                      onDragEnter={(e) => handleOptionDragEnter(e, question.id, option.id)}
-                      onDragOver={(e) => handleOptionDragOver(e, question.id, option.id)}
+                      onDragEnter={(e) => {
+                        console.log('[Option Drop Zone] onDragEnter', { questionId: question.id, optionId: option.id, draggedQuestion: draggedQuestion?.id });
+                        handleOptionDragEnter(e, question.id, option.id);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault(); // Critical: must prevent default for drop to work
+                        e.stopPropagation();
+                        handleOptionDragOver(e, question.id, option.id);
+                      }}
                       onDragLeave={handleOptionDragLeave}
-                      onDrop={(e) => handleOptionDrop(e, question.id, option.id)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation(); // Critical: prevent event from bubbling to parent question row
+                        console.log('[Option Drop Zone] onDrop triggered', { questionId: question.id, optionId: option.id, draggedQuestion: draggedQuestion?.id });
+                        handleOptionDrop(e, question.id, option.id);
+                      }}
                       className={`p-2 rounded border transition-colors min-h-[32px] ${
                         isDragOver 
                           ? 'border-blue-500 bg-blue-50 border-2' 
@@ -825,7 +940,10 @@ export default function QuestionnaireBuilderPage() {
                       } ${draggedQuestion ? 'cursor-pointer' : ''}`}
                       style={{ pointerEvents: 'auto' }}
                     >
-                      <div className="flex items-center gap-2">
+                      <div 
+                        className="flex items-center gap-2"
+                        style={{ pointerEvents: 'none' }} // Prevent child elements from interfering with drop
+                      >
                         <ChevronRight size={12} className="text-slate-400" />
                         <span className="text-xs font-medium text-slate-700">{option.textEn}</span>
                         <span className="text-xs text-slate-400 font-mono">({option.key})</span>

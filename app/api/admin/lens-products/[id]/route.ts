@@ -56,6 +56,7 @@ export async function GET(
         baseOfferPrice: product.baseOfferPrice,
         addOnPrice: product.addOnPrice,
         yopoEligible: product.yopoEligible,
+        comboAllowed: product.comboAllowed,
         isActive: product.isActive,
         rxRanges: product.rxRanges.map((r) => ({
           id: r.id,
@@ -101,6 +102,7 @@ const updateLensProductSchema = z.object({
     addOnPrice: z.number().min(0),
   })).optional(),
   yopoEligible: z.boolean().optional(),
+  comboAllowed: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -254,6 +256,7 @@ export async function PUT(
         ...(validated.baseOfferPrice !== undefined && { baseOfferPrice: validated.baseOfferPrice || validated.offerPrice }),
         ...(validated.addOnPrice !== undefined && { addOnPrice: validated.addOnPrice }),
         ...(validated.yopoEligible !== undefined && { yopoEligible: validated.yopoEligible }),
+        ...(validated.comboAllowed !== undefined && { comboAllowed: validated.comboAllowed }),
         ...(validated.isActive !== undefined && { isActive: validated.isActive }),
       },
       // LensProduct doesn't have lensBrand relation - it uses brandLine string
@@ -274,6 +277,7 @@ export async function PUT(
         baseOfferPrice: updated.baseOfferPrice,
         addOnPrice: updated.addOnPrice,
         yopoEligible: updated.yopoEligible,
+        comboAllowed: updated.comboAllowed,
         isActive: updated.isActive,
         createdAt: updated.createdAt,
         updatedAt: updated.updatedAt,

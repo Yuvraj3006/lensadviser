@@ -154,8 +154,8 @@ export default function QuestionnaireSessionPage() {
             analyticsService.questionnaireCompleted(sessionId);
           });
           
-          // All questions done - redirect to needs summary first, then path choice
-          router.push(`/questionnaire/${sessionId}/needs-summary`);
+          // All questions done - redirect directly to path choice
+          router.push(`/questionnaire/${sessionId}/path-choice`);
         } else {
           // Move to next question
           setCurrentQuestionIndex((prev) => prev + 1);

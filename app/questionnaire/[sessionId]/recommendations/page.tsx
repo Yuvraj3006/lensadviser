@@ -467,8 +467,14 @@ export default function RecommendationsPage() {
     return match ? parseFloat(match[0]) : 1.56;
   };
 
-  // Sort recommendations based on sortBy, then get first 4
-  const sortedForDisplay = [...data.recommendations].sort((a, b) => {
+  // Filter out 0% match lenses first
+  const validRecommendations = data.recommendations.filter(rec => {
+    const matchPercent = rec.matchPercent ?? (rec.matchScore ? rec.matchScore * 100 : 0);
+    return matchPercent > 0; // Only show lenses with > 0% match
+  });
+
+  // Sort recommendations based on sortBy, then get first 4 (use valid recommendations only)
+  const sortedForDisplay = [...validRecommendations].sort((a, b) => {
     switch (sortBy) {
       case 'price-high':
         return getLensPrice(b) - getLensPrice(a);
@@ -487,15 +493,15 @@ export default function RecommendationsPage() {
   // Get first 4 recommendations for LA-05 spec
   const topFourRecommendations = sortedForDisplay.slice(0, 4);
 
-  // Sort by matchPercent to find highest match
-  const sortedByMatchPercent = [...data.recommendations].sort((a, b) => {
-    const matchA = a.matchPercent ?? a.matchScore ?? 0;
-    const matchB = b.matchPercent ?? b.matchScore ?? 0;
+  // Sort by matchPercent to find highest match (use valid recommendations only)
+  const sortedByMatchPercent = [...validRecommendations].sort((a, b) => {
+    const matchA = a.matchPercent ?? (a.matchScore ? a.matchScore * 100 : 0);
+    const matchB = b.matchPercent ?? (b.matchScore ? b.matchScore * 100 : 0);
     return matchB - matchA; // Descending order
   });
 
-  // Sort by price to find lowest price
-  const sortedByPrice = [...data.recommendations].sort((a, b) => {
+  // Sort by price to find lowest price (use valid recommendations only)
+  const sortedByPrice = [...validRecommendations].sort((a, b) => {
     const priceA = getLensPrice(a);
     const priceB = getLensPrice(b);
     return priceA - priceB; // Ascending order (lowest first)
@@ -516,10 +522,10 @@ export default function RecommendationsPage() {
       return 'Recommended';
     } else if (recId === secondHighestMatchId) {
       return 'Next Best';
-    } else if (recId === lowestPriceId) {
+    } else {
+      // All other lenses (3rd, 4th, etc.) get "Can Try" label
       return 'Can Try';
     }
-    return '';
   };
 
   // Get tag for each recommendation based on match percent and price
@@ -528,14 +534,14 @@ export default function RecommendationsPage() {
       return 'BEST_RECOMMENDED';
     } else if (recId === secondHighestMatchId) {
       return 'NEXT_BEST';
-    } else if (recId === lowestPriceId) {
+    } else {
+      // All other lenses (3rd, 4th, etc.) get "CAN_TRY" tag
       return 'CAN_TRY';
     }
-    return 'OTHER';
   };
 
-  // Sort all recommendations for View All modal
-  const sortedRecommendations = [...data.recommendations].sort((a, b) => {
+  // Sort all recommendations for View All modal (use valid recommendations only)
+  const sortedRecommendations = [...validRecommendations].sort((a, b) => {
     switch (sortBy) {
       case 'price-high':
         return getLensPrice(b) - getLensPrice(a);
@@ -597,7 +603,7 @@ export default function RecommendationsPage() {
             </select>
           </div>
           <div className="text-sm text-slate-400">
-            Showing {topFourRecommendations.length} of {data.recommendations.length} recommendations
+            Showing {topFourRecommendations.length} of {validRecommendations.length} recommendations
           </div>
         </div>
 
@@ -641,7 +647,7 @@ export default function RecommendationsPage() {
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                       <span className="text-sm font-semibold text-slate-700">
-                        {Math.round(rec.matchScore)}% Match
+                        {Math.round(rec.matchPercent ?? (rec.matchScore * 100))}% Match
                       </span>
                     </div>
                   </div>
@@ -665,7 +671,7 @@ export default function RecommendationsPage() {
                   {benefits.length > 0 && (
                     <div className="mb-5">
                       <ul className="space-y-2">
-                        {benefits.map((benefit, idx) => (
+                        {benefits.map((benefit: string, idx: number) => (
                           <li key={idx} className="text-sm text-slate-700 flex items-start gap-3">
                             <CheckCircle size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
                             <span className="leading-relaxed">{benefit}</span>
@@ -849,7 +855,7 @@ export default function RecommendationsPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-2xl font-bold text-white mb-1">All lenses matching your power</h2>
-                  <p className="text-blue-100 text-sm">Found {data.recommendations.length} options</p>
+                  <p className="text-blue-100 text-sm">Found {validRecommendations.length} options</p>
                 </div>
                 <button
                   onClick={() => setShowViewAllModal(false)}
@@ -872,7 +878,7 @@ export default function RecommendationsPage() {
                 </select>
                 {data && (
                   <span className="text-sm text-blue-100 ml-auto">
-                    Showing {sortedRecommendations.length} of {data.recommendations.length} eligible lenses
+                    Showing {sortedRecommendations.length} of {validRecommendations.length} eligible lenses
                   </span>
                 )}
               </div>
@@ -889,11 +895,11 @@ export default function RecommendationsPage() {
                 const lensIndexStr = rec.lensIndex || rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
                 const lensIndexDisplay = formatIndexDisplay(lensIndexStr);
                 const brandLine = rec.brand || 'Premium';
-                const benefits = rec.features?.slice(0, 3).map(f => f?.name).filter(Boolean) || [];
+                const benefits = rec.features?.slice(0, 3).map((f: any) => f?.name).filter(Boolean) || [];
                 
                 // Get label based on match percent and price (same logic as top 4)
                 const label = getLabel(rec.id);
-                const canTry = rec.id === lowestPriceId;
+                const canTry = rec.id !== highestMatchId && rec.id !== secondHighestMatchId;
                 
                 // Get index recommendation data
                 const indexDelta = rec.indexRecommendation?.indexDelta ?? 0;
@@ -929,20 +935,13 @@ export default function RecommendationsPage() {
                             <span className={`px-3 py-1 text-xs font-bold rounded-full border ${
                               label === 'Recommended' 
                                 ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 border-blue-200'
-                                : label === 'Premium'
+                                : label === 'Next Best'
                                 ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 border-purple-200'
-                                : label === 'Value'
+                                : label === 'Can Try'
                                 ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-200'
-                                : label === 'Lowest Price'
-                                ? 'bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 border-orange-200'
                                 : 'bg-slate-100 text-slate-800 border-slate-200'
                             }`}>
                               {label}
-                            </span>
-                          )}
-                          {canTry && (
-                            <span className="px-2.5 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-lg border border-yellow-200">
-                              Can Try
                             </span>
                           )}
                           {indexInvalid && (
@@ -998,7 +997,7 @@ export default function RecommendationsPage() {
                         </div>
                         {benefits.length > 0 && (
                           <ul className="space-y-1.5 mb-3">
-                            {benefits.map((benefit, idx) => (
+                            {benefits.map((benefit: string, idx: number) => (
                               <li key={idx} className="text-sm text-slate-700 flex items-start gap-2">
                                 <CheckCircle size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
                                 <span>{benefit}</span>

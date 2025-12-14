@@ -69,6 +69,7 @@ export async function GET(
           benefitMapping,
           triggersSubQuestion: option.triggersSubQuestion || false,
           subQuestionId: option.subQuestionId || null,
+          nextQuestionIds: option.nextQuestionIds || (option.subQuestionId ? [option.subQuestionId] : []), // Support both formats
         };
       }),
     };
@@ -350,10 +351,72 @@ export async function PUT(
       }
     }
 
-    console.log(`[PUT /api/admin/questions/${questionId}] Updated successfully`);
+    // Fetch the updated question with all relations to return complete data
+    const updatedQuestion = await prisma.question.findUnique({
+      where: { id: questionId },
+      include: {
+        options: {
+          include: {
+            benefitMappings: {
+              include: {
+                benefit: {
+                  select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: {
+            order: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!updatedQuestion) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Question not found after update',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    // Transform options to include benefitMapping object (same as GET endpoint)
+    const transformedQuestion = {
+      ...updatedQuestion,
+      options: updatedQuestion.options.map((option) => {
+        const benefitMapping: Record<string, number> = {};
+        option.benefitMappings.forEach((bm) => {
+          benefitMapping[bm.benefit.code] = bm.points;
+        });
+        return {
+          ...option,
+          benefitMapping,
+          triggersSubQuestion: option.triggersSubQuestion || false,
+          subQuestionId: option.subQuestionId || null,
+          nextQuestionIds: option.nextQuestionIds || (option.subQuestionId ? [option.subQuestionId] : []),
+        };
+      }),
+    };
+
+    console.log(`[PUT /api/admin/questions/${questionId}] Updated successfully with ${transformedQuestion.options.length} options`);
+    console.log(`[PUT /api/admin/questions/${questionId}] Options with subquestions:`, 
+      transformedQuestion.options
+        .filter(opt => opt.triggersSubQuestion && opt.subQuestionId)
+        .map(opt => ({ id: opt.id, key: opt.key, subQuestionId: opt.subQuestionId }))
+    );
+    
     return Response.json({
       success: true,
-      data: question,
+      data: transformedQuestion,
     });
   } catch (error: any) {
     const errorDetails = {

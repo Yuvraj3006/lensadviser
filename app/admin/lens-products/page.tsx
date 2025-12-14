@@ -53,6 +53,7 @@ interface LensProduct {
   addMin: number | null;
   addMax: number | null;
   yopoEligible: boolean;
+  comboAllowed: boolean;
   isActive: boolean;
 }
 
@@ -104,6 +105,7 @@ export default function LensProductsPage() {
       addOnPrice: number;
     }>,
     yopoEligible: false,
+    comboAllowed: false,
     featureCodes: [] as string[],
     benefitScores: {} as Record<string, number>, // Benefit code -> score (0-3)
   });
@@ -225,6 +227,7 @@ export default function LensProductsPage() {
         },
       ],
       yopoEligible: false,
+      comboAllowed: false,
       featureCodes: [],
       benefitScores: {},
     });
@@ -324,6 +327,7 @@ export default function LensProductsPage() {
       addOnPrice: product.addOnPrice || 0,
       rxRanges,
       yopoEligible: product.yopoEligible,
+      comboAllowed: product.comboAllowed ?? false,
       featureCodes: (product as any).featureCodes || [],
       benefitScores,
     });
@@ -396,6 +400,7 @@ export default function LensProductsPage() {
             },
           ],
           yopoEligible: false,
+          comboAllowed: false,
           featureCodes: [] as string[],
           benefitScores: {},
         });
@@ -651,6 +656,7 @@ export default function LensProductsPage() {
               },
             ],
             yopoEligible: false,
+            comboAllowed: false,
             featureCodes: [] as string[],
             benefitScores: {},
           });
@@ -1096,6 +1102,19 @@ export default function LensProductsPage() {
             />
             <label htmlFor="yopoEligible" className="text-sm font-medium text-slate-700">
               YOPO Eligible
+            </label>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="comboAllowed"
+              checked={formData.comboAllowed}
+              onChange={(e) => setFormData({ ...formData, comboAllowed: e.target.checked })}
+              className="w-4 h-4 rounded border-slate-300"
+            />
+            <label htmlFor="comboAllowed" className="text-sm font-medium text-slate-700">
+              Combo Lens
             </label>
           </div>
 

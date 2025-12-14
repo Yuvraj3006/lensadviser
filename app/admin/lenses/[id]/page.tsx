@@ -37,6 +37,7 @@ interface LensFormData {
   addOnPrice: number;
   category: 'ECONOMY' | 'STANDARD' | 'PREMIUM' | 'ULTRA';
   yopoEligible: boolean;
+  comboAllowed: boolean;
   deliveryDays: number;
   isActive: boolean;
   rxRanges: RxRange[];
@@ -94,6 +95,7 @@ export default function AdminLensDetailPage() {
     addOnPrice: 0,
     category: 'STANDARD',
     yopoEligible: true,
+    comboAllowed: false,
     deliveryDays: 4,
     isActive: true,
     rxRanges: [],
@@ -182,6 +184,7 @@ export default function AdminLensDetailPage() {
           addOnPrice: lens.addOnPrice || 0,
           category: lens.category || 'STANDARD',
           yopoEligible: lens.yopoEligible ?? true,
+          comboAllowed: lens.comboAllowed ?? false,
           deliveryDays: lens.deliveryDays || 4,
           isActive: lens.isActive ?? true,
           rxRanges: lens.rxRanges || [],
@@ -222,6 +225,7 @@ export default function AdminLensDetailPage() {
         addOnPrice: formData.addOnPrice || null,
         category: formData.category,
         yopoEligible: formData.yopoEligible,
+        comboAllowed: formData.comboAllowed,
         deliveryDays: formData.deliveryDays,
         isActive: formData.isActive,
         rxRanges: formData.rxRanges,
@@ -669,6 +673,17 @@ export default function AdminLensDetailPage() {
                   className="w-4 h-4 rounded border-slate-300"
                 />
                 <span className="text-sm font-medium text-slate-700">YOPO Eligible</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.comboAllowed}
+                  onChange={(e) =>
+                    setFormData({ ...formData, comboAllowed: e.target.checked })
+                  }
+                  className="w-4 h-4 rounded border-slate-300"
+                />
+                <span className="text-sm font-medium text-slate-700">Combo Lens</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input

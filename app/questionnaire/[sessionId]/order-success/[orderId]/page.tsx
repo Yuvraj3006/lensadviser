@@ -81,6 +81,7 @@ export default function OrderSuccessPage() {
               createdAt: order.createdAt,
               frameData: typeof order.frameData === 'string' ? JSON.parse(order.frameData) : order.frameData,
               lensData: typeof order.lensData === 'string' ? JSON.parse(order.lensData) : order.lensData,
+              offerData: order.offerData || null, // Include offer data from API
             });
             setLoading(false);
             return;
@@ -619,13 +620,123 @@ export default function OrderSuccessPage() {
             </div>
           </div>
 
-          {/* Amount */}
-          <div className="flex justify-between items-center py-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl px-4 border-2 border-green-200">
-            <span className="text-xl font-bold text-slate-900">Total Amount</span>
-            <span className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              ₹{Math.round(orderData.finalPrice).toLocaleString()}
-            </span>
-          </div>
+          {/* Price Breakdown */}
+          {orderData.offerData && (
+            <div className="mt-6 p-6 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200">
+              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <FileText size={20} className="text-blue-600" />
+                Price Breakdown
+              </h3>
+              
+              <div className="space-y-3">
+                {/* Frame MRP */}
+                <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                  <span className="text-slate-700">
+                    Frame MRP {orderData.frameData.subBrand && `(${orderData.frameData.brand} - ${orderData.frameData.subBrand})`}
+                  </span>
+                  <span className="font-semibold text-slate-900">
+                    ₹{Math.round(orderData.offerData.frameMRP || orderData.frameData.mrp).toLocaleString()}
+                  </span>
+                </div>
+                
+                {/* Lens Price */}
+                <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                  <span className="text-slate-700">
+                    Lens Price ({orderData.lensData.name}{orderData.lensData.index ? ` - Index ${orderData.lensData.index}` : ''})
+                  </span>
+                  <span className="font-semibold text-slate-900">
+                    ₹{Math.round(orderData.offerData.lensPrice || orderData.lensData.price).toLocaleString()}
+                  </span>
+                </div>
+                
+                {/* RX Add-Ons */}
+                {(orderData.lensData as any).rxAddOnBreakdown && Array.isArray((orderData.lensData as any).rxAddOnBreakdown) && (orderData.lensData as any).rxAddOnBreakdown.length > 0 && (
+                  <>
+                    {(orderData.lensData as any).rxAddOnBreakdown.map((addOn: any, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center py-2 border-b border-slate-200">
+                        <span className="text-slate-700 text-sm">{addOn.label || 'High Power Add-On'}</span>
+                        <span className="font-semibold text-slate-900">+₹{Math.round(addOn.charge || 0).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+                
+                {/* Subtotal */}
+                <div className="flex justify-between items-center py-2 border-b-2 border-slate-300">
+                  <span className="font-semibold text-slate-900">Subtotal</span>
+                  <span className="font-bold text-slate-900">
+                    ₹{Math.round(orderData.offerData.baseTotal || ((orderData.offerData.frameMRP || orderData.frameData.mrp) + (orderData.offerData.lensPrice || orderData.lensData.price))).toLocaleString()}
+                  </span>
+                </div>
+                
+                {/* Discounts */}
+                {orderData.offerData.offersApplied && orderData.offerData.offersApplied.length > 0 && (
+                  <>
+                    {orderData.offerData.offersApplied
+                      .filter((offer: any) => offer.savings > 0)
+                      .map((offer: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center py-2 border-b border-slate-200">
+                          <span className="text-green-700 text-sm">{offer.description || offer.ruleCode}</span>
+                          <span className="font-semibold text-green-600">-₹{Math.round(offer.savings).toLocaleString()}</span>
+                        </div>
+                      ))}
+                  </>
+                )}
+                
+                {/* Category Discount */}
+                {orderData.offerData.categoryDiscount && orderData.offerData.categoryDiscount.savings > 0 && (
+                  <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                    <span className="text-green-700 text-sm">{orderData.offerData.categoryDiscount.description}</span>
+                    <span className="font-semibold text-green-600">-₹{Math.round(orderData.offerData.categoryDiscount.savings).toLocaleString()}</span>
+                  </div>
+                )}
+                
+                {/* Coupon Discount */}
+                {orderData.offerData.couponDiscount && orderData.offerData.couponDiscount.savings > 0 && (
+                  <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                    <span className="text-green-700 text-sm">{orderData.offerData.couponDiscount.description}</span>
+                    <span className="font-semibold text-green-600">-₹{Math.round(orderData.offerData.couponDiscount.savings).toLocaleString()}</span>
+                  </div>
+                )}
+                
+                {/* Second Pair Discount */}
+                {orderData.offerData.secondPairDiscount && orderData.offerData.secondPairDiscount.savings > 0 && (
+                  <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                    <span className="text-green-700 text-sm">{orderData.offerData.secondPairDiscount.description}</span>
+                    <span className="font-semibold text-green-600">-₹{Math.round(orderData.offerData.secondPairDiscount.savings).toLocaleString()}</span>
+                  </div>
+                )}
+                
+                {/* Total Discount */}
+                {((orderData.offerData.baseTotal || 0) - (orderData.finalPrice || 0)) > 0 && (
+                  <div className="flex justify-between items-center py-2 border-b-2 border-slate-300">
+                    <span className="font-semibold text-green-700">Total Discount</span>
+                    <span className="font-bold text-green-600">
+                      -₹{Math.round((orderData.offerData.baseTotal || 0) - (orderData.finalPrice || 0)).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+              
+              {/* Final Total */}
+              <div className="flex justify-between items-center py-4 mt-4 pt-4 border-t-2 border-slate-300 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg px-4">
+                <span className="text-xl font-bold text-slate-900">Total Amount</span>
+                <span className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  ₹{Math.round(orderData.finalPrice).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+          
+          {/* Amount (fallback if no offerData) */}
+          {!orderData.offerData && (
+            <div className="flex justify-between items-center py-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl px-4 border-2 border-green-200 mt-6">
+              <span className="text-xl font-bold text-slate-900">Total Amount</span>
+              <span className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                ₹{Math.round(orderData.finalPrice).toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Next Steps */}

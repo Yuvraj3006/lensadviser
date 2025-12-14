@@ -140,6 +140,10 @@ export async function PATCH(
     if (body.comboVersionUsed !== undefined) {
       updateData.comboVersionUsed = body.comboVersionUsed;
     }
+    // Update customerCategory (for category discounts)
+    if (body.customerCategory !== undefined) {
+      updateData.customerCategory = body.customerCategory || null;
+    }
 
     const updated = await prisma.session.update({
       where: { id: sessionId },
