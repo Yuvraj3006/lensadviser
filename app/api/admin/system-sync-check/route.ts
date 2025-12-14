@@ -227,7 +227,16 @@ export async function GET(request: NextRequest) {
         },
       },
       include: {
-        benefitMappings: true,
+        benefitMappings: {
+          include: {
+            benefit: {
+              select: {
+                id: true,
+                code: true,
+              },
+            },
+          },
+        },
         question: {
           select: {
             id: true,
@@ -238,7 +247,11 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const answersMissingBenefits = answersWithoutBenefits.filter((answer: any) => answer.benefitMappings.length === 0);
+    // Filter answers that truly have no benefit mappings
+    const answersMissingBenefits = answersWithoutBenefits.filter((answer: any) => {
+      const hasMappings = answer.benefitMappings && Array.isArray(answer.benefitMappings) && answer.benefitMappings.length > 0;
+      return !hasMappings;
+    });
     if (answersMissingBenefits.length > 0) {
       // Create detailed message with question and answer details
       const answerDetails = answersMissingBenefits

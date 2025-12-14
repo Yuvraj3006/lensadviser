@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
                 questionId: true,
                 triggersSubQuestion: true,
                 subQuestionId: true,
+                nextQuestionIds: true,
                 updatedAt: true,
               },
               orderBy: {

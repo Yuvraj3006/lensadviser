@@ -210,6 +210,7 @@ export default function QuestionnaireBuilderPage() {
           subQuestionId: subQuestionId,
           nextQuestionIds: nextQuestionIds,
           benefitMapping: opt.benefitMapping || {},
+          categoryWeight: opt.categoryWeight || 1.0, // Preserve categoryWeight
         };
       });
       
@@ -333,8 +334,12 @@ export default function QuestionnaireBuilderPage() {
             subQuestionId: draggedQuestionId,
             nextQuestionIds: [draggedQuestionId], // Also update new format
             benefitMapping: opt.benefitMapping || {},
+            categoryWeight: opt.categoryWeight || 1.0, // Preserve categoryWeight
           };
-          console.log('[handleOptionDrop] Updated option:', updatedOption);
+          console.log('[handleOptionDrop] Updated option with subquestion:', {
+            ...updatedOption,
+            benefitMappingKeys: Object.keys(updatedOption.benefitMapping || {}),
+          });
           return updatedOption;
         }
         // Preserve all other options with their full data
@@ -351,6 +356,7 @@ export default function QuestionnaireBuilderPage() {
           subQuestionId: opt.subQuestionId || null,
           nextQuestionIds: opt.nextQuestionIds || (opt.subQuestionId ? [opt.subQuestionId] : []),
           benefitMapping: opt.benefitMapping || {},
+          categoryWeight: opt.categoryWeight || 1.0, // Preserve categoryWeight
         };
         return preservedOption;
       });
@@ -374,6 +380,7 @@ export default function QuestionnaireBuilderPage() {
           subQuestionId: subQuestionId,
           nextQuestionIds: nextQuestionIds,
           benefitMapping: opt.benefitMapping || {},
+          categoryWeight: opt.categoryWeight || 1.0, // Preserve categoryWeight
         };
       });
 

@@ -131,14 +131,43 @@ export async function PUT(
     });
     const benefitMap = new Map(benefits.map((b) => [b.code, b.id]));
 
-    // Get old answer option IDs before deletion
+    // Get old answer options with their benefit mappings BEFORE deletion
+    // We need to preserve mappings by matching option keys, since IDs will change
     const oldOptions = await prisma.answerOption.findMany({
       where: { questionId: questionId },
-      select: { id: true },
+      include: {
+        benefitMappings: {
+          include: {
+            benefit: {
+              select: {
+                code: true,
+                id: true,
+              },
+            },
+          },
+        },
+      },
     });
+    
+    // Create a map of old option key -> benefit mappings for preservation
+    const oldMappingsByKey = new Map<string, Array<{ benefitCode: string; benefitId: string; points: number; categoryWeight: number }>>();
+    oldOptions.forEach((opt: any) => {
+      if (opt.key && opt.benefitMappings && opt.benefitMappings.length > 0) {
+        const mappings = opt.benefitMappings.map((bm: any) => ({
+          benefitCode: bm.benefit?.code,
+          benefitId: bm.benefitId,
+          points: bm.points || 0,
+          categoryWeight: bm.categoryWeight || 1.0,
+        })).filter((m: any) => m.benefitCode); // Only keep mappings with valid benefit codes
+        if (mappings.length > 0) {
+          oldMappingsByKey.set(opt.key, mappings);
+        }
+      }
+    });
+
     const oldOptionIds = oldOptions.map((o) => o.id);
 
-    // Delete old benefit mappings
+    // Delete old benefit mappings (will recreate them below)
     if (oldOptionIds.length > 0) {
       await prisma.answerBenefit.deleteMany({
         where: { answerId: { in: oldOptionIds } },
@@ -180,8 +209,20 @@ export async function PUT(
             ? opt.nextQuestionIds.filter((id: any) => id && String(id).trim() !== '')
             : (subQuestionId ? [subQuestionId] : []); // Fallback to legacy subQuestionId
 
-          // Set triggersSubQuestion to true if subQuestionId exists
+          // Set triggersSubQuestion to true if subQuestionId exists OR if explicitly set to true
           const triggersSubQuestion = subQuestionId ? true : Boolean(opt.triggersSubQuestion || false);
+          
+          // Debug logging for subquestion linking
+          if (subQuestionId || opt.triggersSubQuestion) {
+            console.log(`[PUT /api/admin/questions/${questionId}] Option ${index} subquestion config:`, {
+              optionKey,
+              subQuestionId,
+              triggersSubQuestion,
+              nextQuestionIds,
+              optSubQuestionId: opt.subQuestionId,
+              optTriggersSubQuestion: opt.triggersSubQuestion,
+            });
+          }
 
           const optionData = {
             key: optionKey,
@@ -230,12 +271,19 @@ export async function PUT(
         const opt = options[i];
         const answerOption = question.options[i];
         
-        if (opt.benefitMapping && answerOption) {
-          // Get category weight for this answer (applies to all benefits)
-          const answerCategoryWeight = typeof opt.categoryWeight === 'number' ? opt.categoryWeight : 1.0;
-          
-          // Create AnswerBenefit records for each benefit with points > 0
-          const benefitMappings = Object.entries(opt.benefitMapping)
+        if (!answerOption) continue;
+        
+        // Get category weight for this answer (applies to all benefits)
+        const answerCategoryWeight = typeof opt.categoryWeight === 'number' ? opt.categoryWeight : 1.0;
+        
+        // Determine which benefit mappings to use:
+        // 1. If opt.benefitMapping is provided and has entries, use it (explicit update)
+        // 2. Otherwise, preserve existing mappings from oldMappingsByKey (by matching option key)
+        let benefitMappingsToCreate: Array<{ answerId: string; benefitId: string; points: number; categoryWeight: number }> = [];
+        
+        if (opt.benefitMapping && Object.keys(opt.benefitMapping).length > 0) {
+          // Use new benefitMapping from request
+          const mappings = Object.entries(opt.benefitMapping)
             .filter(([_, points]: [string, unknown]) => typeof points === 'number' && points > 0) // Only create mappings with points > 0
             .map(([benefitCode, points]: [string, unknown]) => {
               const pointsValue = typeof points === 'number' ? points : 0;
@@ -248,31 +296,56 @@ export async function PUT(
                 answerId: answerOption.id,
                 benefitId: benefitId,
                 points: Math.max(0, Math.min(3, pointsValue)), // Clamp 0-3
-                categoryWeight: answerCategoryWeight, // Category weight multiplier (same for all benefits in this answer)
+                categoryWeight: answerCategoryWeight,
               };
             })
-            .filter((mapping) => mapping !== null);
-
-          if (benefitMappings.length > 0) {
-            // MongoDB doesn't support skipDuplicates, so we create individually
-            await Promise.all(
-              benefitMappings.map(mapping =>
-                prisma.answerBenefit.upsert({
-                  where: {
-                    answerId_benefitId: {
-                      answerId: mapping.answerId,
-                      benefitId: mapping.benefitId,
-                    },
-                  },
-                  update: { 
-                    points: mapping.points,
-                    categoryWeight: mapping.categoryWeight || 1.0,
-                  },
-                  create: mapping,
-                })
-              )
-            );
+            .filter((mapping) => mapping !== null) as Array<{ answerId: string; benefitId: string; points: number; categoryWeight: number }>;
+          
+          benefitMappingsToCreate = mappings;
+        } else {
+          // Preserve existing mappings by matching option key
+          const optionKey = opt.key || answerOption.key;
+          const preservedMappings = oldMappingsByKey.get(optionKey);
+          if (preservedMappings && preservedMappings.length > 0) {
+            benefitMappingsToCreate = preservedMappings
+              .filter((m) => {
+                // Verify benefit still exists and is active
+                const benefitId = benefitMap.get(m.benefitCode);
+                return benefitId && m.points > 0;
+              })
+              .map((m) => {
+                const benefitId = benefitMap.get(m.benefitCode);
+                return {
+                  answerId: answerOption.id,
+                  benefitId: benefitId!,
+                  points: Math.max(0, Math.min(3, m.points)),
+                  categoryWeight: m.categoryWeight || answerCategoryWeight,
+                };
+              });
+            
+            console.log(`[PUT /api/admin/questions/${questionId}] Preserving ${benefitMappingsToCreate.length} benefit mappings for option key: ${optionKey}`);
           }
+        }
+
+        if (benefitMappingsToCreate.length > 0) {
+          // MongoDB doesn't support skipDuplicates, so we create individually
+          await Promise.all(
+            benefitMappingsToCreate.map(mapping =>
+              prisma.answerBenefit.upsert({
+                where: {
+                  answerId_benefitId: {
+                    answerId: mapping.answerId,
+                    benefitId: mapping.benefitId,
+                  },
+                },
+                update: { 
+                  points: mapping.points,
+                  categoryWeight: mapping.categoryWeight || 1.0,
+                },
+                create: mapping,
+              })
+            )
+          );
         }
       }
     }
