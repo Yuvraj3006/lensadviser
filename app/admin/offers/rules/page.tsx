@@ -369,12 +369,14 @@ export default function OfferRulesPage() {
       key: 'actions',
       header: 'Actions',
       render: (rule) => (
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={() => handleEdit(rule)}>
-            <Edit2 size={16} />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" size="sm" onClick={() => handleEdit(rule)} className="text-xs sm:text-sm">
+            <Edit2 size={14} className="sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline ml-1">Edit</span>
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm(rule)}>
-            <Trash2 size={16} />
+          <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm(rule)} className="text-xs sm:text-sm">
+            <Trash2 size={14} className="sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline ml-1">Delete</span>
           </Button>
         </div>
       ),
@@ -386,15 +388,16 @@ export default function OfferRulesPage() {
   }
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Offer Rules</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage offer rules and discounts</p>
+    <div className="w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate">Offer Rules</h1>
+          <p className="text-xs sm:text-sm lg:text-base text-slate-600 mt-1">Manage offer rules and discounts</p>
         </div>
-        <Button onClick={handleCreate} className="w-full sm:w-auto">
+        <Button onClick={handleCreate} className="w-full sm:w-auto flex-shrink-0">
           <Plus size={20} className="mr-2" />
-          Create Rule
+          <span className="hidden sm:inline">Create Rule</span>
+          <span className="sm:hidden">Create</span>
         </Button>
       </div>
 
@@ -409,7 +412,11 @@ export default function OfferRulesPage() {
           }}
         />
       ) : (
-        <DataTable data={rules} columns={columns} />
+        <div className="overflow-x-auto">
+          <div className="min-w-full">
+            <DataTable data={rules} columns={columns} />
+          </div>
+        </div>
       )}
 
       {/* Create/Edit Modal */}
@@ -419,8 +426,8 @@ export default function OfferRulesPage() {
         title={editingRule ? 'Edit Offer Rule' : 'Create Offer Rule'}
         size="full"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 overflow-y-auto max-h-[85vh] pr-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Input
               label="Name"
               value={formData.name || ''}
@@ -435,7 +442,7 @@ export default function OfferRulesPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Select
               label="Offer Type"
               value={formData.offerType || ''}
@@ -481,7 +488,7 @@ export default function OfferRulesPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Input
               label="Discount Value"
               type="number"
@@ -496,7 +503,7 @@ export default function OfferRulesPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Select
               label="Frame Brand"
               value={formData.frameBrand || ''}
@@ -526,7 +533,7 @@ export default function OfferRulesPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Input
               label="Min Frame MRP"
               type="number"
@@ -783,7 +790,7 @@ export default function OfferRulesPage() {
                 <label className="block text-sm font-medium text-slate-700">
                   Eligible Frames (Select Brands & Sub-Brands)
                 </label>
-                <div className="border border-slate-300 rounded-lg p-4 max-h-96 overflow-y-auto bg-slate-50">
+                <div className="border border-slate-300 rounded-lg p-2 sm:p-4 max-h-48 sm:max-h-64 lg:max-h-96 overflow-y-auto bg-slate-50">
                   {/* Universal option */}
                   <div className="mb-4 pb-4 border-b border-slate-300">
                     <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-2 rounded">
@@ -1012,14 +1019,14 @@ export default function OfferRulesPage() {
             </div>
           )}
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={formData.isSecondPairRule || false}
                 onChange={(e) => setFormData({ ...formData, isSecondPairRule: e.target.checked })}
               />
-              <span>Second Pair Rule</span>
+              <span className="text-sm sm:text-base">Second Pair Rule</span>
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -1027,15 +1034,15 @@ export default function OfferRulesPage() {
                 checked={formData.isActive ?? true}
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
               />
-              <span>Active</span>
+              <span className="text-sm sm:text-base">Active</span>
             </label>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={() => setIsCreateOpen(false)}>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 sticky bottom-0 bg-white pb-2 sm:pb-0">
+            <Button type="button" variant="secondary" onClick={() => setIsCreateOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
               {submitting ? 'Saving...' : editingRule ? 'Update' : 'Create'}
             </Button>
           </div>

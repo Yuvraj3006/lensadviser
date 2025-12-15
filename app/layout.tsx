@@ -20,34 +20,21 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // #region agent log
-  console.log('[DEBUG] RootLayout rendering', { timestamp: Date.now() });
-  // #endregion
-  
   // Wrap in error boundary at layout level
   let appProvidersElement: React.ReactNode;
   try {
-    // #region agent log
-    console.log('[DEBUG] RootLayout before AppProviders check', { timestamp: Date.now(), hasAppProviders: typeof AppProviders !== 'undefined' });
-    // #endregion
-    
     if (typeof AppProviders === 'undefined') {
       throw new Error('AppProviders is undefined');
     }
     
     appProvidersElement = <AppProviders>{children}</AppProviders>;
   } catch (error: any) {
-    // #region agent log
-    console.error('[DEBUG] RootLayout AppProviders error', { error: error?.message, stack: error?.stack, name: error?.name, timestamp: Date.now() });
-    // #endregion
+    console.error('[RootLayout] AppProviders error', { error: error?.message });
     // Fallback: render children without providers if AppProviders fails
     appProvidersElement = <>{children}</>;
   }
   
   try {
-    // #region agent log
-    console.log('[DEBUG] RootLayout before return', { timestamp: Date.now() });
-    // #endregion
     return (
       <html lang="en">
         <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
@@ -56,9 +43,7 @@ export default function RootLayout({
       </html>
     );
   } catch (error: any) {
-    // #region agent log
-    console.error('[DEBUG] RootLayout render error', { error: error?.message, stack: error?.stack, name: error?.name, timestamp: Date.now() });
-    // #endregion
+    console.error('[RootLayout] Render error', { error: error?.message });
     // Last resort: return minimal HTML
     return (
       <html lang="en">

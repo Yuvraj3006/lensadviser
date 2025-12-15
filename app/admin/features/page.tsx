@@ -355,20 +355,21 @@ export default function FeaturesPage() {
   ];
 
   return (
-    <div>
+    <div className="w-full overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Features</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage product features and attributes</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate">Features</h1>
+          <p className="text-xs sm:text-sm lg:text-base text-slate-600 mt-1">Manage product features and attributes</p>
         </div>
-        <Button icon={<Plus size={18} />} onClick={handleCreate} className="w-full sm:w-auto">
-          Add Feature
+        <Button icon={<Plus size={18} />} onClick={handleCreate} className="w-full sm:w-auto flex-shrink-0">
+          <span className="hidden sm:inline">Add Feature</span>
+          <span className="sm:hidden">Add</span>
         </Button>
       </div>
 
       {/* Filter */}
-      <div className="mb-6">
+      <div className="mb-4 sm:mb-6 w-full sm:w-auto sm:max-w-xs">
         <Select
           placeholder="Filter by category"
           value={categoryFilter}
@@ -378,7 +379,7 @@ export default function FeaturesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
         {features.length === 0 && !loading ? (
           <EmptyState
             icon={<Sparkles size={48} />}
@@ -390,41 +391,49 @@ export default function FeaturesPage() {
             }}
           />
         ) : (
-          <DataTable
-            columns={columns}
-            data={features}
-            loading={loading}
-            rowActions={(feature) => (
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<Link2 size={14} />}
-                  onClick={() => handleManageBenefits(feature)}
-                >
-                  Benefits
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<Edit2 size={14} />}
-                  onClick={() => handleEdit(feature)}
-                >
-                  Edit
-                </Button>
-                {!isCoreFeature(feature.code) && (
+          <div className="min-w-full">
+            <DataTable
+              columns={columns}
+              data={features}
+              loading={loading}
+              rowActions={(feature) => (
+                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                   <Button
                     size="sm"
                     variant="ghost"
-                    icon={<Trash2 size={14} />}
-                    onClick={() => setDeleteConfirm(feature)}
+                    icon={<Link2 size={14} />}
+                    onClick={() => handleManageBenefits(feature)}
+                    className="text-xs sm:text-sm px-2 sm:px-3"
                   >
-                    Delete
+                    <span className="hidden sm:inline">Benefits</span>
+                    <span className="sm:hidden">B</span>
                   </Button>
-                )}
-              </div>
-            )}
-          />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={<Edit2 size={14} />}
+                    onClick={() => handleEdit(feature)}
+                    className="text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    <span className="hidden sm:inline">Edit</span>
+                    <span className="sm:hidden">E</span>
+                  </Button>
+                  {!isCoreFeature(feature.code) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Trash2 size={14} />}
+                      onClick={() => setDeleteConfirm(feature)}
+                      className="text-xs sm:text-sm px-2 sm:px-3"
+                    >
+                      <span className="hidden sm:inline">Delete</span>
+                      <span className="sm:hidden">D</span>
+                    </Button>
+                  )}
+                </div>
+              )}
+            />
+          </div>
         )}
       </div>
 

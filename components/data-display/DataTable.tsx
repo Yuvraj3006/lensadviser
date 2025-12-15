@@ -56,15 +56,17 @@ export function DataTable<T extends Record<string, any>>({
               {columns.map((column) => (
                 <th
                   key={String(column.key)}
-                  className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider whitespace-nowrap"
+                  className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider whitespace-nowrap"
                   style={{ width: column.width }}
                 >
-                  {column.header}
+                  <span className="hidden sm:inline">{column.header}</span>
+                  <span className="sm:hidden">{column.header.substring(0, 4)}</span>
                 </th>
               ))}
               {rowActions && (
-                <th className="px-3 sm:px-4 py-2 sm:py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider whitespace-nowrap">
-                  Actions
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider whitespace-nowrap">
+                  <span className="hidden sm:inline">Actions</span>
+                  <span className="sm:hidden">Act</span>
                 </th>
               )}
             </tr>
@@ -82,16 +84,16 @@ export function DataTable<T extends Record<string, any>>({
                 {columns.map((column) => (
                   <td
                     key={String(column.key)}
-                    className="px-3 sm:px-4 py-2 sm:py-3 text-sm text-slate-900 whitespace-nowrap"
+                    className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-900"
                   >
                     {column.render
                       ? column.render(item)
-                      : String(item[column.key] ?? '-')}
+                      : <span className="whitespace-nowrap">{String(item[column.key] ?? '-')}</span>}
                   </td>
                 ))}
                 {rowActions && (
-                  <td className="px-3 sm:px-4 py-2 sm:py-3 text-sm text-right whitespace-nowrap">
-                    <div onClick={(e) => e.stopPropagation()}>
+                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-right">
+                    <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
                       {rowActions(item)}
                     </div>
                   </td>

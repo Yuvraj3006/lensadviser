@@ -1,29 +1,16 @@
 import { PrismaClient } from '@prisma/client';
 
-// #region agent log
-console.log('[DEBUG] lib/prisma.ts: Module loading started', { hasDatabaseUrl: !!process.env.DATABASE_URL });
-// #endregion
-
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 // Enhanced Prisma client with better connection handling
 // Standard Next.js Prisma pattern
-// #region agent log
-console.log('[DEBUG] lib/prisma.ts: Before PrismaClient creation', { hasGlobalPrisma: !!globalForPrisma.prisma });
-// #endregion
-
 let prismaInstance: PrismaClient;
 try {
   prismaInstance = globalForPrisma.prisma || new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
-  // #region agent log
-  console.log('[DEBUG] lib/prisma.ts: PrismaClient created successfully', { isNew: !globalForPrisma.prisma });
-  // #endregion
 } catch (error: any) {
-  // #region agent log
-  console.error('[DEBUG] lib/prisma.ts: PrismaClient creation failed', { error: error?.message, stack: error?.stack });
-  // #endregion
+  console.error('[Prisma] Client creation failed', { error: error?.message });
   throw error;
 }
 

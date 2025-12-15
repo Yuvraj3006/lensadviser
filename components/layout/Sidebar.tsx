@@ -230,9 +230,9 @@ export function Sidebar({ isOpen: controlledIsOpen, onClose, isMobile: externalI
 
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : isMobileOpen;
   
-  // Debug logging
+  // Debug logging (only in development)
   useEffect(() => {
-    if (isMobile) {
+    if (process.env.NODE_ENV === 'development' && isMobile) {
       console.log('[Sidebar] State update:', { 
         controlledIsOpen, 
         isMobileOpen, 
@@ -249,7 +249,9 @@ export function Sidebar({ isOpen: controlledIsOpen, onClose, isMobile: externalI
   }, [controlledIsOpen, isMobileOpen, isOpen, isMobile, externalIsMobile, internalIsMobile]);
   
   const handleClose = () => {
-    console.log('[Sidebar] handleClose called', { controlledIsOpen, isMobileOpen });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Sidebar] handleClose called', { controlledIsOpen, isMobileOpen });
+    }
     if (controlledIsOpen === undefined) {
       setIsMobileOpen(false);
     } else {

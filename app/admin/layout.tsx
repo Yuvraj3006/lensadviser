@@ -62,9 +62,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            console.log('[Sidebar] Button clicked, current state:', sidebarOpen);
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[Sidebar] Button clicked, current state:', sidebarOpen);
+            }
             setSidebarOpen((prev) => {
-              console.log('[Sidebar] Toggling from', prev, 'to', !prev);
+              if (process.env.NODE_ENV === 'development') {
+                console.log('[Sidebar] Toggling from', prev, 'to', !prev);
+              }
               return !prev;
             });
           }}
