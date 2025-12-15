@@ -9,7 +9,13 @@ const createComboTierSchema = z.object({
   comboCode: z.string().min(1, 'Combo code is required'),
   displayName: z.string().min(1, 'Display name is required'),
   effectivePrice: z.number().positive('Effective price must be positive'),
-  totalComboValue: z.number().positive('Total combo value must be positive').optional().nullable(),
+  totalComboValue: z.preprocess(
+    (val) => (val === '' || val === undefined || val === 0 ? null : val),
+    z.union([
+      z.number().positive('Total combo value must be positive'),
+      z.null(),
+    ]).optional()
+  ),
   badge: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
   sortOrder: z.number().default(0),
@@ -105,7 +111,9 @@ export async function POST(request: NextRequest) {
       data: tier,
     });
   } catch (error) {
+    console.error('[POST /api/admin/combo-tiers] Error:', error);
     if (error instanceof z.ZodError) {
+      console.error('[POST /api/admin/combo-tiers] Validation errors:', error.issues);
       return Response.json(
         {
           success: false,

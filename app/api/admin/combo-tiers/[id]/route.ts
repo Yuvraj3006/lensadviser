@@ -9,7 +9,13 @@ const updateComboTierSchema = z.object({
   // comboCode is immutable - cannot be updated after creation
   displayName: z.string().min(1, 'Display name is required').optional(),
   effectivePrice: z.number().positive('Effective price must be positive').optional(),
-  totalComboValue: z.number().positive('Total combo value must be positive').optional().nullable(),
+  totalComboValue: z.preprocess(
+    (val) => (val === '' || val === undefined || val === 0 ? null : val),
+    z.union([
+      z.number().positive('Total combo value must be positive'),
+      z.null(),
+    ]).optional()
+  ),
   badge: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().optional(),
@@ -144,7 +150,9 @@ export async function PUT(
       data: updated,
     });
   } catch (error) {
+    console.error('[PUT /api/admin/combo-tiers/[id]] Error:', error);
     if (error instanceof z.ZodError) {
+      console.error('[PUT /api/admin/combo-tiers/[id]] Validation errors:', error.issues);
       return Response.json(
         {
           success: false,

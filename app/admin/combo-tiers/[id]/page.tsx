@@ -327,8 +327,14 @@ function ComboTierDetailPageContent() {
         };
       });
 
+      // Clean up totalComboValue - convert empty/0 to null
+      const cleanTotalComboValue = formData.totalComboValue && formData.totalComboValue > 0 
+        ? formData.totalComboValue 
+        : null;
+
       const payload = {
         ...formData,
+        totalComboValue: cleanTotalComboValue,
         benefits: benefitsToSave,
       };
 
