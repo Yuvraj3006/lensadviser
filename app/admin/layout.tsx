@@ -11,20 +11,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  // Initialize with a check - assume mobile initially for SSR safety
+  const [isMobile, setIsMobile] = useState(true);
 
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
+      // Close sidebar when switching to desktop
       if (!mobile) {
         setSidebarOpen(false);
       }
     };
     
-    checkMobile();
+    // Check immediately on mount
+    if (typeof window !== 'undefined') {
+      checkMobile();
+    }
+    
     window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    // Also check on orientation change for tablets
+    window.addEventListener('orientationchange', checkMobile);
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('orientationchange', checkMobile);
+    };
   }, []);
 
   useEffect(() => {
@@ -43,13 +54,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isMobile={isMobile} />
       
       {/* Mobile Menu Button */}
       {isMobile && (
         <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg hover:bg-slate-800 transition-colors"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[Sidebar] Button clicked, current state:', sidebarOpen);
+            setSidebarOpen((prev) => {
+              console.log('[Sidebar] Toggling from', prev, 'to', !prev);
+              return !prev;
+            });
+          }}
+          className="lg:hidden fixed top-4 left-4 z-[60] p-3 bg-slate-900 text-white rounded-lg shadow-lg hover:bg-slate-800 active:bg-slate-700 transition-colors touch-manipulation cursor-pointer"
+          aria-label="Toggle menu"
+          type="button"
+          style={{ WebkitTapHighlightColor: 'transparent' }}
         >
           {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
         </button>

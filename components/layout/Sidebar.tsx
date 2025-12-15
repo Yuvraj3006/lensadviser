@@ -183,42 +183,78 @@ const navItems: NavItem[] = [
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
+  isMobile?: boolean; // Allow parent to control mobile state
 }
 
-export function Sidebar({ isOpen: controlledIsOpen, onClose }: SidebarProps = {}) {
+export function Sidebar({ isOpen: controlledIsOpen, onClose, isMobile: externalIsMobile }: SidebarProps = {}) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  // Initialize with true for SSR safety, will be updated on mount
+  const [internalIsMobile, setInternalIsMobile] = useState(true);
+  
+  // Use external isMobile if provided, otherwise use internal state
+  const isMobile = externalIsMobile !== undefined ? externalIsMobile : internalIsMobile;
 
-  // Check if mobile on mount and resize
+  // Check if mobile on mount and resize (only if not controlled externally)
   useEffect(() => {
+    if (externalIsMobile !== undefined) {
+      // Parent is controlling mobile state, don't set internal state
+      return;
+    }
+    
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024); // lg breakpoint
-      if (window.innerWidth >= 1024) {
+      const mobile = window.innerWidth < 1024; // lg breakpoint
+      setInternalIsMobile(mobile);
+      if (!mobile) {
         setIsMobileOpen(false);
+        // Close sidebar when switching to desktop (only if controlled)
+        if (controlledIsOpen !== undefined) {
+          onClose?.();
+        }
       }
     };
     
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  }, [controlledIsOpen, externalIsMobile]); // Removed onClose to prevent unnecessary re-runs
 
-  // Close mobile menu when route changes
+  // Close mobile menu when route changes (only if controlled)
   useEffect(() => {
-    if (isMobile) {
-      setIsMobileOpen(false);
+    if (isMobile && controlledIsOpen !== undefined) {
+      // Only close if parent is controlling the state
       onClose?.();
     }
-  }, [pathname, isMobile, onClose]);
+  }, [pathname, isMobile]); // Removed onClose and controlledIsOpen from deps to prevent unnecessary closes
 
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : isMobileOpen;
-  const handleToggle = () => {
-    if (controlledIsOpen === undefined) {
-      setIsMobileOpen(!isMobileOpen);
+  
+  // Debug logging
+  useEffect(() => {
+    if (isMobile) {
+      console.log('[Sidebar] State update:', { 
+        controlledIsOpen, 
+        isMobileOpen, 
+        isOpen, 
+        isMobile,
+        externalIsMobile,
+        internalIsMobile
+      });
+      console.log('[Sidebar] Sidebar should be:', isOpen ? 'VISIBLE' : 'HIDDEN');
+      console.log('[Sidebar] Transform class:', isMobile 
+        ? (isOpen ? 'translate-x-0' : '-translate-x-full')
+        : 'translate-x-0');
     }
-    onClose?.();
+  }, [controlledIsOpen, isMobileOpen, isOpen, isMobile, externalIsMobile, internalIsMobile]);
+  
+  const handleClose = () => {
+    console.log('[Sidebar] handleClose called', { controlledIsOpen, isMobileOpen });
+    if (controlledIsOpen === undefined) {
+      setIsMobileOpen(false);
+    } else {
+      onClose?.();
+    }
   };
 
   const visibleItems = navItems.filter(
@@ -242,7 +278,7 @@ export function Sidebar({ isOpen: controlledIsOpen, onClose }: SidebarProps = {}
           {/* Mobile close button */}
           {isMobile && (
             <button
-              onClick={handleToggle}
+              onClick={handleClose}
               className="lg:hidden p-2 rounded-lg hover:bg-slate-800 transition-colors"
             >
               <X size={20} />
@@ -261,7 +297,7 @@ export function Sidebar({ isOpen: controlledIsOpen, onClose }: SidebarProps = {}
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  onClick={handleToggle}
+                  onClick={handleClose}
                   className={clsx(
                     'flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-2 lg:py-3 rounded-lg transition-colors text-sm lg:text-base',
                     isActive
@@ -287,7 +323,7 @@ export function Sidebar({ isOpen: controlledIsOpen, onClose }: SidebarProps = {}
         </div>
         <button
           onClick={() => {
-            handleToggle();
+            handleClose();
             logout();
           }}
           className="flex items-center gap-2 px-3 lg:px-4 py-2 w-full rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-sm lg:text-base"
@@ -304,15 +340,20 @@ export function Sidebar({ isOpen: controlledIsOpen, onClose }: SidebarProps = {}
       {/* Mobile Overlay */}
       {isMobile && isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={handleToggle}
+          className="fixed inset-0 bg-black/50 z-[45] lg:hidden"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleClose();
+          }}
+          style={{ touchAction: 'none' }}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Always render, use transform to show/hide */}
       <aside
         className={clsx(
-          'bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0 z-50 transition-transform duration-300 ease-in-out',
+          'bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0 z-[55] transition-transform duration-300 ease-in-out',
           'w-64 lg:w-64', // Fixed width
           isMobile
             ? isOpen
@@ -320,6 +361,12 @@ export function Sidebar({ isOpen: controlledIsOpen, onClose }: SidebarProps = {}
               : '-translate-x-full'
             : 'translate-x-0'
         )}
+        aria-hidden={isMobile && !isOpen}
+        style={{ 
+          willChange: 'transform',
+          WebkitTransform: 'translateZ(0)',
+          touchAction: 'pan-y',
+        }}
       >
         {sidebarContent}
       </aside>
