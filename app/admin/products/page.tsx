@@ -707,10 +707,10 @@ export default function ProductsPage() {
       </div>
 
       {/* Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Left: Brands & Sub-Brands */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+        <div className="lg:col-span-2 min-w-0">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 min-w-0">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-900">Brands & Sub-Brands</h2>
               <Button size="sm" icon={<Plus size={14} />} onClick={handleCreateBrand}>
@@ -748,11 +748,11 @@ export default function ProductsPage() {
           <div className="divide-y divide-slate-200">
             {filteredBrands.map((brand) => (
               <div key={brand.id} className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 flex-1">
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 overflow-hidden">
                     <button
                       onClick={() => toggleBrand(brand.id)}
-                      className="text-slate-400 hover:text-slate-600"
+                      className="text-slate-400 hover:text-slate-600 flex-shrink-0"
                     >
                       {expandedBrands.has(brand.id) ? (
                         <ChevronDown size={20} />
@@ -760,29 +760,35 @@ export default function ProductsPage() {
                         <ChevronRight size={20} />
                       )}
                     </button>
-                    <Badge color="blue" size="md">
-                      {brand.name}
-                    </Badge>
-                    <span className="text-sm text-slate-500">
-                      {brand.subBrands.length} sub-brand{brand.subBrands.length !== 1 ? 's' : ''}
-                    </span>
+                    <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+                      <Badge color="blue" size="md" className="truncate max-w-[120px] sm:max-w-[180px]">
+                        {brand.name}
+                      </Badge>
+                      <span className="text-sm text-slate-500 whitespace-nowrap flex-shrink-0">
+                        {brand.subBrands.length} sub-brand{brand.subBrands.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                     <Button
                       size="sm"
                       variant="ghost"
                       icon={<Plus size={14} />}
                       onClick={() => handleAddSubBrand(brand)}
+                      className="whitespace-nowrap px-2 sm:px-3"
                     >
-                      Add Sub-Brand
+                      <span className="hidden sm:inline">Add Sub-Brand</span>
+                      <span className="sm:hidden">Add</span>
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
                       icon={<Trash2 size={14} />}
                       onClick={() => handleDeleteBrand(brand.id)}
+                      className="whitespace-nowrap px-2 sm:px-3"
                     >
-                      Delete
+                      <span className="hidden sm:inline">Delete</span>
+                      <span className="sm:hidden">Del</span>
                     </Button>
                   </div>
                 </div>
@@ -795,11 +801,35 @@ export default function ProductsPage() {
                       brand.subBrands.map((subBrand) => (
                         <div
                           key={subBrand.id}
-                          className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200"
+                          className="flex items-center justify-between gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200 min-w-0"
                         >
-                          <Badge color="green" size="sm">
-                            {subBrand.name}
-                          </Badge>
+                          <div className="flex-1 min-w-0 overflow-hidden">
+                            <Badge color="green" size="sm" className="truncate max-w-full">
+                              {subBrand.name}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              icon={<Edit2 size={14} />}
+                              onClick={() => handleEditSubBrand(brand.id, subBrand)}
+                              className="p-1.5"
+                              aria-label="Edit sub-brand"
+                            >
+                              <span className="sr-only">Edit</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              icon={<Trash2 size={14} />}
+                              onClick={() => handleDeleteSubBrand(brand.id, subBrand.id)}
+                              className="p-1.5"
+                              aria-label="Delete sub-brand"
+                            >
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </div>
                         </div>
                       ))
                     )}
@@ -814,7 +844,7 @@ export default function ProductsPage() {
         </div>
 
         {/* Right: Products List */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">
