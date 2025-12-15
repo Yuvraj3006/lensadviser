@@ -81,8 +81,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </button>
       )}
 
-      <main className="w-full lg:ml-64 flex-1 p-4 sm:p-6 lg:p-8 transition-all duration-300">
-        {children}
+      <main className="w-full lg:ml-64 flex-1 p-3 sm:p-4 lg:p-6 xl:p-8 transition-all duration-300 min-w-0">
+        <div className="w-full min-w-0 max-w-full">
+          {children}
+        </div>
       </main>
     </div>
   );

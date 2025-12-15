@@ -355,7 +355,7 @@ export default function FeaturesPage() {
   ];
 
   return (
-    <div className="w-full overflow-x-hidden">
+    <div className="w-full min-w-0 max-w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
         <div className="min-w-0">
@@ -379,7 +379,7 @@ export default function FeaturesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto w-full">
         {features.length === 0 && !loading ? (
           <EmptyState
             icon={<Sparkles size={48} />}
@@ -391,8 +391,7 @@ export default function FeaturesPage() {
             }}
           />
         ) : (
-          <div className="min-w-full">
-            <DataTable
+          <DataTable
               columns={columns}
               data={features}
               loading={loading}
@@ -433,7 +432,6 @@ export default function FeaturesPage() {
                 </div>
               )}
             />
-          </div>
         )}
       </div>
 

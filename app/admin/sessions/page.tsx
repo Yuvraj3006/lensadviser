@@ -214,7 +214,7 @@ export default function SessionsPage() {
   ];
 
   return (
-    <div className="w-full overflow-x-hidden">
+    <div className="w-full min-w-0 max-w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
         <div className="min-w-0">
@@ -251,7 +251,7 @@ export default function SessionsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto w-full">
         {sessions.length === 0 && !loading ? (
           <EmptyState
             icon={<History size={48} />}
@@ -259,8 +259,7 @@ export default function SessionsPage() {
             description="Customer sessions will appear here"
           />
         ) : (
-          <div className="min-w-full">
-            <DataTable
+          <DataTable
               columns={columns}
               data={sessions}
               loading={loading}
@@ -277,7 +276,6 @@ export default function SessionsPage() {
                 </Button>
               )}
             />
-          </div>
         )}
       </div>
 

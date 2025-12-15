@@ -9,7 +9,7 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   size?: 'sm' | 'md' | 'lg' | 'full';
-  children: ReactNode;
+  children?: ReactNode;
   footer?: ReactNode;
   closeOnOverlay?: boolean;
 }

@@ -48,9 +48,9 @@ export function DataTable<T extends Record<string, any>>({
   }
 
   return (
-    <div className="overflow-x-auto -mx-4 sm:mx-0">
+    <div className="overflow-x-auto w-full">
       <div className="inline-block min-w-full align-middle">
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse min-w-[640px]">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
               {columns.map((column) => (
@@ -84,11 +84,11 @@ export function DataTable<T extends Record<string, any>>({
                 {columns.map((column) => (
                   <td
                     key={String(column.key)}
-                    className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-900"
+                    className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-900 max-w-[200px] sm:max-w-none"
                   >
                     {column.render
-                      ? column.render(item)
-                      : <span className="whitespace-nowrap">{String(item[column.key] ?? '-')}</span>}
+                      ? <div className="break-words">{column.render(item)}</div>
+                      : <span className="break-words">{String(item[column.key] ?? '-')}</span>}
                   </td>
                 ))}
                 {rowActions && (

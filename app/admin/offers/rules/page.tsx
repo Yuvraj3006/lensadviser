@@ -194,8 +194,10 @@ export default function OfferRulesPage() {
     setIsCreateOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
     
     // Validate required fields
     if (!formData.code || formData.code.trim() === '') {
@@ -388,7 +390,7 @@ export default function OfferRulesPage() {
   }
 
   return (
-    <div className="w-full overflow-x-hidden">
+    <div className="w-full min-w-0 max-w-full">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate">Offer Rules</h1>
@@ -412,10 +414,8 @@ export default function OfferRulesPage() {
           }}
         />
       ) : (
-        <div className="overflow-x-auto">
-          <div className="min-w-full">
-            <DataTable data={rules} columns={columns} />
-          </div>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto w-full">
+          <DataTable data={rules} columns={columns} />
         </div>
       )}
 
@@ -425,8 +425,18 @@ export default function OfferRulesPage() {
         onClose={() => setIsCreateOpen(false)}
         title={editingRule ? 'Edit Offer Rule' : 'Create Offer Rule'}
         size="full"
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={() => setIsCreateOpen(false)} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button type="submit" form="offer-rule-form" disabled={submitting} className="w-full sm:w-auto">
+              {submitting ? 'Saving...' : editingRule ? 'Update' : 'Create'}
+            </Button>
+          </>
+        }
       >
-        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 overflow-y-auto max-h-[85vh] pr-2">
+        <form id="offer-rule-form" onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Input
               label="Name"
@@ -1038,14 +1048,6 @@ export default function OfferRulesPage() {
             </label>
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 sticky bottom-0 bg-white pb-2 sm:pb-0">
-            <Button type="button" variant="secondary" onClick={() => setIsCreateOpen(false)} className="w-full sm:w-auto">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
-              {submitting ? 'Saving...' : editingRule ? 'Update' : 'Create'}
-            </Button>
-          </div>
         </form>
       </Modal>
 
