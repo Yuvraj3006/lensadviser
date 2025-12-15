@@ -324,6 +324,23 @@ export default function OfferSummaryPage() {
         lensPrice: offerResult.lensPrice,
       });
       
+      // Debug: Log each offer in detail
+      if (offerResult.offersApplied && offerResult.offersApplied.length > 0) {
+        console.log('[OfferSummary] 🔍 Detailed offersApplied breakdown:');
+        offerResult.offersApplied.forEach((offer: any, index: number) => {
+          console.log(`[OfferSummary]   Offer ${index + 1}:`, {
+            ruleCode: offer.ruleCode,
+            description: offer.description,
+            savings: offer.savings,
+            type: offer.type,
+            isYOPO: (offer.ruleCode || '').toUpperCase().includes('YOPO') || 
+                    (offer.description || '').toUpperCase().includes('YOPO'),
+          });
+        });
+      } else {
+        console.log('[OfferSummary] ⚠️ No offers applied! This might indicate YOPO rule not found or not applicable.');
+      }
+      
       if (offerResult.upsell) {
         console.log('[OfferSummary] ? Upsell found! Details:', {
           message: offerResult.upsell.message,
@@ -416,18 +433,26 @@ export default function OfferSummaryPage() {
                                    offer.description?.toUpperCase().includes('DISCOUNT');
         
         // Only add primary offer if none has been added yet (only ONE primary offer)
+        // YOPO should be shown even if savings is 0 (when frame and lens prices are equal)
         if (isPrimaryOffer) {
-          if (!primaryOfferAdded && offer.savings > 0) {
-            const explanation = getOfferExplanation(offer.ruleCode, offer);
-            offers.push({
-              type: offer.ruleCode || 'DISCOUNT',
-              code: offer.ruleCode || '',
-              title: offer.description || 'Discount',
-              description: offer.description || '',
-              discountAmount: offer.savings || 0,
-              explanation,
-            });
-            primaryOfferAdded = true;
+          if (!primaryOfferAdded) {
+            // For YOPO, show even if savings is 0 (it's still the applied offer)
+            const isYOPO = (offer.ruleCode || '').toUpperCase() === 'YOPO' || 
+                          (offer.description || '').toUpperCase().includes('YOPO');
+            
+            // Show if savings > 0 OR if it's YOPO (even with 0 savings)
+            if (offer.savings > 0 || isYOPO) {
+              const explanation = getOfferExplanation(offer.ruleCode, offer);
+              offers.push({
+                type: offer.ruleCode || 'DISCOUNT',
+                code: offer.ruleCode || '',
+                title: offer.description || 'Discount',
+                description: offer.description || '',
+                discountAmount: offer.savings || 0,
+                explanation,
+              });
+              primaryOfferAdded = true;
+            }
           }
         } 
         // Always add BOGO offers (even with 0 savings, to show as available)
@@ -875,8 +900,15 @@ export default function OfferSummaryPage() {
     : 0;
 
   const allOffers = formatOffers(data.offerResult);
-  // Filter out offers with zero or negative discount
-  const offers = allOffers.filter(offer => (offer.discountAmount || 0) > 0);
+  // Filter out offers with zero or negative discount, BUT keep YOPO even if savings is 0
+  // YOPO should be shown even with 0 savings because it's the applied offer
+  const offers = allOffers.filter(offer => {
+    const isYOPO = (offer.code || '').toUpperCase() === 'YOPO' || 
+                   (offer.type || '').toUpperCase() === 'YOPO' ||
+                   (offer.title || '').toUpperCase().includes('YOPO');
+    // Keep YOPO even if discountAmount is 0, otherwise filter out 0 discount offers
+    return (offer.discountAmount || 0) > 0 || isYOPO;
+  });
   
   // Debug: Log formatted offers
   console.log('[OfferSummary] All formatted offers:', allOffers);

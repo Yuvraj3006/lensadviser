@@ -1011,19 +1011,20 @@ model NeedsProfile {
 
 // Combo Tier Configuration
 model ComboTier {
-  id             String         @id @default(auto()) @map("_id") @db.ObjectId
-  comboCode      String         @unique // BRONZE, SILVER, GOLD, PLATINUM
-  displayName    String
-  effectivePrice Float
-  badge          String? // MOST_POPULAR, BEST_VALUE, etc.
-  isActive       Boolean        @default(true)
-  comboVersion   Int            @default(1) // Version number for safe updates
-  sortOrder      Int            @default(0) // For display ordering
-  organizationId String?        @db.ObjectId // Optional: org-specific tiers
-  benefits       ComboBenefit[]
-  rules          ComboRule[]
-  createdAt      DateTime       @default(now()) @db.Date
-  updatedAt      DateTime       @updatedAt @db.Date
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  comboCode       String         @unique // BRONZE, SILVER, GOLD, PLATINUM
+  displayName     String
+  effectivePrice  Float
+  totalComboValue Float? // Total value before discount (for showing original price with strikethrough)
+  badge           String? // MOST_POPULAR, BEST_VALUE, etc.
+  isActive        Boolean        @default(true)
+  comboVersion    Int            @default(1) // Version number for safe updates
+  sortOrder       Int            @default(0) // For display ordering
+  organizationId  String?        @db.ObjectId // Optional: org-specific tiers
+  benefits        ComboBenefit[]
+  rules           ComboRule[]
+  createdAt       DateTime       @default(now()) @db.Date
+  updatedAt       DateTime       @updatedAt @db.Date
 
   @@index([isActive])
   @@index([organizationId])

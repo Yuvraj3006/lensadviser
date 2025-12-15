@@ -22,7 +22,7 @@ interface Question {
     textHiEn?: string;
     icon?: string;
     triggersSubQuestion?: boolean;
-    subQuestionId?: string;
+    subQuestionId?: string | null;
   }[];
 }
 
@@ -41,11 +41,13 @@ export default function QuestionnaireSessionPage() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [allQuestions, setAllQuestions] = useState<Question[]>([]); // All questions for sub-question lookup
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [language, setLanguage] = useState<'en' | 'hi' | 'hinglish'>('en');
+  const [injectedQuestionIds, setInjectedQuestionIds] = useState<Set<string>>(new Set()); // Track injected questions
 
   useEffect(() => {
     // Get language preference
@@ -73,6 +75,8 @@ export default function QuestionnaireSessionPage() {
       if (data.success) {
         setSession(data.data.session);
         setQuestions(data.data.questions);
+        // Store all questions for sub-question lookup
+        setAllQuestions(data.data.allQuestions || data.data.questions);
       } else {
         showToast('error', 'Session not found');
         router.push('/questionnaire');
@@ -148,7 +152,41 @@ export default function QuestionnaireSessionPage() {
       const data = await response.json();
 
       if (data.success) {
-        if (data.data?.completed || isLastQuestion) {
+        // Check for sub-questions to inject
+        // For single select, check the selected option
+        // For multiple select, check all selected options
+        const optionsToCheck = currentQuestion.allowMultiple
+          ? currentQuestion.options.filter(opt => selectedAnswers.includes(opt.id))
+          : [currentQuestion.options.find(opt => selectedAnswers.includes(opt.id))].filter(Boolean);
+
+        let subQuestionToInject: Question | null = null;
+        
+        for (const option of optionsToCheck) {
+          if (option && (option as any).triggersSubQuestion && (option as any).subQuestionId) {
+            const subQuestionId = (option as any).subQuestionId;
+            // Find the sub-question from all questions
+            const subQuestion = allQuestions.find((q) => q.id === subQuestionId);
+            
+            if (subQuestion && !injectedQuestionIds.has(subQuestionId)) {
+              subQuestionToInject = subQuestion;
+              break; // Only inject the first sub-question found
+            }
+          }
+        }
+
+        // Inject sub-question if found and not already injected
+        if (subQuestionToInject) {
+          const currentIndex = currentQuestionIndex;
+          const newQuestions = [...questions];
+          
+          // Insert sub-question right after current question
+          newQuestions.splice(currentIndex + 1, 0, subQuestionToInject);
+          setQuestions(newQuestions);
+          setInjectedQuestionIds(prev => new Set([...prev, subQuestionToInject!.id]));
+          
+          // Move to the injected sub-question
+          setCurrentQuestionIndex(currentIndex + 1);
+        } else if (data.data?.completed || isLastQuestion) {
           // Track questionnaire completed
           import('@/services/analytics.service').then(({ analyticsService }) => {
             analyticsService.questionnaireCompleted(sessionId);

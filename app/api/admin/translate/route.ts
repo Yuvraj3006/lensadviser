@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       ? autoTranslateQuestion 
       : autoTranslateAnswer;
 
-    const translations = translator(validated.text);
+    const translations = await translator(validated.text);
 
     return Response.json({
       success: true,

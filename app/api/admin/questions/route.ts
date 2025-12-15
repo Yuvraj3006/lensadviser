@@ -515,7 +515,7 @@ export async function POST(request: NextRequest) {
     if (!textHi || !textHiEn) {
       try {
         const { autoTranslateQuestion } = await import('@/lib/translation.service');
-        const translations = autoTranslateQuestion(questionData.textEn.trim());
+        const translations = await autoTranslateQuestion(questionData.textEn.trim());
         textHi = textHi || translations.hindi || null;
         textHiEn = textHiEn || translations.hinglish || null;
       } catch (error) {
@@ -557,7 +557,7 @@ export async function POST(request: NextRequest) {
             if (opt.textEn && (!optTextHi || !optTextHiEn)) {
               try {
                 const { autoTranslateAnswer } = await import('@/lib/translation.service');
-                const translations = autoTranslateAnswer(opt.textEn.trim());
+                const translations = await autoTranslateAnswer(opt.textEn.trim());
                 optTextHi = optTextHi || translations.hindi || null;
                 optTextHiEn = optTextHiEn || translations.hinglish || null;
               } catch (error) {

@@ -38,6 +38,7 @@ interface ComboTier {
   comboCode: string;
   displayName: string;
   effectivePrice: number;
+  totalComboValue?: number | null;
   badge?: string | null;
   isActive: boolean;
   comboVersion: number;
@@ -91,6 +92,7 @@ function ComboTierDetailPageContent() {
     comboCode: '',
     displayName: '',
     effectivePrice: 0,
+    totalComboValue: null as number | null,
     badge: '',
     isActive: true,
     sortOrder: 0,
@@ -266,6 +268,7 @@ function ComboTierDetailPageContent() {
           comboCode: data.data.comboCode,
           displayName: data.data.displayName,
           effectivePrice: data.data.effectivePrice,
+          totalComboValue: data.data.totalComboValue || null,
           badge: data.data.badge || '',
           isActive: data.data.isActive,
           sortOrder: data.data.sortOrder || 0,
@@ -539,6 +542,19 @@ function ComboTierDetailPageContent() {
                   placeholder="5000"
                   min="0"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Total Combo Value (₹)
+                </label>
+                <Input
+                  type="number"
+                  value={formData.totalComboValue || ''}
+                  onChange={(e) => setFormData({ ...formData, totalComboValue: e.target.value ? parseFloat(e.target.value) : null })}
+                  placeholder="7000 (optional - for showing original price)"
+                  min="0"
+                />
+                <p className="text-xs text-slate-500 mt-1">This will be shown with strikethrough to show savings</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1070,10 +1086,17 @@ function ComboTierDetailPageContent() {
                             {formData.badge || displayTier?.badge}
                           </span>
                         )}
-                        <div className="text-3xl font-bold text-purple-400 mt-2">
-                          ₹{(formData.effectivePrice || displayTier?.effectivePrice || 0).toLocaleString()}
+                        <div className="mt-2">
+                          {(formData.totalComboValue || displayTier?.totalComboValue) && (
+                            <div className="text-lg text-slate-400 line-through mb-1">
+                              ₹{(formData.totalComboValue || displayTier?.totalComboValue || 0).toLocaleString()}
+                            </div>
+                          )}
+                          <div className="text-3xl font-bold text-purple-400">
+                            ₹{(formData.effectivePrice || displayTier?.effectivePrice || 0).toLocaleString()}
+                          </div>
                         </div>
-                        <div className="text-sm text-slate-400 mt-1">Effective Price</div>
+                        <div className="text-sm text-slate-400 mt-1">Combo Price</div>
                       </div>
 
                       {/* Benefits List */}

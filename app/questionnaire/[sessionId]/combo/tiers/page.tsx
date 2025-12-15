@@ -11,6 +11,7 @@ interface ComboTier {
   combo_code: string;
   display_name: string;
   effective_price: number;
+  total_combo_value?: number | null;
   badge?: string;
   benefits: Array<{
     type: string;
@@ -196,11 +197,18 @@ export default function ComboTiersPage() {
                         {tier.badge}
                       </span>
                     )}
-                    <div className="text-3xl font-bold text-purple-400 mt-2">
-                      ₹{tier.effective_price.toLocaleString()}
+                    <div className="mt-2">
+                      {tier.total_combo_value && (
+                        <div className="text-lg text-slate-400 line-through mb-1">
+                          ₹{tier.total_combo_value.toLocaleString()}
+                        </div>
+                      )}
+                      <div className="text-3xl font-bold text-purple-400">
+                        ₹{tier.effective_price.toLocaleString()}
+                      </div>
                     </div>
                     <div className="text-sm text-slate-400 mt-1">
-                      Effective Price
+                      Combo Price
                     </div>
                   </div>
 

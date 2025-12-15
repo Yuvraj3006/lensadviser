@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
         combo_code: tier.comboCode,
         display_name: tier.displayName,
         effective_price: tier.effectivePrice,
+        total_combo_value: tier.totalComboValue,
         badge: tier.badge,
         benefits: tier.benefits.map(b => ({
           type: b.benefitType,

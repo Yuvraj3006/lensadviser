@@ -85,6 +85,18 @@ export class OfferEngineService {
 
     // V2: PRIMARY OFFER (Waterfall: COMBO_PRICE > YOPO > FREE_LENS > PERCENT_OFF > FLAT_OFF)
     const primaryRule = await this.findApplicablePrimaryRule(input);
+    
+    // Debug: Log YOPO eligibility and rule finding
+    console.log('[OfferEngine] Primary rule search:', {
+      lensYopoEligible: lens?.yopoEligible,
+      foundRule: primaryRule ? {
+        code: primaryRule.code,
+        offerType: primaryRule.offerType,
+      } : null,
+      frameMRP,
+      lensPrice,
+    });
+    
     if (primaryRule) {
       const result = this.applyPrimaryRule(primaryRule, frameMRP, lensPrice);
       effectiveBase = result.newTotal;
@@ -98,10 +110,25 @@ export class OfferEngineService {
         amount: -result.savings,
       });
       
+      console.log('[OfferEngine] ✅ Primary rule applied:', {
+        ruleCode: primaryRule.code,
+        offerType: primaryRule.offerType,
+        label: result.label,
+        savings: result.savings,
+        newTotal: result.newTotal,
+        effectiveBase,
+        frameMRP,
+        lensPrice,
+        isLensOnly,
+      });
+      
       // V2: If rule locks further evaluation (Combo/YOPO), break early
       if (result.locksFurtherEvaluation) {
         // Skip remaining primary offers, but still apply category discount and upsell
       }
+    } else {
+      // Debug: Log why no primary rule was found
+      console.log('[OfferEngine] No primary rule found. Lens YOPO eligible:', lens?.yopoEligible);
     }
 
     // 2. SECOND PAIR OFFER (if applicable)
@@ -463,21 +490,35 @@ export class OfferEngineService {
     }
 
     // Filter by conditions and find first applicable
+    console.log('[OfferEngine] Checking rules for applicability. Total rules:', rules.length);
     for (const rule of rules) {
       // Check store activation if storeId is provided
       if (storeId && storeActivatedRuleIds) {
         // If store has specific activations, only apply those rules
         // If no store activations exist, apply all organization rules (backward compatible)
         if (storeActivatedRuleIds.size > 0 && !storeActivatedRuleIds.has(rule.id)) {
+          console.log('[OfferEngine] Rule skipped - not activated for store:', rule.code);
           continue; // Skip this rule - not activated for this store
         }
       }
       
-      if (this.isRuleApplicable(rule, frame, lens, now)) {
+      const isApplicable = this.isRuleApplicable(rule, frame, lens, now);
+      console.log('[OfferEngine] Checking rule applicability:', {
+        ruleCode: rule.code,
+        offerType: rule.offerType,
+        isApplicable,
+        lensYopoEligible: lens?.yopoEligible,
+        frameBrand: frame?.brand,
+        lensBrandLine: lens?.brandLine,
+      });
+      
+      if (isApplicable) {
+        console.log('[OfferEngine] ✅ Rule is applicable:', rule.code);
         return rule;
       }
     }
 
+    console.log('[OfferEngine] ❌ No applicable primary rule found');
     return null;
   }
 
@@ -586,7 +627,20 @@ export class OfferEngineService {
 
     // V2: Mandatory validations per spec
     // YOPO cannot run after Combo (handled in priority)
-    if (rule.offerType === 'YOPO' && (!lens || !lens.yopoEligible)) return false;
+    if (rule.offerType === 'YOPO') {
+      if (!lens || !lens.yopoEligible) {
+        console.log('[OfferEngine] ❌ YOPO rule rejected - lens not YOPO eligible:', {
+          ruleCode: rule.code,
+          hasLens: !!lens,
+          yopoEligible: lens?.yopoEligible,
+        });
+        return false;
+      }
+      console.log('[OfferEngine] ✅ YOPO rule passed eligibility check:', {
+        ruleCode: rule.code,
+        lensYopoEligible: lens.yopoEligible,
+      });
+    }
 
     // Free Lens must define ruleType in config
     if (rule.offerType === 'FREE_LENS' && !config.ruleType) return false;

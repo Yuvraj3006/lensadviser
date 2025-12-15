@@ -9,6 +9,7 @@ const updateComboTierSchema = z.object({
   // comboCode is immutable - cannot be updated after creation
   displayName: z.string().min(1, 'Display name is required').optional(),
   effectivePrice: z.number().positive('Effective price must be positive').optional(),
+  totalComboValue: z.number().positive('Total combo value must be positive').optional().nullable(),
   badge: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().optional(),
@@ -97,6 +98,7 @@ export async function PUT(
     // if (validated.comboCode !== undefined) updateData.comboCode = validated.comboCode;
     if (validated.displayName !== undefined) updateData.displayName = validated.displayName;
     if (validated.effectivePrice !== undefined) updateData.effectivePrice = validated.effectivePrice;
+    if (validated.totalComboValue !== undefined) updateData.totalComboValue = validated.totalComboValue;
     if (validated.badge !== undefined) updateData.badge = validated.badge;
     if (validated.isActive !== undefined) updateData.isActive = validated.isActive;
     if (validated.sortOrder !== undefined) updateData.sortOrder = validated.sortOrder;

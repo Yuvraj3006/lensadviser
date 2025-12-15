@@ -11,6 +11,7 @@ interface ComboTier {
   combo_code: string;
   display_name: string;
   effective_price: number;
+  total_combo_value?: number | null;
   badge?: string;
   benefits: Array<{
     type: string;
@@ -150,10 +151,15 @@ export default function ComboReviewPage() {
                 )}
               </div>
               <div className="text-left sm:text-right">
+                {comboTier.total_combo_value && (
+                  <div className="text-lg sm:text-xl text-slate-400 line-through mb-1">
+                    ₹{comboTier.total_combo_value.toLocaleString()}
+                  </div>
+                )}
                 <div className="text-2xl sm:text-3xl font-bold text-purple-400">
                   ₹{comboTier.effective_price.toLocaleString()}
                 </div>
-                <div className="text-sm text-slate-400">Effective Price</div>
+                <div className="text-sm text-slate-400">Combo Price</div>
               </div>
             </div>
           </div>
@@ -232,6 +238,11 @@ export default function ComboReviewPage() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-slate-200 text-sm mb-1">Total Payable</div>
+                {comboTier.total_combo_value && (
+                  <div className="text-xl text-slate-300 line-through mb-1">
+                    ₹{comboTier.total_combo_value.toLocaleString()}
+                  </div>
+                )}
                 <div className="text-4xl font-bold text-white">
                   ₹{comboTier.effective_price.toLocaleString()}
                 </div>

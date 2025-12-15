@@ -632,21 +632,68 @@ export default function QuestionnaireBuilderPage() {
         const allQuestionsList = data.data || [];
         console.log('[fetchQuestions] Building tree from', allQuestionsList.length, 'questions');
         
-        // Root questions are those without parentAnswerId (for backward compatibility)
-        // New implementation: sub-questions are linked via AnswerOption.triggersSubQuestion + subQuestionId
-        const rootQuestions = allQuestionsList.filter((q: Question) => !q.parentAnswerId);
+        // Collect all question IDs that are linked as sub-questions (via subQuestionId or parentAnswerId)
+        const linkedQuestionIds = new Set<string>();
+        
+        // Track questions linked via subQuestionId
+        allQuestionsList.forEach((q: Question) => {
+          if (q.options && Array.isArray(q.options)) {
+            q.options.forEach((opt: any) => {
+              if (opt.subQuestionId) {
+                linkedQuestionIds.add(opt.subQuestionId);
+              }
+            });
+          }
+        });
+        
+        // Track questions linked via parentAnswerId
+        allQuestionsList.forEach((q: Question) => {
+          if (q.parentAnswerId) {
+            // Check if this parentAnswerId exists in any option
+            const hasParentOption = allQuestionsList.some((parentQ: Question) => 
+              parentQ.options?.some((opt: any) => opt.id === q.parentAnswerId)
+            );
+            if (hasParentOption) {
+              linkedQuestionIds.add(q.id);
+            }
+          }
+        });
+        
+        // Root questions are:
+        // 1. Questions without parentAnswerId
+        // 2. Questions with parentAnswerId but their parent option doesn't exist (orphaned)
+        // 3. Questions that are linked via subQuestionId but their parent question isn't in the list
+        const rootQuestions = allQuestionsList.filter((q: Question) => {
+          if (!q.parentAnswerId) {
+            // Check if this question is linked as a sub-question via subQuestionId
+            const isLinkedAsSubQuestion = allQuestionsList.some((parentQ: Question) => 
+              parentQ.options?.some((opt: any) => opt.subQuestionId === q.id)
+            );
+            // If not linked as sub-question, it's a root question
+            return !isLinkedAsSubQuestion;
+          }
+          // Has parentAnswerId, check if parent option exists
+          const hasParentOption = allQuestionsList.some((parentQ: Question) => 
+            parentQ.options?.some((opt: any) => opt.id === q.parentAnswerId)
+          );
+          // If parent option doesn't exist, show it as root (orphaned)
+          return !hasParentOption;
+        });
+        
         console.log('[fetchQuestions] Root questions:', rootQuestions.length);
+        console.log('[fetchQuestions] Total questions:', allQuestionsList.length);
+        console.log('[fetchQuestions] Linked question IDs:', linkedQuestionIds.size);
         
         // Debug: Check for questions with parentAnswerId
         const questionsWithParent = allQuestionsList.filter((q: Question) => q.parentAnswerId);
-        console.log('[fetchQuestions] Questions with parentAnswerId:', questionsWithParent.length, questionsWithParent.map((q: Question) => ({ id: q.id, textEn: q.textEn, parentAnswerId: q.parentAnswerId })));
+        console.log('[fetchQuestions] Questions with parentAnswerId:', questionsWithParent.length);
         
         // Debug: Check for options with subquestions
         const optionsWithSubquestions = allQuestionsList.flatMap((q: Question) => 
           (q.options || []).filter((opt: any) => opt.triggersSubQuestion && opt.subQuestionId)
             .map((opt: any) => ({ questionId: q.id, questionText: q.textEn, optionId: opt.id, optionText: opt.textEn, subQuestionId: opt.subQuestionId }))
         );
-        console.log('[fetchQuestions] Options with subquestions:', optionsWithSubquestions.length, optionsWithSubquestions);
+        console.log('[fetchQuestions] Options with subquestions:', optionsWithSubquestions.length);
         
         // Build tree: attach sub-questions to their parent answer options
         const buildTree = (questions: Question[]): Question[] => {
@@ -977,12 +1024,45 @@ export default function QuestionnaireBuilderPage() {
             </div>
           )}
 
-          {/* Child Questions (for backward compatibility) */}
-          {hasChildren && isExpanded && (
-            <div className="ml-4">
-              {renderQuestionTree(question.childQuestions || [], level + 1)}
-            </div>
-          )}
+          {/* Child Questions (for backward compatibility) - Exclude questions already rendered under options */}
+          {hasChildren && isExpanded && (() => {
+            // Collect option IDs to filter out questions that are already rendered under options
+            const optionIds = new Set<string>();
+            if (question.options && question.options.length > 0) {
+              question.options.forEach((option: any) => {
+                optionIds.add(option.id);
+              });
+            }
+            
+            // Also collect sub-question IDs linked via subQuestionId
+            const subQuestionIds = new Set<string>();
+            if (question.options && question.options.length > 0) {
+              question.options.forEach((option: any) => {
+                if (option.triggersSubQuestion && option.subQuestionId) {
+                  subQuestionIds.add(option.subQuestionId);
+                }
+              });
+            }
+            
+            // Filter: exclude questions that have parentAnswerId matching an option, OR are linked via subQuestionId
+            const filteredChildQuestions = (question.childQuestions || []).filter((cq: Question) => {
+              // Exclude if it has a parentAnswerId that matches an option (legacy way)
+              if (cq.parentAnswerId && optionIds.has(cq.parentAnswerId)) {
+                return false;
+              }
+              // Exclude if it's linked via subQuestionId (new way)
+              if (subQuestionIds.has(cq.id)) {
+                return false;
+              }
+              return true;
+            });
+            
+            return (
+              <div className="ml-4">
+                {renderQuestionTree(filteredChildQuestions, level + 1)}
+              </div>
+            );
+          })()}
         </div>
       );
     });

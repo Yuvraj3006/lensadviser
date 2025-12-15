@@ -63,6 +63,9 @@ export async function GET(
       },
     });
 
+    // Get all questions to find sub-questions
+    const allQuestionsMap = new Map(questions.map(q => [q.id, q]));
+
     return Response.json({
       success: true,
       data: {
@@ -82,6 +85,28 @@ export async function GET(
             textHi: opt.textHi,
             textHiEn: opt.textHiEn,
             icon: opt.icon,
+            triggersSubQuestion: opt.triggersSubQuestion || false,
+            subQuestionId: opt.subQuestionId || null,
+          })),
+        })),
+        // Include all questions map for sub-question lookup
+        allQuestions: questions.map((q) => ({
+          id: q.id,
+          key: q.key,
+          textEn: q.textEn,
+          textHi: q.textHi,
+          textHiEn: q.textHiEn,
+          isRequired: q.isRequired,
+          allowMultiple: q.allowMultiple,
+          options: q.options.map((opt) => ({
+            id: opt.id,
+            key: opt.key,
+            textEn: opt.textEn,
+            textHi: opt.textHi,
+            textHiEn: opt.textHiEn,
+            icon: opt.icon,
+            triggersSubQuestion: opt.triggersSubQuestion || false,
+            subQuestionId: opt.subQuestionId || null,
           })),
         })),
       },

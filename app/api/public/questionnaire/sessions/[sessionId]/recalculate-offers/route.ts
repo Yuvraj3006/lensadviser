@@ -94,8 +94,26 @@ export async function POST(
 
     // Get product details
     // Try lens product first, then retail product
+    // Explicitly select yopoEligible to ensure it's included
     let product = await prisma.lensProduct.findUnique({
       where: { id: productId },
+      select: {
+        id: true,
+        itCode: true,
+        name: true,
+        brandLine: true,
+        baseOfferPrice: true,
+        yopoEligible: true, // Explicitly include YOPO eligibility
+        mrp: true,
+        visionType: true,
+        lensIndex: true,
+        tintOption: true,
+        category: true,
+        deliveryDays: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
     
     if (!product) {
@@ -184,11 +202,23 @@ export async function POST(
       ? (typeof product.itCode === 'string' ? product.itCode : String(product.itCode))
       : (product as any).sku;
 
+    // Ensure yopoEligible is correctly read from product
+    const yopoEligible = (product as any).yopoEligible !== undefined 
+      ? (product as any).yopoEligible 
+      : false;
+    
+    console.log('[recalculate-offers] Product YOPO eligibility:', {
+      productId: product.id,
+      productName: product.name,
+      yopoEligible: yopoEligible,
+      productData: product,
+    });
+    
     const lensInput: LensInput = {
       itCode: itCodeValue || (product as any).sku || '',
       price: totalLensPrice,
       brandLine: product.brandLine || 'STANDARD',
-      yopoEligible: product.yopoEligible || false,
+      yopoEligible: yopoEligible,
       name: product.name || undefined, // Include product name for brandLine matching
     };
 
@@ -245,6 +275,28 @@ export async function POST(
       effectiveBase: offerResult.effectiveBase,
       finalPayable: offerResult.finalPayable,
     });
+    
+    // Debug: Log each offer in detail
+    if (offerResult.offersApplied && offerResult.offersApplied.length > 0) {
+      console.log('[recalculate-offers] 🔍 Detailed offersApplied from offer engine:');
+      offerResult.offersApplied.forEach((offer: any, index: number) => {
+        console.log(`[recalculate-offers]   Offer ${index + 1}:`, {
+          ruleCode: offer.ruleCode,
+          description: offer.description,
+          savings: offer.savings,
+          type: offer.type,
+          isYOPO: (offer.ruleCode || '').toUpperCase().includes('YOPO') || 
+                  (offer.description || '').toUpperCase().includes('YOPO'),
+        });
+      });
+    } else {
+      console.log('[recalculate-offers] ⚠️ No offers applied by offer engine!');
+      console.log('[recalculate-offers] This could mean:');
+      console.log('[recalculate-offers]   1. No YOPO rule exists in database');
+      console.log('[recalculate-offers]   2. YOPO rule exists but conditions don\'t match');
+      console.log('[recalculate-offers]   3. Lens is not YOPO eligible');
+      console.log('[recalculate-offers]   4. Higher priority rule (COMBO_PRICE) is being applied instead');
+    }
 
     // Serialize the offer result to handle any BigInt or Date fields
     const serializedOfferResult = deepSerialize(offerResult);
