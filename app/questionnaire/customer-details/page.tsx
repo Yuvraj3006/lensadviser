@@ -5,51 +5,80 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { User, ArrowRight, ArrowLeft } from 'lucide-react';
-
-// Client-safe CustomerCategory
-const CustomerCategory = {
-  STUDENT: 'STUDENT',
-  DOCTOR: 'DOCTOR',
-  TEACHER: 'TEACHER',
-  ARMED_FORCES: 'ARMED_FORCES',
-  SENIOR_CITIZEN: 'SENIOR_CITIZEN',
-  CORPORATE: 'CORPORATE',
-  REGULAR: 'REGULAR',
-} as const;
-
-type CustomerCategory = typeof CustomerCategory[keyof typeof CustomerCategory];
+import { useSessionStore } from '@/stores/session-store';
 
 export default function CustomerDetailsPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const storeId = useSessionStore((state) => state.storeId);
+  const storeCode = useSessionStore((state) => state.storeCode);
+  const setStore = useSessionStore((state) => state.setStore);
   
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
-  const [customerCategory, setCustomerCategory] = useState<CustomerCategory | ''>('');
   const [errors, setErrors] = useState<{
     name?: string;
     phone?: string;
     email?: string;
   }>({});
+  const [verifyingStore, setVerifyingStore] = useState(false);
+
+  // Check store verification on mount
+  useEffect(() => {
+    const checkStore = async () => {
+      // If store is not verified, try to verify from localStorage
+      if (!storeId || !storeCode) {
+        const savedCode = localStorage.getItem('lenstrack_store_code');
+        if (savedCode) {
+          setVerifyingStore(true);
+          try {
+            const response = await fetch(`/api/public/verify-store?code=${savedCode}`);
+            const data = await response.json();
+            if (data.success) {
+              setStore(data.data.id, data.data.code, data.data.name);
+            } else {
+              // Store code invalid, redirect to questionnaire page
+              showToast('error', 'Please verify store code first');
+              router.push('/questionnaire');
+              return;
+            }
+          } catch (error) {
+            showToast('error', 'Failed to verify store');
+            router.push('/questionnaire');
+            return;
+          } finally {
+            setVerifyingStore(false);
+          }
+        } else {
+          // No store code found, redirect to questionnaire
+          showToast('error', 'Please select a store first');
+          router.push('/questionnaire');
+          return;
+        }
+      }
+    };
+
+    checkStore();
+  }, [storeId, storeCode, router, setStore, showToast]);
 
   useEffect(() => {
-    // Load saved data from localStorage
-    const saved = localStorage.getItem('lenstrack_customer_details');
-    if (saved) {
+    // Load saved data from localStorage (only if store is verified)
+    if (storeId) {
+      const saved = localStorage.getItem('lenstrack_customer_details');
+      if (saved) {
       try {
         const data = JSON.parse(saved);
         setCustomerName(data.name || '');
         setCustomerPhone(data.phone || '');
         setCustomerEmail(data.email || '');
-        setCustomerCategory(data.category || '');
       } catch (error) {
         console.error('Failed to parse saved customer details:', error);
       }
+      }
     }
-  }, []);
+  }, [storeId]);
 
   // Validation functions
   const validatePhone = (phone: string): boolean => {
@@ -102,17 +131,16 @@ export default function CustomerDetailsPage() {
     // Clear errors
     setErrors({});
 
-    // Save to localStorage
+    // Save to localStorage (without category - will be selected at offer summary)
     const data = {
       name: customerName.trim(),
       phone: customerPhone.trim(),
       email: customerEmail.trim() || undefined,
-      category: customerCategory || undefined,
     };
     localStorage.setItem('lenstrack_customer_details', JSON.stringify(data));
     
-    // Navigate to language selection (step 2)
-    router.push('/questionnaire/language');
+    // Navigate to mode selection (after customer details)
+    router.push('/questionnaire/mode-selection');
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,46 +170,55 @@ export default function CustomerDetailsPage() {
     }
   };
 
+  // Show loading if verifying store
+  if (verifyingStore || !storeId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-slate-400">Verifying store...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
       <div className="max-w-2xl w-full">
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 shadow-2xl">
+        <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl">
           {/* Header */}
           <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
             <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <User className="text-white sm:w-8 sm:h-8" size={24} />
+              <User className="text-white dark:text-white sm:w-8 sm:h-8" size={24} />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">Customer Details</h1>
-              <p className="text-slate-400">Enter customer information</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-1">Customer Details</h1>
+              <p className="text-slate-600 dark:text-slate-400">Enter customer information</p>
             </div>
           </div>
 
           {/* Form */}
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Customer Name <span className="text-red-400">*</span>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                Customer Name <span className="text-red-500">*</span>
               </label>
               <Input
                 type="text"
                 placeholder="Enter customer name"
                 value={customerName}
                 onChange={handleNameChange}
-                className={`!bg-slate-700 !border-slate-600 !text-white !placeholder:text-slate-400 ${
-                  errors.name ? '!border-red-500 focus:!border-red-500 focus:!ring-red-500' : ''
-                }`}
-                style={{ color: '#ffffff' }}
+                className={errors.name ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
               />
               {errors.name && (
-                <p className="text-red-400 text-xs mt-1">{errors.name}</p>
+                <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.name}</p>
               )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Phone Number <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Phone Number <span className="text-red-500">*</span>
                 </label>
                 <Input
                   type="tel"
@@ -189,59 +226,32 @@ export default function CustomerDetailsPage() {
                   value={customerPhone}
                   onChange={handlePhoneChange}
                   maxLength={15}
-                  className={`!bg-slate-700 !border-slate-600 !text-white !placeholder:text-slate-400 ${
-                    errors.phone ? '!border-red-500 focus:!border-red-500 focus:!ring-red-500' : ''
-                  }`}
-                  style={{ color: '#ffffff' }}
+                  className={errors.phone ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
                 />
                 {errors.phone && (
-                  <p className="text-red-400 text-xs mt-1">{errors.phone}</p>
+                  <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.phone}</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Email Address <span className="text-slate-500 text-xs">(Optional)</span>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Email Address <span className="text-slate-500 dark:text-slate-400 text-xs">(Optional)</span>
                 </label>
                 <Input
                   type="email"
                   placeholder="customer@example.com"
                   value={customerEmail}
                   onChange={handleEmailChange}
-                  className={`!bg-slate-700 !border-slate-600 !text-white !placeholder:text-slate-400 ${
-                    errors.email ? '!border-red-500 focus:!border-red-500 focus:!ring-red-500' : ''
-                  }`}
-                  style={{ color: '#ffffff' }}
+                  className={errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
                 />
                 {errors.email && (
-                  <p className="text-red-400 text-xs mt-1">{errors.email}</p>
+                  <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.email}</p>
                 )}
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Customer Category (for special discounts)
-              </label>
-              <Select
-                value={customerCategory}
-                onChange={(e) => setCustomerCategory(e.target.value as CustomerCategory | '')}
-                options={[
-                  { value: '', label: 'Regular Customer' },
-                  { value: CustomerCategory.STUDENT, label: 'STUDENT' },
-                  { value: CustomerCategory.DOCTOR, label: 'DOCTOR' },
-                  { value: CustomerCategory.TEACHER, label: 'TEACHER' },
-                  { value: CustomerCategory.ARMED_FORCES, label: 'ARMED FORCES' },
-                  { value: CustomerCategory.SENIOR_CITIZEN, label: 'SENIOR CITIZEN' },
-                  { value: CustomerCategory.CORPORATE, label: 'CORPORATE' },
-                  { value: CustomerCategory.REGULAR, label: 'REGULAR' },
-                ]}
-                className="!bg-slate-700 !border-slate-600 !text-white [&>option]:bg-slate-700 [&>option]:text-white"
-              />
             </div>
           </div>
 
           {/* Navigation */}
-          <div className="flex justify-between mt-8 pt-6 border-t border-slate-700">
+          <div className="flex justify-between mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
             <Button
               variant="outline"
               onClick={() => router.push('/questionnaire')}
@@ -255,7 +265,7 @@ export default function CustomerDetailsPage() {
               disabled={!customerName.trim() || !customerPhone.trim()}
               className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Next: Lens Type
+              Next: Mode Selection
               <ArrowRight size={18} />
             </Button>
           </div>

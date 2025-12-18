@@ -179,7 +179,8 @@ export default function RecommendationsPage() {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [showKnowMoreModal, setShowKnowMoreModal] = useState<string | null>(null);
   const [showViewAllModal, setShowViewAllModal] = useState(false);
-  const [sortBy, setSortBy] = useState<'price-high' | 'price-low' | 'match' | 'index'>('price-high');
+  const [sortBy, setSortBy] = useState<'price-high' | 'price-low' | 'match' | 'index'>('match');
+  const [activeTab, setActiveTab] = useState<'best-match' | 'all' | 'anti-walkout'>('best-match');
 
   useEffect(() => {
     if (sessionId) {
@@ -400,17 +401,17 @@ export default function RecommendationsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="relative w-24 h-24 mx-auto mb-6">
             <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 animate-spin" 
                  style={{ clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }} />
-            <div className="absolute inset-2 rounded-full bg-slate-900 flex items-center justify-center">
-              <Sparkles className="text-blue-400 animate-pulse" size={32} />
+            <div className="absolute inset-2 rounded-full bg-white dark:bg-slate-900 flex items-center justify-center">
+              <Sparkles className="text-blue-500 dark:text-blue-400 animate-pulse" size={32} />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Finding Your Perfect Lens</h2>
-          <p className="text-slate-400">Calculating best prices and offers...</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Finding Your Perfect Lens</h2>
+          <p className="text-slate-600 dark:text-slate-400">Calculating best prices and offers...</p>
         </div>
       </div>
     );
@@ -418,11 +419,11 @@ export default function RecommendationsPage() {
 
   if (!data || !data.recommendations || data.recommendations.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
-        <div className="text-center max-w-md bg-slate-800/50 backdrop-blur rounded-2xl p-6 sm:p-8 border border-slate-700 shadow-xl">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-6">
+        <div className="text-center max-w-md bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-2xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-xl">
           <div className="text-7xl mb-6 animate-bounce">🔍</div>
-          <h2 className="text-2xl font-bold text-white mb-3">No Recommendations Found</h2>
-          <p className="text-slate-300 mb-6 text-base">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">No Recommendations Found</h2>
+          <p className="text-slate-600 dark:text-slate-300 mb-6 text-base">
             We couldn't find matching products at this time. Please contact our staff for personalized assistance.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -437,7 +438,7 @@ export default function RecommendationsPage() {
               <Button 
                 variant="outline"
                 onClick={() => window.location.href = `tel:${data.store.phone}`}
-                className="border-2 border-slate-600 text-slate-300 hover:border-emerald-500"
+                className="border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-emerald-500"
               >
                 <Phone size={18} className="mr-2" />
                 Call Store
@@ -507,6 +508,31 @@ export default function RecommendationsPage() {
     return priceA - priceB; // Ascending order (lowest first)
   });
 
+  // Best Match: Top 3 by match score + 1 cheapest lens
+  const topThreeBestMatch = sortedByMatchPercent.slice(0, 3);
+  const topThreeIds = new Set(topThreeBestMatch.map(rec => rec.id));
+  
+  // Find cheapest lens that's NOT in top 3
+  const cheapestLens = sortedByPrice.find(rec => !topThreeIds.has(rec.id)) || sortedByPrice[0];
+  
+  // Combine: 3 best match + 1 cheapest
+  const bestMatchRecommendations = [...topThreeBestMatch, cheapestLens].filter(Boolean);
+
+  // Anti-Walkout: 4 cheapest among all matched glasses
+  // Filter: matchPercent >= 40, not invalid, then sort by price (lowest first)
+  const antiWalkoutCandidates = validRecommendations.filter(rec => {
+    const matchPercent = rec.matchPercent ?? (rec.matchScore ? rec.matchScore * 100 : 0);
+    return matchPercent >= 40 && !rec.indexInvalid;
+  });
+  
+  const sortedAntiWalkout = [...antiWalkoutCandidates].sort((a, b) => {
+    const priceA = getLensPrice(a);
+    const priceB = getLensPrice(b);
+    return priceA - priceB; // Ascending order (lowest first)
+  });
+  
+  const antiWalkoutRecommendations = sortedAntiWalkout.slice(0, 4);
+
   // Get IDs for labeling
   const highestMatchId = sortedByMatchPercent[0]?.id;
   const secondHighestMatchId = sortedByMatchPercent[1]?.id;
@@ -558,7 +584,7 @@ export default function RecommendationsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* LA-05: Header */}
       <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 py-6 sm:py-8 px-4 sm:px-6 shadow-xl">
         <div className="max-w-6xl mx-auto">
@@ -590,11 +616,11 @@ export default function RecommendationsPage() {
         {/* Sorting Controls */}
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-slate-300">Sort by:</span>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Sort by:</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-4 py-2 border-2 border-slate-600 rounded-lg text-sm font-semibold text-slate-200 bg-slate-800 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-4 py-2 border-2 border-slate-300 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-900 dark:text-slate-200 bg-white dark:bg-slate-800 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="match">Best Match First</option>
               <option value="price-high">Price: High to Low</option>
@@ -602,14 +628,46 @@ export default function RecommendationsPage() {
               <option value="index">Thinnest First (Index)</option>
             </select>
           </div>
-          <div className="text-sm text-slate-400">
-            Showing {topFourRecommendations.length} of {validRecommendations.length} recommendations
+          <div className="text-sm text-slate-600 dark:text-slate-400">
+            {activeTab === 'best-match' && `Showing ${bestMatchRecommendations.length} best match recommendations`}
+            {activeTab === 'all' && `Showing ${topFourRecommendations.length} of ${validRecommendations.length} recommendations`}
+            {activeTab === 'anti-walkout' && `Showing ${antiWalkoutRecommendations.length} cheapest anti-walkout glasses`}
           </div>
         </div>
 
-        {/* LA-05: 4-Card Layout - Grid layout for parallel cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          {topFourRecommendations.map((rec) => {
+        {/* Get recommendations based on active tab */}
+        {(() => {
+          let displayRecommendations: Recommendation[] = [];
+          if (activeTab === 'best-match') {
+            displayRecommendations = bestMatchRecommendations;
+          } else if (activeTab === 'anti-walkout') {
+            displayRecommendations = antiWalkoutRecommendations;
+          } else {
+            displayRecommendations = topFourRecommendations;
+          }
+
+          // Apply sortBy filter to display recommendations
+          const sortedDisplayRecommendations = [...displayRecommendations].sort((a, b) => {
+            switch (sortBy) {
+              case 'price-high':
+                return getLensPrice(b) - getLensPrice(a);
+              case 'price-low':
+                return getLensPrice(a) - getLensPrice(b);
+              case 'match':
+                const matchA = a.matchPercent ?? (a.matchScore ? a.matchScore * 100 : 0);
+                const matchB = b.matchPercent ?? (b.matchScore ? b.matchScore * 100 : 0);
+                return matchB - matchA;
+              case 'index':
+                return getIndexValue(b) - getIndexValue(a);
+              default:
+                return a.rank - b.rank;
+            }
+          });
+
+          return (
+            /* LA-05: 4-Card Layout - Grid layout for parallel cards */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+              {sortedDisplayRecommendations.map((rec) => {
             const roleTag = getRoleTag(rec.id);
             const label = getLabel(rec.id);
             const tagConfig = {
@@ -636,17 +694,17 @@ export default function RecommendationsPage() {
             return (
               <div
                 key={rec.id}
-                className="bg-white rounded-2xl border-2 border-slate-200 shadow-lg hover:shadow-2xl hover:border-blue-300 transition-all duration-300 overflow-hidden group"
+                className="bg-white dark:bg-slate-800/50 rounded-2xl border-2 border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl hover:shadow-2xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 overflow-hidden group"
               >
                 {/* Tag & Match Score Header */}
-                <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-3 border-b border-slate-200">
+                <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 px-6 py-3 border-b border-slate-200 dark:border-slate-700">
                   <div className="flex items-center justify-between">
                     <span className={`px-4 py-1.5 rounded-full text-xs font-bold ${tagConfig.color} shadow-sm`}>
                       {tagConfig.label}
                     </span>
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      <span className="text-sm font-semibold text-slate-700">
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                         {Math.round(rec.matchPercent ?? (rec.matchScore * 100))}% Match
                       </span>
                     </div>
@@ -656,12 +714,12 @@ export default function RecommendationsPage() {
                 <div className="p-6">
                   {/* Lens Name + Brand Line */}
                   <div className="mb-4">
-                    <h3 className="text-2xl font-bold text-slate-900 mb-2 leading-tight">{rec.name}</h3>
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <span className="font-medium text-slate-700">{brandLine}</span>
-                      <span className="text-slate-400">•</span>
+                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 leading-tight">{rec.name}</h3>
+                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{brandLine}</span>
+                      <span className="text-slate-400 dark:text-slate-500">•</span>
                       <span>Index {lensIndex}</span>
-                      <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-xs font-medium">
+                      <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md text-xs font-medium">
                         {indexLabel}
                       </span>
                     </div>
@@ -672,8 +730,8 @@ export default function RecommendationsPage() {
                     <div className="mb-5">
                       <ul className="space-y-2">
                         {benefits.map((benefit: string, idx: number) => (
-                          <li key={idx} className="text-sm text-slate-700 flex items-start gap-3">
-                            <CheckCircle size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
+                          <li key={idx} className="text-sm text-slate-700 dark:text-slate-300 flex items-start gap-3">
+                            <CheckCircle size={16} className="text-green-500 dark:text-green-400 mt-0.5 flex-shrink-0" />
                             <span className="leading-relaxed">{benefit}</span>
                           </li>
                         ))}
@@ -683,7 +741,7 @@ export default function RecommendationsPage() {
                           e.stopPropagation();
                           setShowKnowMoreModal(rec.id);
                         }}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-700 mt-3 flex items-center gap-1 group-hover:underline transition-all"
+                        className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mt-3 flex items-center gap-1 group-hover:underline transition-all"
                       >
                         Know more
                         <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
@@ -692,16 +750,16 @@ export default function RecommendationsPage() {
                   )}
 
                   {/* Price Row - MRP with strikethrough and Offer Price */}
-                  <div className="mb-5 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-100">
+                  <div className="mb-5 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border-2 border-blue-100 dark:border-blue-800">
                     <div className="flex items-baseline gap-3 flex-wrap">
-                      <span className="text-sm font-medium text-slate-600">Lens Price:</span>
+                      <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Lens Price:</span>
                       {lensMRP && lensMRP >= lensPrice ? (
                         <>
-                          <span className="text-lg text-slate-500 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
-                          {lensMRP > lensPrice && <span className="text-slate-400">→</span>}
+                          <span className="text-lg text-slate-500 dark:text-slate-400 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
+                          {lensMRP > lensPrice && <span className="text-slate-400 dark:text-slate-500">→</span>}
                         </>
                       ) : null}
-                      <span className="text-2xl font-bold text-slate-900">₹{Math.round(lensPrice).toLocaleString()}</span>
+                      <span className="text-2xl font-bold text-slate-900 dark:text-white">₹{Math.round(lensPrice).toLocaleString()}</span>
                     </div>
                   </div>
 
@@ -741,14 +799,16 @@ export default function RecommendationsPage() {
               </div>
             );
           })}
-        </div>
+            </div>
+          );
+        })()}
 
         {/* LA-05: Bottom section - View All Lens Options button */}
         <div className="text-center mb-10">
           <Button
             onClick={() => setShowViewAllModal(true)}
             variant="outline"
-            className="border-2 border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-blue-400 font-semibold px-10 py-4 text-base shadow-md hover:shadow-lg transition-all"
+            className="border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-blue-400 dark:hover:border-blue-500 font-semibold px-10 py-4 text-base shadow-md hover:shadow-lg transition-all"
           >
             <Eye size={20} className="mr-2" />
             View All Lens Options
@@ -759,11 +819,11 @@ export default function RecommendationsPage() {
         {/* Removed: Coupon Code, Category Discount, and Second Pair sections - not relevant for lens selection */}
 
         {/* Bottom CTA Section */}
-        <div className="mt-8 bg-gradient-to-r from-slate-800/80 via-slate-800/80 to-slate-900/80 backdrop-blur rounded-2xl border-2 border-slate-700/50 p-6 shadow-xl">
+        <div className="mt-8 bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 dark:from-slate-800/80 dark:via-slate-800/80 dark:to-slate-900/80 backdrop-blur rounded-2xl border-2 border-slate-200 dark:border-slate-700/50 p-6 shadow-xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div>
-              <h3 className="text-xl font-bold text-white mb-2">Ready to order your lens?</h3>
-              <p className="text-slate-300 text-sm">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Ready to order your lens?</h3>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">
                 Our optician will assist you with lens selection and fitting
               </p>
             </div>
@@ -771,7 +831,7 @@ export default function RecommendationsPage() {
               <Button 
                 variant="outline" 
                 onClick={() => router.push('/questionnaire')}
-                className="border-2 border-slate-600 text-slate-300 hover:border-slate-500 hover:text-white hover:bg-slate-700/50"
+                className="border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50"
               >
                 <RefreshCw size={18} className="mr-2" />
                 New Search
@@ -786,7 +846,7 @@ export default function RecommendationsPage() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-6 text-slate-500 text-sm">
+        <div className="text-center mt-6 text-slate-600 dark:text-slate-400 text-sm">
           <p>Powered by LensTrack AI • {data.store.name}</p>
         </div>
       </div>
@@ -798,7 +858,7 @@ export default function RecommendationsPage() {
         
         return (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
               <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 flex items-center justify-between border-b border-blue-700">
                 <div>
                   <h3 className="text-2xl font-bold text-white mb-1">{rec.name}</h3>
@@ -812,28 +872,28 @@ export default function RecommendationsPage() {
                 </button>
               </div>
               <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
-                <h4 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-                  <Sparkles className="text-blue-600" size={20} />
+                <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                  <Sparkles className="text-blue-600 dark:text-blue-400" size={20} />
                   Full Feature Grid
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {rec.features?.filter((f: any) => f && f.name).map((feature: any) => {
                     const FeatureIcon = getFeatureIcon(feature.key);
                     return (
-                      <div key={feature.key} className="flex items-start gap-4 p-4 bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl border border-slate-200 hover:border-blue-300 transition-all group">
-                        <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-                          <FeatureIcon size={24} className="text-blue-600" />
+                      <div key={feature.key} className="flex items-start gap-4 p-4 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-700 dark:to-blue-900/20 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-blue-300 dark:hover:border-blue-500 transition-all group">
+                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors">
+                          <FeatureIcon size={24} className="text-blue-600 dark:text-blue-400" />
                         </div>
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-900 mb-1">{feature.name}</p>
+                          <p className="font-semibold text-slate-900 dark:text-white mb-1">{feature.name}</p>
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
                               <div 
                                 className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all"
                                 style={{ width: `${Math.min(feature.strength * 10, 100)}%` }}
                               />
                             </div>
-                            <span className="text-xs font-medium text-slate-600">{feature.strength}/10</span>
+                            <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{feature.strength}/10</span>
                           </div>
                         </div>
                       </div>
@@ -849,7 +909,7 @@ export default function RecommendationsPage() {
       {/* LA-06: View All Lenses Modal */}
       {showViewAllModal && data && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="sticky top-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 px-6 py-5 border-b border-indigo-700">
               <div className="flex items-center justify-between mb-4">
@@ -869,7 +929,7 @@ export default function RecommendationsPage() {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="px-4 py-2 border-2 border-white/30 rounded-lg text-sm font-semibold text-slate-700 bg-white shadow-md focus:outline-none focus:ring-2 focus:ring-white/50"
+                  className="px-4 py-2 border-2 border-white/30 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 shadow-md focus:outline-none focus:ring-2 focus:ring-white/50 dark:focus:ring-blue-500"
                 >
                   <option value="match">Best Match First</option>
                   <option value="price-low">Price: Low to High</option>
@@ -885,7 +945,7 @@ export default function RecommendationsPage() {
             </div>
 
             {/* List */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-3">
+            <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50 dark:bg-slate-900/50">
               {sortedRecommendations.map((rec) => {
                 const lensPrice = getLensPrice(rec);
                 // Get MRP - only use if explicitly set (not null/undefined)
@@ -923,8 +983,8 @@ export default function RecommendationsPage() {
                 const thicknessInfo = getThicknessDisplay();
                 
                 return (
-                  <div key={rec.id} className={`border-2 rounded-xl p-5 hover:shadow-lg transition-all bg-white group ${
-                    indexInvalid ? 'border-red-300 bg-red-50/30' : thicknessWarning ? 'border-yellow-300 bg-yellow-50/30' : 'border-slate-200 hover:border-blue-400'
+                  <div key={rec.id} className={`border-2 rounded-xl p-5 hover:shadow-lg transition-all bg-white dark:bg-slate-800/50 group ${
+                    indexInvalid ? 'border-red-300 dark:border-red-700 bg-red-50/30 dark:bg-red-900/20' : thicknessWarning ? 'border-yellow-300 dark:border-yellow-700 bg-yellow-50/30 dark:bg-yellow-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
                   }`}>
                     <div className="flex items-start justify-between gap-6">
                       <div className="flex-1">
@@ -950,36 +1010,36 @@ export default function RecommendationsPage() {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-3 flex-wrap">
-                          <span className="font-medium text-slate-700">{brandLine}</span>
-                          <span className="text-slate-400">•</span>
+                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-3 flex-wrap">
+                          <span className="font-medium text-slate-700 dark:text-slate-300">{brandLine}</span>
+                          <span className="text-slate-400 dark:text-slate-500">•</span>
                           <span>Index {lensIndexDisplay}</span>
                           {recommendedIndexDisplay && (
                             <>
-                              <span className="text-slate-400">•</span>
-                              <span className="text-slate-500">Recommended: {recommendedIndexDisplay}</span>
+                              <span className="text-slate-400 dark:text-slate-500">•</span>
+                              <span className="text-slate-500 dark:text-slate-400">Recommended: {recommendedIndexDisplay}</span>
                             </>
                           )}
-                          <span className="text-slate-400">•</span>
+                          <span className="text-slate-400 dark:text-slate-500">•</span>
                           <span>{rec.category}</span>
                         </div>
                         
                         {/* Thickness Difference Display */}
                         {recommendedIndexDisplay && (
-                          <div className={`mb-3 px-3 py-2 rounded-lg border ${indexInvalid ? 'bg-red-50 border-red-200' : thicknessWarning ? 'bg-yellow-50 border-yellow-200' : indexDelta > 0 ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
+                          <div className={`mb-3 px-3 py-2 rounded-lg border ${indexInvalid ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' : thicknessWarning ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700' : indexDelta > 0 ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700' : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'}`}>
                             <div className="flex items-center gap-2 text-sm">
                               <span className={thicknessInfo.color}>{thicknessInfo.icon}</span>
                               <span className={`font-medium ${thicknessInfo.color}`}>
                                 {thicknessInfo.text}
                               </span>
                               {indexDelta !== 0 && recommendedIndexDisplay && (
-                                <span className="text-slate-500 text-xs">
+                                <span className="text-slate-500 dark:text-slate-400 text-xs">
                                   (Recommended: {recommendedIndexDisplay})
                                 </span>
                               )}
                             </div>
                             {validationMessage && (
-                              <p className={`text-xs mt-1 ${indexInvalid ? 'text-red-700' : thicknessWarning ? 'text-yellow-700' : 'text-slate-600'}`}>
+                              <p className={`text-xs mt-1 ${indexInvalid ? 'text-red-700 dark:text-red-400' : thicknessWarning ? 'text-yellow-700 dark:text-yellow-400' : 'text-slate-600 dark:text-slate-400'}`}>
                                 {validationMessage}
                               </p>
                             )}
@@ -989,11 +1049,11 @@ export default function RecommendationsPage() {
                         <div className="mb-3 flex items-baseline gap-2">
                           {lensMRP && lensMRP >= lensPrice ? (
                             <>
-                              <span className="text-lg text-slate-500 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
-                              {lensMRP > lensPrice && <span className="text-slate-400">→</span>}
+                              <span className="text-lg text-slate-500 dark:text-slate-400 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
+                              {lensMRP > lensPrice && <span className="text-slate-400 dark:text-slate-500">→</span>}
                             </>
                           ) : null}
-                          <span className="text-2xl font-bold text-slate-900">₹{Math.round(lensPrice).toLocaleString()}</span>
+                          <span className="text-2xl font-bold text-slate-900 dark:text-white">₹{Math.round(lensPrice).toLocaleString()}</span>
                         </div>
                         {benefits.length > 0 && (
                           <ul className="space-y-1.5 mb-3">

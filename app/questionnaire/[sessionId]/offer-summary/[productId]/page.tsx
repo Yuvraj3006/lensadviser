@@ -90,19 +90,8 @@ export default function OfferSummaryPage() {
       fetchAvailableCategories();
       fetchFrameBrands();
       
-      // Load saved category from localStorage
-      const savedCategory = localStorage.getItem('lenstrack_category_discount');
-      if (savedCategory) {
-        try {
-          const categoryData = JSON.parse(savedCategory);
-          setAppliedCategory(categoryData.category);
-          if (categoryData.idImage) {
-            setCategoryIdImagePreview(categoryData.idImage);
-          }
-        } catch (e) {
-          console.error('Failed to parse saved category:', e);
-        }
-      }
+      // Don't auto-load category - let user select it manually
+      // Category will only be applied when user explicitly selects and applies it
     }
   }, [sessionId, productId]);
 
@@ -210,49 +199,9 @@ export default function OfferSummaryPage() {
   const fetchOfferSummary = async () => {
     setLoading(true);
     try {
-      // ✅ BEST PRACTICE: Load category discount from session (database) first, then localStorage as fallback
+      // Don't auto-load category - user must select it manually
+      // Only use category if user has already selected it in current session
       let customerCategoryToUse: string | null = appliedCategory || null;
-      
-      // Try to get from session first (database)
-      try {
-        const sessionResponse = await fetch(
-          `/api/public/questionnaire/sessions/${sessionId}`
-        );
-        if (sessionResponse.ok) {
-          const sessionData = await sessionResponse.json();
-          if (sessionData.success && sessionData.data?.session?.customerCategory) {
-            customerCategoryToUse = sessionData.data.session.customerCategory;
-            // Update state if not already set
-            if (customerCategoryToUse && !appliedCategory) {
-              setAppliedCategory(customerCategoryToUse);
-            }
-            console.log('[OfferSummary] ✅ Loaded category discount from session (database):', customerCategoryToUse);
-          }
-        }
-      } catch (sessionError) {
-        console.warn('[OfferSummary] Could not load from session, trying localStorage...', sessionError);
-      }
-      
-      // Fallback to localStorage if session doesn't have it
-      if (!customerCategoryToUse) {
-        const savedCategoryDiscount = localStorage.getItem('lenstrack_category_discount');
-        if (savedCategoryDiscount) {
-          try {
-            const categoryData = JSON.parse(savedCategoryDiscount);
-            customerCategoryToUse = categoryData.category || null;
-            // Update state if not already set
-            if (customerCategoryToUse && !appliedCategory) {
-              setAppliedCategory(customerCategoryToUse);
-              if (categoryData.idImage) {
-                setCategoryIdImagePreview(categoryData.idImage);
-              }
-            }
-            console.log('[OfferSummary] Loaded category discount from localStorage (fallback):', customerCategoryToUse);
-          } catch (e) {
-            console.error('[OfferSummary] Failed to parse saved category discount:', e);
-          }
-        }
-      }
       
       // Get selected product from recommendations
       const recommendationsResponse = await fetch(
@@ -863,11 +812,11 @@ export default function OfferSummaryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin" />
-          <h2 className="text-xl font-semibold text-white mb-2">Calculating Your Best Offers</h2>
-          <p className="text-slate-400">Applying all eligible discounts...</p>
+          <div className="w-16 h-16 mx-auto mb-4 border-4 border-slate-300 dark:border-slate-700 border-t-blue-500 rounded-full animate-spin" />
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Calculating Your Best Offers</h2>
+          <p className="text-slate-600 dark:text-slate-400">Applying all eligible discounts...</p>
         </div>
       </div>
     );
@@ -875,11 +824,11 @@ export default function OfferSummaryPage() {
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
-        <div className="text-center max-w-md bg-slate-800/50 backdrop-blur rounded-xl p-6 sm:p-8 border border-slate-700 shadow-lg">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-6">
+        <div className="text-center max-w-md bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-lg">
           <div className="text-5xl mb-4">??</div>
-          <h2 className="text-xl font-semibold text-white mb-2">Unable to Load Offer Summary</h2>
-          <p className="text-slate-400 mb-6">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Unable to Load Offer Summary</h2>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">
             Please go back and select a lens again.
           </p>
           <Button 
@@ -932,26 +881,26 @@ export default function OfferSummaryPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-24">
       {/* Header */}
-      <div className="bg-slate-800/50 backdrop-blur border-b border-slate-700 py-8 px-6">
+      <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur border-b border-slate-200 dark:border-slate-700 py-8 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-500/30">
-                <CheckCircle className="text-blue-400" size={24} />
+              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-300 dark:border-blue-500/30">
+                <CheckCircle className="text-blue-600 dark:text-blue-400" size={24} />
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-semibold text-white mb-1">
+                <h1 className="text-2xl md:text-3xl font-semibold text-slate-900 dark:text-white mb-1">
                   Offer Summary
                 </h1>
-                <p className="text-slate-400">All offers applied</p>
+                <p className="text-slate-600 dark:text-slate-400">All offers applied</p>
               </div>
             </div>
             {savingsPercent > 0 && (
-              <div className="bg-blue-500/20 rounded-lg px-6 py-3 border border-blue-500/30">
-                <p className="text-blue-300 text-sm font-medium mb-1">You Saved</p>
-                <p className="text-2xl font-semibold text-blue-400">{savingsPercent}%</p>
+              <div className="bg-blue-100 dark:bg-blue-500/20 rounded-lg px-6 py-3 border border-blue-300 dark:border-blue-500/30">
+                <p className="text-blue-700 dark:text-blue-300 text-sm font-medium mb-1">You Saved</p>
+                <p className="text-2xl font-semibold text-blue-600 dark:text-blue-400">{savingsPercent}%</p>
               </div>
             )}
           </div>
@@ -960,65 +909,65 @@ export default function OfferSummaryPage() {
 
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Top Summary: Selected Lens + Frame */}
-        <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-6 mb-6">
+        <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6 mb-6">
           <div className="grid md:grid-cols-2 gap-6">
             {/* Selected Lens */}
-            <div className="bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-lg p-5 border-2 border-blue-500/30">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-500/10 dark:to-indigo-500/10 rounded-lg p-5 border-2 border-blue-200 dark:border-blue-500/30">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-blue-300 uppercase tracking-wide">Selected Lens</h3>
-                <Package className="text-blue-400" size={18} />
+                <h3 className="text-sm font-medium text-blue-700 dark:text-blue-300 uppercase tracking-wide">Selected Lens</h3>
+                <Package className="text-blue-600 dark:text-blue-400" size={18} />
               </div>
-              <p className="text-xl font-bold text-white mb-2">{data.selectedLens.name}</p>
-              <div className="flex items-center gap-2 text-slate-300 text-sm mb-4">
-                <span className="bg-blue-500/20 px-3 py-1 rounded-lg border border-blue-500/30 font-semibold text-blue-200">
+              <p className="text-xl font-bold text-slate-900 dark:text-white mb-2">{data.selectedLens.name}</p>
+              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 text-sm mb-4">
+                <span className="bg-blue-100 dark:bg-blue-500/20 px-3 py-1 rounded-lg border border-blue-300 dark:border-blue-500/30 font-semibold text-blue-700 dark:text-blue-200">
                   Index {data.selectedLens.index}
                 </span>
                 {data.selectedLens.brandLine && (
-                  <span className="bg-slate-700/50 px-3 py-1 rounded-lg border border-slate-600">
+                  <span className="bg-slate-100 dark:bg-slate-700/50 px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300">
                     {data.selectedLens.brandLine}
                   </span>
                 )}
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-slate-400 text-sm">₹</span>
-                <span className="text-2xl font-bold text-white">{Math.round(data.selectedLens.price).toLocaleString()}</span>
+                <span className="text-slate-600 dark:text-slate-400 text-sm">₹</span>
+                <span className="text-2xl font-bold text-slate-900 dark:text-white">{Math.round(data.selectedLens.price).toLocaleString()}</span>
               </div>
             </div>
 
             {/* Selected Frame */}
-            <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-lg p-5 border-2 border-purple-500/30">
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-500/10 dark:to-pink-500/10 rounded-lg p-5 border-2 border-purple-200 dark:border-purple-500/30">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-purple-300 uppercase tracking-wide">Selected Frame</h3>
-                <Eye className="text-purple-400" size={18} />
+                <h3 className="text-sm font-medium text-purple-700 dark:text-purple-300 uppercase tracking-wide">Selected Frame</h3>
+                <Eye className="text-purple-600 dark:text-purple-400" size={18} />
               </div>
               <div className="mb-2">
-                <p className="text-xl font-bold text-white">{data.selectedFrame.brand}</p>
+                <p className="text-xl font-bold text-slate-900 dark:text-white">{data.selectedFrame.brand}</p>
                 {data.selectedFrame.subBrand && (
-                  <p className="text-purple-200 text-sm font-medium mt-1">{data.selectedFrame.subBrand}</p>
+                  <p className="text-purple-700 dark:text-purple-200 text-sm font-medium mt-1">{data.selectedFrame.subBrand}</p>
                 )}
               </div>
               {data.selectedFrame.frameType && (
                 <div className="mb-4">
-                  <span className="text-slate-300 text-sm bg-purple-500/20 px-3 py-1 rounded-lg border border-purple-500/30 inline-block">
+                  <span className="text-slate-700 dark:text-slate-300 text-sm bg-purple-100 dark:bg-purple-500/20 px-3 py-1 rounded-lg border border-purple-300 dark:border-purple-500/30 inline-block">
                     {data.selectedFrame.frameType.replace('_', ' ')}
                   </span>
                 </div>
               )}
               <div className="flex items-baseline gap-1 mt-4">
-                <span className="text-slate-400 text-sm">MRP: ₹</span>
-                <span className="text-2xl font-bold text-white">{Math.round(data.selectedFrame.mrp).toLocaleString()}</span>
+                <span className="text-slate-600 dark:text-slate-400 text-sm">MRP: ₹</span>
+                <span className="text-2xl font-bold text-slate-900 dark:text-white">{Math.round(data.selectedFrame.mrp).toLocaleString()}</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Category Discount Section */}
-        <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-6 mb-6">
+        <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-500/30">
-              <UserCheck className="text-blue-400" size={18} />
+            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-300 dark:border-blue-500/30">
+              <UserCheck className="text-blue-600 dark:text-blue-400" size={18} />
             </div>
-            <h2 className="text-xl font-semibold text-white">Category Discount</h2>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Category Discount</h2>
           </div>
           
           {!appliedCategory ? (
@@ -1051,14 +1000,14 @@ export default function OfferSummaryPage() {
                       }));
                     })(),
                   ]}
-                  className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
+                  className="!bg-slate-100 dark:!bg-slate-700/80 !border-2 !border-slate-300 dark:!border-slate-600 !text-slate-900 dark:!text-white"
                 />
               ) : (
-                <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                  <p className="text-slate-400 text-sm">
+                <div className="p-4 bg-slate-100 dark:bg-slate-700/50 rounded-lg border border-slate-300 dark:border-slate-600">
+                  <p className="text-slate-600 dark:text-slate-400 text-sm">
                     {availableCategories.length === 0 ? 'No category discounts available' : 'Loading categories...'}
                   </p>
-                  <p className="text-slate-500 text-xs mt-1">Check browser console for details</p>
+                  <p className="text-slate-500 dark:text-slate-500 text-xs mt-1">Check browser console for details</p>
                 </div>
               )}
               
@@ -1073,8 +1022,8 @@ export default function OfferSummaryPage() {
                 return (
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        Upload ID Proof {requiresVerification && <span className="text-red-400">*</span>}
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Upload ID Proof {requiresVerification && <span className="text-red-500 dark:text-red-400">*</span>}
                       </label>
                     <div className="flex items-center gap-3">
                       <label className="flex-1 cursor-pointer">
@@ -1094,9 +1043,9 @@ export default function OfferSummaryPage() {
                             }
                           }}
                         />
-                        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-slate-600 bg-slate-700/50 hover:border-blue-500 transition-colors">
-                          <Upload size={18} className="text-slate-400" />
-                          <span className="text-sm text-slate-300">
+                        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 hover:border-blue-500 dark:hover:border-blue-500 transition-colors">
+                          <Upload size={18} className="text-slate-500 dark:text-slate-400" />
+                          <span className="text-sm text-slate-700 dark:text-slate-300">
                             {categoryIdImage ? categoryIdImage.name : 'Click to upload ID proof'}
                           </span>
                         </div>
@@ -1252,13 +1201,13 @@ export default function OfferSummaryPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-green-500/20 border border-green-500/40 rounded-lg">
+              <div className="flex items-center justify-between p-3 bg-green-100 dark:bg-green-500/20 border border-green-300 dark:border-green-500/40 rounded-lg">
                 <div className="flex items-center gap-3">
-                  <CheckCircle className="text-green-400" size={20} />
+                  <CheckCircle className="text-green-600 dark:text-green-400" size={20} />
                   <div>
-                    <p className="text-sm font-semibold text-green-300">{appliedCategory} Discount Applied</p>
+                    <p className="text-sm font-semibold text-green-700 dark:text-green-300">{appliedCategory} Discount Applied</p>
                     {data.offerResult.categoryDiscount && (
-                      <p className="text-xs text-green-400">
+                      <p className="text-xs text-green-600 dark:text-green-400">
                         Saving ₹{Math.round(data.offerResult.categoryDiscount.savings).toLocaleString()}
                       </p>
                     )}
@@ -1409,7 +1358,7 @@ export default function OfferSummaryPage() {
                           });
                         }
                       }}
-                      className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white !placeholder:text-slate-500"
+                      className="!bg-slate-100 dark:!bg-slate-700/80 !border-2 !border-slate-300 dark:!border-slate-600 !text-slate-900 dark:!text-white !placeholder:text-slate-500 dark:!placeholder:text-slate-500"
                     />
                     
                     {/* Frame Brand */}
@@ -1433,7 +1382,7 @@ export default function OfferSummaryPage() {
                         { value: '', label: 'Select Brand' },
                         ...frameBrands.map(b => ({ value: b.brandName, label: b.brandName })),
                       ]}
-                      className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
+                      className="!bg-slate-100 dark:!bg-slate-700/80 !border-2 !border-slate-300 dark:!border-slate-600 !text-slate-900 dark:!text-white"
                     />
                     
                     {/* Frame Sub Brand */}
@@ -1457,13 +1406,13 @@ export default function OfferSummaryPage() {
                           { value: '', label: 'Select Sub Brand (Optional)' },
                           ...availableSubBrands.map(sb => ({ value: sb, label: sb })),
                         ]}
-                        className="!bg-slate-700/80 !border-2 !border-slate-600 !text-white"
+                        className="!bg-slate-100 dark:!bg-slate-700/80 !border-2 !border-slate-300 dark:!border-slate-600 !text-slate-900 dark:!text-white"
                       />
                     )}
                     
                     {/* Lens Selection */}
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                         Second Pair Lens
                       </label>
                       <div className="flex gap-3">
@@ -1473,19 +1422,19 @@ export default function OfferSummaryPage() {
                           value={secondPairLensId ? availableLenses.find(l => l.id === secondPairLensId)?.name || '' : ''}
                           readOnly
                           onClick={() => setShowLensSelectionModal(true)}
-                          className="flex-1 !bg-slate-700/80 !border-2 !border-slate-600 !text-white cursor-pointer"
+                          className="flex-1 !bg-slate-100 dark:!bg-slate-700/80 !border-2 !border-slate-300 dark:!border-slate-600 !text-slate-900 dark:!text-white cursor-pointer"
                         />
                         <Button
                           onClick={() => setShowLensSelectionModal(true)}
                           variant="outline"
-                          className="border-2 border-slate-600 text-slate-300 hover:border-purple-500 hover:text-purple-400"
+                          className="border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-purple-500 dark:hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400"
                         >
                           <Eye size={18} className="mr-2" />
                           Select Lens
                         </Button>
                       </div>
                       {secondPairLensPrice > 0 && (
-                        <p className="text-xs text-slate-400 mt-1">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                           Selected lens price: ₹{Math.round(secondPairLensPrice).toLocaleString()}
                         </p>
                       )}
@@ -1498,12 +1447,12 @@ export default function OfferSummaryPage() {
         })()}
 
         {/* Price Breakdown Card */}
-        <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-6 mb-6">
+        <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6 mb-6">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-500/30">
-              <Tag className="text-blue-400" size={18} />
+            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-300 dark:border-blue-500/30">
+              <Tag className="text-blue-600 dark:text-blue-400" size={18} />
             </div>
-            <h2 className="text-xl font-semibold text-white">Price Breakdown</h2>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Price Breakdown</h2>
           </div>
 
           <div className="space-y-4">
@@ -1544,17 +1493,17 @@ export default function OfferSummaryPage() {
                         return null;
                       }
                       return (
-                        <div key={index} className="flex justify-between items-center py-3 px-4 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-500/20 rounded-lg border-2 border-green-400/50">
-                          <span className="text-green-200 font-medium">{component.label}</span>
-                          <span className="text-lg font-bold text-green-300">-₹{Math.round(Math.abs(component.amount)).toLocaleString()}</span>
+                        <div key={index} className="flex justify-between items-center py-3 px-4 bg-gradient-to-r from-green-100 via-emerald-100 to-green-100 dark:from-green-500/20 dark:via-emerald-500/20 dark:to-green-500/20 rounded-lg border-2 border-green-300 dark:border-green-400/50">
+                          <span className="text-green-700 dark:text-green-200 font-medium">{component.label}</span>
+                          <span className="text-lg font-bold text-green-600 dark:text-green-300">-₹{Math.round(Math.abs(component.amount)).toLocaleString()}</span>
                         </div>
                       );
                     } else {
                       // Price component
                       return (
-                        <div key={index} className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                          <span className="text-slate-300 font-medium">{component.label}</span>
-                          <span className="text-lg font-semibold text-white">₹{Math.round(component.amount).toLocaleString()}</span>
+                        <div key={index} className="flex justify-between items-center py-3 px-4 bg-slate-100 dark:bg-slate-700/50 rounded-lg border border-slate-300 dark:border-slate-600">
+                          <span className="text-slate-700 dark:text-slate-300 font-medium">{component.label}</span>
+                          <span className="text-lg font-semibold text-slate-900 dark:text-white">₹{Math.round(component.amount).toLocaleString()}</span>
                         </div>
                       );
                     }
@@ -1566,28 +1515,28 @@ export default function OfferSummaryPage() {
               <>
                 {/* Fallback to original display if priceComponents not available */}
                 {data.offerResult.frameMRP > 0 && (
-                  <div className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                    <span className="text-slate-300 font-medium">Frame MRP</span>
-                    <span className="text-lg font-semibold text-white">₹{Math.round(data.offerResult.frameMRP).toLocaleString()}</span>
+                  <div className="flex justify-between items-center py-3 px-4 bg-slate-100 dark:bg-slate-700/50 rounded-lg border border-slate-300 dark:border-slate-600">
+                    <span className="text-slate-700 dark:text-slate-300 font-medium">Frame MRP</span>
+                    <span className="text-lg font-semibold text-slate-900 dark:text-white">₹{Math.round(data.offerResult.frameMRP).toLocaleString()}</span>
                   </div>
                 )}
                 {data.offerResult.lensPrice > 0 && (
-                  <div className="flex justify-between items-center py-3 px-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                    <span className="text-slate-300 font-medium">Lens Price</span>
-                    <span className="text-lg font-semibold text-white">₹{Math.round(data.offerResult.lensPrice).toLocaleString()}</span>
+                  <div className="flex justify-between items-center py-3 px-4 bg-slate-100 dark:bg-slate-700/50 rounded-lg border border-slate-300 dark:border-slate-600">
+                    <span className="text-slate-700 dark:text-slate-300 font-medium">Lens Price</span>
+                    <span className="text-lg font-semibold text-slate-900 dark:text-white">₹{Math.round(data.offerResult.lensPrice).toLocaleString()}</span>
                   </div>
                 )}
               </>
             )}
 
             {/* Applied Offers */}
-            <div className="py-4 border-t border-slate-700">
+            <div className="py-4 border-t border-slate-300 dark:border-slate-700">
               <div className="flex items-center gap-2 mb-4">
                 <div className="relative">
                   <div className="absolute inset-0 bg-blue-500/30 rounded-full blur-lg animate-pulse" />
-                  <Gift className="relative text-blue-400" size={18} />
+                  <Gift className="relative text-blue-600 dark:text-blue-400" size={18} />
                 </div>
-                <h3 className="text-lg font-semibold text-white">🎉 All Applicable Offers</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">🎉 All Applicable Offers</h3>
               </div>
               {(() => {
                 // Combine applied offers with all applicable offers from recommendations and fetched list
@@ -1639,8 +1588,8 @@ export default function OfferSummaryPage() {
                           key={`${offer.code || offer.type || 'offer'}-${idx}`}
                           className={`group relative overflow-hidden rounded-lg p-4 border-2 transition-all duration-300 transform hover:scale-[1.02] cursor-pointer ${
                             isApplied
-                              ? 'bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 border-blue-500/50 hover:border-blue-400'
-                              : 'bg-gradient-to-r from-slate-700/50 via-slate-600/50 to-slate-700/50 border-slate-600/50 hover:border-slate-500 hover:border-yellow-500/50'
+                              ? 'bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 dark:from-blue-500/20 dark:via-purple-500/20 dark:to-pink-500/20 border-blue-300 dark:border-blue-500/50 hover:border-blue-400 dark:hover:border-blue-400'
+                              : 'bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 dark:from-slate-700/50 dark:via-slate-600/50 dark:to-slate-700/50 border-slate-300 dark:border-slate-600/50 hover:border-slate-400 dark:hover:border-slate-500 hover:border-yellow-400 dark:hover:border-yellow-500/50'
                           }`}
                         >
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -1648,11 +1597,11 @@ export default function OfferSummaryPage() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 {isApplied ? (
-                                  <span className="px-2 py-0.5 bg-green-500/30 text-green-300 text-xs font-semibold rounded border border-green-500/50">
+                                  <span className="px-2 py-0.5 bg-green-100 dark:bg-green-500/30 text-green-700 dark:text-green-300 text-xs font-semibold rounded border border-green-300 dark:border-green-500/50">
                                     ✓ Applied
                                   </span>
                                 ) : (
-                                  <span className="px-2 py-0.5 bg-yellow-500/30 text-yellow-300 text-xs font-semibold rounded border border-yellow-500/50">
+                                  <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-500/30 text-yellow-700 dark:text-yellow-300 text-xs font-semibold rounded border border-yellow-300 dark:border-yellow-500/50">
                                     Available
                                   </span>
                                 )}
@@ -1660,20 +1609,20 @@ export default function OfferSummaryPage() {
                                   <span className={`px-3 py-1 text-white text-xs font-bold rounded-lg border shadow-lg whitespace-nowrap ${
                                     isApplied
                                       ? 'bg-gradient-to-r from-blue-500 to-purple-500 border-blue-400/50'
-                                      : 'bg-slate-600 border-slate-500'
+                                      : 'bg-slate-500 dark:bg-slate-600 border-slate-400 dark:border-slate-500'
                                   }`}>
                                     {offer.code}
                                   </span>
                                 )}
-                                <span className="text-base font-bold text-white break-words">{offer.title || 'Discount'}</span>
+                                <span className="text-base font-bold text-slate-900 dark:text-white break-words">{offer.title || 'Discount'}</span>
                               </div>
                               {offer.explanation && (
-                                <p className={`text-sm mt-1 break-words ${isApplied ? 'text-blue-200' : 'text-slate-300'}`}>
+                                <p className={`text-sm mt-1 break-words ${isApplied ? 'text-blue-700 dark:text-blue-200' : 'text-slate-600 dark:text-slate-300'}`}>
                                   {offer.explanation}
                                 </p>
                               )}
                               {!isApplied && (
-                                <p className="text-xs text-yellow-400 mt-2 italic">
+                                <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2 italic">
                                   Note: A better offer is currently applied. This offer would save ₹{Math.round(offer.discountAmount || 0).toLocaleString()}.
                                 </p>
                               )}
@@ -1683,7 +1632,7 @@ export default function OfferSummaryPage() {
                                 <div className={`rounded-lg px-3 py-1 border shadow-lg whitespace-nowrap ${
                                   isApplied
                                     ? 'bg-gradient-to-r from-green-400 to-emerald-400 border-green-300/50'
-                                    : 'bg-slate-600 border-slate-500'
+                                    : 'bg-slate-500 dark:bg-slate-600 border-slate-400 dark:border-slate-500'
                                 }`}>
                                   <span className="text-lg font-bold text-white">
                                     -₹{Math.round(offer.discountAmount || 0).toLocaleString()}
@@ -1698,7 +1647,7 @@ export default function OfferSummaryPage() {
                   </div>
                 ) : (
                   <div className="text-center py-4">
-                    <p className="text-slate-400 text-sm italic">No offers available</p>
+                    <p className="text-slate-600 dark:text-slate-400 text-sm italic">No offers available</p>
                   </div>
                 );
               })()}
@@ -1707,9 +1656,9 @@ export default function OfferSummaryPage() {
             {/* Discount components are already shown above, no need to duplicate */}
 
             {/* Subtotal - Show effectiveBase if YOPO/Combo is applied, otherwise baseTotal */}
-            <div className="flex justify-between items-center py-4 px-4 bg-slate-700/70 rounded-lg border border-slate-600">
-              <span className="text-lg font-semibold text-white">Subtotal</span>
-              <span className="text-xl font-semibold text-white">
+            <div className="flex justify-between items-center py-4 px-4 bg-slate-100 dark:bg-slate-700/70 rounded-lg border border-slate-300 dark:border-slate-600">
+              <span className="text-lg font-semibold text-slate-900 dark:text-white">Subtotal</span>
+              <span className="text-xl font-semibold text-slate-900 dark:text-white">
                 ₹{Math.round((data.offerResult.effectiveBase ?? data.offerResult.baseTotal)).toLocaleString()}
               </span>
             </div>
@@ -1727,16 +1676,16 @@ export default function OfferSummaryPage() {
               // Only show if there's a discount and it's not already shown in priceComponents
               if (actualTotalDiscount > 0) {
                 return (
-                  <div className="relative overflow-hidden flex justify-between items-center py-4 px-4 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-500/20 rounded-lg border-2 border-green-400/50 shadow-lg">
+                  <div className="relative overflow-hidden flex justify-between items-center py-4 px-4 bg-gradient-to-r from-green-100 via-emerald-100 to-green-100 dark:from-green-500/20 dark:via-emerald-500/20 dark:to-green-500/20 rounded-lg border-2 border-green-300 dark:border-green-400/50 shadow-lg">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
-                    <span className="relative text-lg font-bold text-white flex items-center gap-2">
+                    <span className="relative text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                       <div className="relative">
                         <div className="absolute inset-0 bg-green-400 rounded-full blur-md animate-ping opacity-75" />
-                        <Percent className="relative text-green-300" size={20} />
+                        <Percent className="relative text-green-600 dark:text-green-300" size={20} />
                       </div>
                       Total Discount
                     </span>
-                    <span className="relative text-2xl font-bold text-green-300">
+                    <span className="relative text-2xl font-bold text-green-600 dark:text-green-300">
                       -₹{Math.round(actualTotalDiscount).toLocaleString()}
                     </span>
                   </div>
@@ -1771,7 +1720,7 @@ export default function OfferSummaryPage() {
           <Button
             onClick={() => router.push(`/questionnaire/${sessionId}/recommendations`)}
             variant="outline"
-            className="flex-1 border border-slate-600 text-slate-300 hover:bg-slate-700/50 hover:text-white font-medium py-3"
+            className="flex-1 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white font-medium py-3"
           >
             <ArrowLeft size={18} className="mr-2" />
             Change Lens

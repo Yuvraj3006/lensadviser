@@ -10,7 +10,7 @@ import { useSessionStore } from '@/stores/session-store';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Eye, HelpCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { Eye, HelpCircle, AlertTriangle, Info, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { IndexRecommendationService } from '@/services/index-recommendation.service';
 import { useMemo, useState } from 'react';
 
@@ -27,6 +27,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
   const frame = useLensAdvisorStore((state) => state.frame);
   const indexService = new IndexRecommendationService();
   const [showHelp, setShowHelp] = useState(false);
+  const [showIndexInfo, setShowIndexInfo] = useState(false);
   const [pd, setPd] = useState<number | null>(null);
 
   // Calculate maximum power for warnings
@@ -164,20 +165,27 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
     <div className="lg:flex lg:gap-6">
       {/* Main Form Section */}
       <div className="flex-1 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Eye className="text-blue-600" size={28} />
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">Step 1 of 5 – Your Eye Power</h2>
-            <p className="text-slate-600">Enter your prescription</p>
+        {/* Progress Bar Header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Enter your prescription</h2>
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Step 1 of 5</span>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
+            <div 
+              className="bg-gradient-to-r from-blue-500 to-purple-600 h-2.5 rounded-full transition-all duration-300"
+              style={{ width: '20%' }}
+            ></div>
           </div>
         </div>
 
         {/* "I don't know my power" Toggle */}
-        <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+        <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 border border-slate-200 dark:border-slate-600">
           <button
             onClick={() => setShowHelp(!showHelp)}
-            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 w-full text-left"
+            className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 w-full text-left"
           >
             <HelpCircle size={16} />
             <span className="font-medium">I don't know my power</span>
@@ -185,11 +193,11 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
           </button>
           
           {showHelp && (
-            <div className="mt-4 pt-4 border-t border-slate-200">
-              <p className="text-sm text-slate-700 mb-2">
+            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-600">
+              <p className="text-sm text-slate-700 dark:text-slate-300 mb-2">
                 <strong>How to find your prescription:</strong>
               </p>
-              <ul className="text-sm text-slate-600 space-y-1 list-disc list-inside">
+              <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1 list-disc list-inside">
                 <li>Check your previous prescription slip from your optometrist</li>
                 <li>Look for numbers like: SPH, CYL, AXIS, ADD</li>
                 <li>Right Eye (OD) and Left Eye (OS) values are usually listed separately</li>
@@ -202,13 +210,13 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
 
         {/* Extreme Power Warning Banner */}
         {isExtremePower && (
-          <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4 flex items-start gap-3">
-            <AlertTriangle className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
+          <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-lg p-4 flex items-start gap-3">
+            <AlertTriangle className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" size={20} />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-900 mb-1">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-1">
                 This power may need custom lenses
               </p>
-              <p className="text-xs text-amber-800">
+              <p className="text-xs text-amber-800 dark:text-amber-300">
                 Your prescription ({maxPower.toFixed(2)}D) is beyond standard lens ranges. Our staff will help you find the best solution. You can still continue to view options.
               </p>
             </div>
@@ -216,24 +224,25 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
         )}
 
         {/* Rx Form Table */}
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Eye</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">SPH</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">CYL</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">AXIS</th>
-                  {showAddFields && (
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">ADD</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
+        <div className="bg-white dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="max-h-[300px] sm:max-h-[350px] md:max-h-none overflow-y-auto md:overflow-y-visible">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 md:relative md:z-0">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Eye</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">SPH</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">CYL</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">AXIS</th>
+                    {showAddFields && (
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">ADD</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 {/* Right Eye (OD) */}
                 <tr>
-                  <td className="px-4 py-4 text-sm font-medium text-slate-900">
+                  <td className="px-4 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">
                     Right Eye (OD)
                   </td>
                   <td className="px-4 py-4">
@@ -285,7 +294,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
                 
                 {/* Left Eye (OS) */}
                 <tr>
-                  <td className="px-4 py-4 text-sm font-medium text-slate-900">
+                  <td className="px-4 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">
                     Left Eye (OS)
                   </td>
                   <td className="px-4 py-4">
@@ -336,6 +345,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 
@@ -351,7 +361,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
             onChange={(e) => setPd(e.target.value ? parseFloat(e.target.value) : null)}
             placeholder="e.g., 62.5"
           />
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             PD is the distance between your pupils. Usually measured by your optometrist. If not available, we can measure it in-store.
           </p>
         </div>
@@ -370,7 +380,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
             ]}
           />
           {!showAddFields && (
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               ℹ️ ADD field is not available for Single Vision. Switch to Bifocal or Progressive to enter ADD values.
             </p>
           )}
@@ -378,7 +388,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
 
         {/* Navigation - Primary CTA: Next, Secondary CTA: Skip */}
         {!hideNextButton && (
-          <div className="flex justify-between pt-4 border-t">
+          <div className="flex justify-between pt-4 border-t border-slate-200 dark:border-slate-700">
             <Button variant="outline" onClick={handleSkip}>
               Skip
             </Button>
@@ -396,20 +406,19 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
       {/* Index Suggestion Summary Panel - Right on desktop, bottom on mobile */}
       {(recommendedIndex || isHighPower || isVeryHighPower) && (
         <div className="lg:w-80 lg:sticky lg:top-6 lg:self-start mt-6 lg:mt-0">
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200 p-5 shadow-lg">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border-2 border-blue-200 dark:border-blue-700 p-5 shadow-lg">
             <div className="flex items-center gap-2 mb-4">
-              <Info className="text-blue-600" size={20} />
-              <h3 className="text-lg font-bold text-slate-900">Index Recommendation</h3>
+              <Info className="text-blue-600 dark:text-blue-400" size={20} />
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Index Recommendation</h3>
             </div>
 
             {recommendedIndex && (
               <div className="mb-4">
-                <div className="bg-white rounded-lg p-4 border border-blue-200">
-                  <p className="text-xs text-slate-600 mb-1">Recommended Index</p>
-                  <p className="text-2xl font-bold text-blue-600">
+                <div className="bg-white dark:bg-slate-800/50 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                     {indexService.getIndexDisplayName(recommendedIndex)}
                   </p>
-                  <p className="text-xs text-slate-600 mt-2">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
                     Based on your prescription power
                   </p>
                 </div>
@@ -418,12 +427,12 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
 
             {/* Power Warnings */}
             {isVeryHighPower && (
-              <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-3">
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-3 mb-3">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="text-amber-600 flex-shrink-0 mt-0.5" size={16} />
+                  <AlertTriangle className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" size={16} />
                   <div>
-                    <p className="text-xs font-semibold text-amber-900 mb-1">Very High Power</p>
-                    <p className="text-xs text-amber-800">
+                    <p className="text-xs font-semibold text-amber-900 dark:text-amber-200 mb-1">Very High Power</p>
+                    <p className="text-xs text-amber-800 dark:text-amber-300">
                       Your power ({maxPower.toFixed(2)}D) is very high. Higher index lenses (1.67 or 1.74) are recommended for thinner, lighter lenses.
                     </p>
                   </div>
@@ -432,12 +441,12 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
             )}
 
             {isHighPower && !isVeryHighPower && (
-              <div className="bg-blue-50 border border-blue-300 rounded-lg p-3 mb-3">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-lg p-3 mb-3">
                 <div className="flex items-start gap-2">
-                  <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+                  <Info className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" size={16} />
                   <div>
-                    <p className="text-xs font-semibold text-blue-900 mb-1">Moderate Power</p>
-                    <p className="text-xs text-blue-800">
+                    <p className="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-1">Moderate Power</p>
+                    <p className="text-xs text-blue-800 dark:text-blue-300">
                       Consider 1.60 or 1.67 index for better lens thickness and weight.
                     </p>
                   </div>
@@ -446,9 +455,23 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
             )}
 
             {/* Info about index */}
-            <div className="text-xs text-slate-600 space-y-1">
-              <p><strong>What is Index?</strong></p>
-              <p>Higher index = Thinner, lighter lenses. Recommended based on your prescription power.</p>
+            <div className="text-xs text-slate-600 dark:text-slate-400">
+              <button
+                onClick={() => setShowIndexInfo(!showIndexInfo)}
+                className="flex items-center justify-between w-full text-left font-semibold hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              >
+                <span>What is Index?</span>
+                {showIndexInfo ? (
+                  <ChevronUp size={16} className="ml-2" />
+                ) : (
+                  <ChevronDown size={16} className="ml-2" />
+                )}
+              </button>
+              {showIndexInfo && (
+                <p className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  Higher index = Thinner, lighter lenses. Recommended based on your prescription power.
+                </p>
+              )}
             </div>
           </div>
         </div>

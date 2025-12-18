@@ -81,19 +81,19 @@ export default function PrescriptionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl w-full">
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 shadow-2xl">
+        <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl">
           {/* Use enhanced PrescriptionForm component */}
-          <div className="bg-white rounded-xl p-6">
+          <div className="bg-white dark:bg-slate-800/50 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
             <PrescriptionForm hideNextButton={true} onNext={handleNext} onSkip={handleSkip} />
           </div>
 
           {/* Custom Navigation */}
-          <div className="flex justify-between mt-6 pt-6 border-t border-slate-700">
+          <div className="flex justify-between mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
             <Button
               variant="outline"
-              onClick={() => router.push('/questionnaire/language')}
+              onClick={() => router.push('/questionnaire/lens-type')}
               className="flex items-center gap-2"
             >
               <ArrowLeft size={18} />

@@ -434,16 +434,16 @@ export default function FramePage() {
   // Show message if "Only Lens" is selected
   if (lensType === 'ONLY_LENS') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
         <div className="max-w-4xl w-full">
-          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 shadow-2xl">
+          <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-white mb-4">Only Lens Selected</h2>
-              <p className="text-slate-300 mb-6">Frame entry is not required for lens-only purchases.</p>
-              <p className="text-slate-400 mb-8">Proceeding to questionnaire...</p>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Only Lens Selected</h2>
+              <p className="text-slate-600 dark:text-slate-300 mb-6">Frame entry is not required for lens-only purchases.</p>
+              <p className="text-slate-500 dark:text-slate-400 mb-8">Proceeding to questionnaire...</p>
               {isSubmitting ? (
                 <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-white"></div>
                 </div>
               ) : (
                 <Button
@@ -461,16 +461,16 @@ export default function FramePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl w-full">
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-2xl">
+        <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl">
           {/* Use existing FrameEntryForm component - hide its navigation */}
-          <div className="bg-white rounded-xl p-6">
+          <div className="bg-white dark:bg-slate-800/50 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
             <FrameEntryForm hideNextButton={true} />
           </div>
 
           {/* Custom Navigation */}
-          <div className="flex justify-between mt-6 pt-6 border-t border-slate-700">
+          <div className="flex justify-between mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
             <Button
               variant="outline"
               onClick={() => router.push('/questionnaire/prescription')}

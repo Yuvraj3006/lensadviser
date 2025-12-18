@@ -12,7 +12,7 @@ import { FrameInput } from '@/types/offer-engine';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Frame } from 'lucide-react';
+import { Frame, Square, Circle, Minus } from 'lucide-react';
 
 interface FrameBrand {
   id: string;
@@ -24,9 +24,53 @@ interface FrameBrand {
 }
 
 const frameTypes = [
-  { value: 'FULL_RIM', label: 'Full Rim' },
-  { value: 'HALF_RIM', label: 'Half Rim' },
-  { value: 'RIMLESS', label: 'Rimless' },
+  { 
+    value: 'FULL_RIM', 
+    label: 'Full Rim',
+    icon: (
+      <svg 
+        width="40" 
+        height="28" 
+        viewBox="0 0 40 28" 
+        fill="none" 
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        {/* Shadow */}
+        <ellipse cx="20" cy="24" rx="18" ry="2" fill="#1F2937" opacity="0.3" />
+        
+        {/* Left lens frame - black thick frame */}
+        <rect x="2" y="8" width="14" height="10" rx="2.5" fill="#000000" stroke="#000000" strokeWidth="3" />
+        {/* Left lens - light blue */}
+        <rect x="3.5" y="9.5" width="11" height="7" rx="1.5" fill="#BFDBFE" opacity="0.7" />
+        {/* Left lens highlight */}
+        <path d="M 4 10.5 Q 9 9 14 10.5" stroke="#FFFFFF" strokeWidth="1.5" fill="none" opacity="0.6" />
+        
+        {/* Bridge - black */}
+        <rect x="16" y="12" width="2.5" height="2" rx="1" fill="#000000" />
+        
+        {/* Right lens frame - black thick frame */}
+        <rect x="23.5" y="8" width="14" height="10" rx="2.5" fill="#000000" stroke="#000000" strokeWidth="3" />
+        {/* Right lens - light blue */}
+        <rect x="25" y="9.5" width="11" height="7" rx="1.5" fill="#BFDBFE" opacity="0.7" />
+        {/* Right lens highlight */}
+        <path d="M 25.5 10.5 Q 30.5 9 35.5 10.5" stroke="#FFFFFF" strokeWidth="1.5" fill="none" opacity="0.6" />
+        
+        {/* Temples - black */}
+        <path d="M 2 13 L -1 13 L -1 10" stroke="#000000" strokeWidth="3" strokeLinecap="round" fill="none" />
+        <path d="M 37.5 13 L 40.5 13 L 40.5 10" stroke="#000000" strokeWidth="3" strokeLinecap="round" fill="none" />
+      </svg>
+    )
+  },
+  { 
+    value: 'HALF_RIM', 
+    label: 'Half Rim',
+    icon: <Circle size={24} className="stroke-[2]" />
+  },
+  { 
+    value: 'RIMLESS', 
+    label: 'Rimless',
+    icon: <Minus size={24} className="stroke-[2]" />
+  },
 ];
 
 interface FrameEntryFormProps {
@@ -199,29 +243,37 @@ export function FrameEntryForm({ hideNextButton = false }: FrameEntryFormProps =
 
   return (
     <div className="space-y-6">
-      {/* WF-03: Header with step indicator */}
-      <div className="flex items-center gap-3 mb-6">
-        <Frame className="text-blue-600" size={28} />
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">Step 2 of 5 – Your Frame</h2>
-          {storeName && (
-            <p className="text-sm text-slate-500 mt-1">{storeName}</p>
-          )}
+      {/* Progress Bar Header */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Your Frame</h2>
+          <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Step 2 of 5</span>
+        </div>
+        {storeName && (
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">{storeName}</p>
+        )}
+        
+        {/* Progress Bar */}
+        <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
+          <div 
+            className="bg-gradient-to-r from-blue-500 to-purple-600 h-2.5 rounded-full transition-all duration-300"
+            style={{ width: '40%' }}
+          ></div>
         </div>
       </div>
 
       {loading ? (
         <div className="text-center py-8">
-          <p className="text-slate-600">Loading frame brands...</p>
+          <p className="text-slate-600 dark:text-slate-400">Loading frame brands...</p>
         </div>
       ) : brands.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-red-600 mb-2">No frame brands available</p>
-          <p className="text-sm text-slate-500">Please check your store code or contact support.</p>
-          <p className="text-xs text-slate-400 mt-2">Store Code: {storeCode || localStorage.getItem('lenstrack_store_code') || 'Not set'}</p>
+          <p className="text-red-600 dark:text-red-400 mb-2">No frame brands available</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Please check your store code or contact support.</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">Store Code: {storeCode || localStorage.getItem('lenstrack_store_code') || 'Not set'}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-4">
           <Select
             label="Frame Brand *"
             value={selectedBrandId}
@@ -250,14 +302,14 @@ export function FrameEntryForm({ hideNextButton = false }: FrameEntryFormProps =
               ]}
             />
           ) : selectedBrandId ? (
-            <div className="flex items-center h-10 text-sm text-slate-500">
+            <div className="flex items-center h-10 text-sm text-slate-500 dark:text-slate-400">
               No sub-brands available for this brand
             </div>
           ) : null}
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-4">
         <Input
           label="MRP (₹) *"
           type="number"
@@ -269,34 +321,50 @@ export function FrameEntryForm({ hideNextButton = false }: FrameEntryFormProps =
           required
         />
         
-        <Select
-          label="Frame Type *"
-          value={formData.frameType || ''}
-          onChange={(e) => {
-            const selectedValue = e.target.value;
-            console.log('[FrameEntryForm] Frame type selected:', selectedValue);
-            handleChange('frameType', selectedValue || undefined);
-            // Immediately sync to store
-            const updatedFrame: FrameInput = {
-              brand: formData.brand || '',
-              subCategory: formData.subCategory || null,
-              mrp: formData.mrp || 0,
-              frameType: (selectedValue as 'FULL_RIM' | 'HALF_RIM' | 'RIMLESS') || undefined,
-            };
-            console.log('[FrameEntryForm] Immediately syncing frame to store:', updatedFrame);
-            setFrame(updatedFrame);
-          }}
-          options={[
-            { value: '', label: 'Select Frame Type...' },
-            ...frameTypes,
-          ]}
-          required
-        />
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            Frame Type * <span className="text-red-500">*</span>
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            {frameTypes.map((type) => {
+              const isSelected = formData.frameType === type.value;
+              return (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() => {
+                    console.log('[FrameEntryForm] Frame type selected:', type.value);
+                    handleChange('frameType', type.value as 'FULL_RIM' | 'HALF_RIM' | 'RIMLESS');
+                    // Immediately sync to store
+                    const updatedFrame: FrameInput = {
+                      brand: formData.brand || '',
+                      subCategory: formData.subCategory || null,
+                      mrp: formData.mrp || 0,
+                      frameType: type.value as 'FULL_RIM' | 'HALF_RIM' | 'RIMLESS',
+                    };
+                    console.log('[FrameEntryForm] Immediately syncing frame to store:', updatedFrame);
+                    setFrame(updatedFrame);
+                  }}
+                  className={`flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
+                  }`}
+                >
+                  <div className={`${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                    {type.icon}
+                  </div>
+                  <span className="text-sm font-medium">{type.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* WF-03: Material field */}
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-2">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
           Material
         </label>
         <div className="flex flex-wrap gap-2">
@@ -308,7 +376,7 @@ export function FrameEntryForm({ hideNextButton = false }: FrameEntryFormProps =
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                 formData.material === mat.value
                   ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >
               {mat.label}
@@ -318,15 +386,15 @@ export function FrameEntryForm({ hideNextButton = false }: FrameEntryFormProps =
       </div>
 
       {/* WF-03: Info text */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-blue-900">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+        <p className="text-sm text-blue-900 dark:text-blue-200">
           ℹ️ This information helps us apply the best offers (YOPO, Free Lens, Combos).
         </p>
       </div>
 
       {/* Navigation */}
       {!hideNextButton && (
-        <div className="flex justify-between pt-4 border-t">
+        <div className="flex justify-between pt-4 border-t border-slate-200 dark:border-slate-700">
           <Button variant="outline" onClick={() => setCurrentStep(1)}>
             ← Back
           </Button>

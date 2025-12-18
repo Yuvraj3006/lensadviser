@@ -59,6 +59,42 @@ export default function OrderSuccessPage() {
     }
   }, [orderId]);
 
+  // Clear localStorage after order success (for next customer)
+  useEffect(() => {
+    if (orderData && !loading) {
+      // Clear all session-related data after a short delay to ensure order is saved
+      const clearTimer = setTimeout(() => {
+        const keysToRemove = [
+          'lenstrack_frame',
+          'lenstrack_customer_details',
+          'lenstrack_prescription',
+          'lenstrack_lens_type',
+          'lenstrack_category',
+        ];
+        
+        // Remove all session-specific keys
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('lenstrack_') && 
+              !key.includes('store_code') && // Keep store code
+              !key.includes('language') && // Keep language preference
+              !key.startsWith('lenstrack_order_')) { // Keep order data
+            localStorage.removeItem(key);
+          } else if (key.startsWith('combo_selection_') ||
+                     key.startsWith('lenstrack_accessories_') ||
+                     key.startsWith('lenstrack_tint_selection_') ||
+                     key.startsWith('lenstrack_selected_lens_') ||
+                     key.startsWith('lenstrack_selected_product_') ||
+                     key.startsWith('lenstrack_contact_lens_') ||
+                     key.startsWith('lenstrack_cl_')) {
+            localStorage.removeItem(key);
+          }
+        });
+      }, 2000); // Clear after 2 seconds
+
+      return () => clearTimeout(clearTimer);
+    }
+  }, [orderData, loading]);
+
   const fetchOrderData = async () => {
     setLoading(true);
     try {
@@ -770,10 +806,34 @@ export default function OrderSuccessPage() {
           <div className="flex flex-col sm:flex-row gap-4">
             <Button
               onClick={() => {
-                // Clear session data and start new questionnaire
-                localStorage.removeItem('lenstrack_frame');
-                localStorage.removeItem('lenstrack_customer_details');
-                localStorage.removeItem('lenstrack_prescription');
+                // Clear ALL session data for next customer
+                const keysToRemove = [
+                  'lenstrack_frame',
+                  'lenstrack_customer_details',
+                  'lenstrack_prescription',
+                  'lenstrack_lens_type',
+                  'lenstrack_category',
+                  'lenstrack_language',
+                  'lenstrack_store_code',
+                ];
+                
+                // Remove all session-specific keys (accessories, tint, etc.)
+                Object.keys(localStorage).forEach(key => {
+                  if (key.startsWith('lenstrack_') || 
+                      key.startsWith('combo_selection_') ||
+                      key.startsWith('lenstrack_accessories_') ||
+                      key.startsWith('lenstrack_tint_selection_') ||
+                      key.startsWith('lenstrack_selected_lens_') ||
+                      key.startsWith('lenstrack_selected_product_') ||
+                      key.startsWith('lenstrack_contact_lens_') ||
+                      key.startsWith('lenstrack_cl_')) {
+                    localStorage.removeItem(key);
+                  }
+                });
+                
+                // Also clear session store
+                useSessionStore.getState().reset();
+                
                 router.push('/questionnaire');
               }}
               className="flex-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-700 hover:via-indigo-700 hover:to-blue-700 text-white font-bold py-4 text-base shadow-lg hover:shadow-xl transition-all"

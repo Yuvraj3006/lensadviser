@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
-import { Glasses, Sun, Contact, Package, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Glasses, Sun, Contact, Package, ArrowRight, ArrowLeft, Eye, ShoppingBag } from 'lucide-react';
 
 // Client-safe ProductCategory
 const ProductCategory = {
@@ -21,6 +21,7 @@ export default function LensTypePage() {
   const router = useRouter();
   const { showToast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | null>(null);
+  const [language, setLanguage] = useState<'en' | 'hi' | 'hinglish'>('en');
 
   useEffect(() => {
     // Load saved selection
@@ -28,49 +29,194 @@ export default function LensTypePage() {
     if (saved) {
       setSelectedCategory(saved as ProductCategory);
     }
+    
+    // Load language preference
+    const savedLanguage = localStorage.getItem('lenstrack_language') || 'en';
+    setLanguage(savedLanguage as 'en' | 'hi' | 'hinglish');
   }, []);
+
+  // Helper function to get text based on language
+  const getText = (textEn: string, textHi?: string, textHiEn?: string): string => {
+    if (language === 'hi' && textHi) return textHi;
+    if (language === 'hinglish' && textHiEn) return textHiEn;
+    return textEn;
+  };
 
   const categories = [
     {
       value: ProductCategory.EYEGLASSES,
-      label: 'Eyeglasses',
-      icon: <Glasses size={48} />,
-      description: 'Frame + Lens',
+      label: {
+        en: 'Eyeglasses',
+        hi: 'चश्मा',
+        hinglish: 'Eyeglasses'
+      },
+      icon: <Glasses size={48} className="drop-shadow-lg" />,
+      description: {
+        en: 'Frame + Lens',
+        hi: 'फ्रेम + लेंस',
+        hinglish: 'Frame + Lens'
+      },
       color: 'from-blue-500 to-blue-600',
     },
     {
       value: ProductCategory.ONLY_LENS,
-      label: 'Only Lens',
-      icon: <Glasses size={48} />,
-      description: 'Lens replacement only',
+      label: {
+        en: 'Only Lens',
+        hi: 'केवल लेंस',
+        hinglish: 'Only Lens'
+      },
+      icon: <Eye size={48} className="drop-shadow-lg" />,
+      description: {
+        en: 'Lens replacement only',
+        hi: 'केवल लेंस बदलना',
+        hinglish: 'Lens replacement only'
+      },
       color: 'from-green-500 to-green-600',
     },
     {
       value: ProductCategory.SUNGLASSES,
-      label: 'Power Sunglasses',
-      icon: <Sun size={48} />,
-      description: 'Tinted & mirror lenses',
+      label: {
+        en: 'Power Sunglasses',
+        hi: 'पावर सनग्लास',
+        hinglish: 'Power Sunglasses'
+      },
+      icon: (
+        <svg 
+          width="48" 
+          height="48" 
+          viewBox="0 0 48 48" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+          className="drop-shadow-lg"
+        >
+          {/* Left lens */}
+          <ellipse cx="14" cy="24" rx="8" ry="7" fill="black" stroke="currentColor" strokeWidth="2" />
+          {/* Right lens */}
+          <ellipse cx="34" cy="24" rx="8" ry="7" fill="black" stroke="currentColor" strokeWidth="2" />
+          {/* Bridge */}
+          <line x1="22" y1="24" x2="26" y2="24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          {/* Left temple */}
+          <line x1="6" y1="24" x2="6" y2="20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <line x1="6" y1="20" x2="2" y2="20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          {/* Right temple */}
+          <line x1="42" y1="24" x2="42" y2="20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <line x1="42" y1="20" x2="46" y2="20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      ),
+      description: {
+        en: 'Tinted & mirror lenses',
+        hi: 'टिंटेड और मिरर लेंस',
+        hinglish: 'Tinted & mirror lenses'
+      },
       color: 'from-amber-500 to-amber-600',
     },
     {
       value: ProductCategory.CONTACT_LENSES,
-      label: 'Contact Lenses',
-      icon: <Contact size={48} />,
-      description: 'Daily, monthly, yearly',
+      label: {
+        en: 'Contact Lenses',
+        hi: 'कॉन्टैक्ट लेंस',
+        hinglish: 'Contact Lenses'
+      },
+      icon: (
+        <svg 
+          width="48" 
+          height="48" 
+          viewBox="0 0 48 48" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+          className="drop-shadow-lg"
+        >
+          {/* First contact lens (left, flat) */}
+          <ellipse 
+            cx="18" 
+            cy="26" 
+            rx="8" 
+            ry="6" 
+            fill="#E0F2FE" 
+            stroke="black" 
+            strokeWidth="2.5"
+          />
+          <ellipse 
+            cx="18" 
+            cy="26" 
+            rx="6" 
+            ry="4.5" 
+            fill="#BAE6FD" 
+          />
+          
+          {/* Second contact lens (right, tilted/overlapping) */}
+          <ellipse 
+            cx="30" 
+            cy="22" 
+            rx="8" 
+            ry="6" 
+            fill="#E0F2FE" 
+            stroke="black" 
+            strokeWidth="2.5"
+            transform="rotate(-15 30 22)"
+          />
+          <ellipse 
+            cx="30" 
+            cy="22" 
+            rx="6" 
+            ry="4.5" 
+            fill="#BAE6FD"
+            transform="rotate(-15 30 22)"
+          />
+        </svg>
+      ),
+      description: {
+        en: 'Daily, monthly, yearly',
+        hi: 'दैनिक, मासिक, वार्षिक',
+        hinglish: 'Daily, monthly, yearly'
+      },
       color: 'from-cyan-500 to-cyan-600',
     },
     {
       value: ProductCategory.ACCESSORIES,
-      label: 'Accessories',
-      icon: <Package size={48} />,
-      description: 'Cases, solutions, more',
+      label: {
+        en: 'Accessories',
+        hi: 'सामान',
+        hinglish: 'Accessories'
+      },
+      icon: (
+        <svg 
+          width="48" 
+          height="48" 
+          viewBox="0 0 48 48" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+          className="drop-shadow-lg"
+        >
+          {/* Case/Box */}
+          <rect x="12" y="16" width="24" height="18" rx="2" fill="currentColor" opacity="0.1" stroke="currentColor" strokeWidth="2" />
+          <rect x="12" y="16" width="24" height="6" rx="2" fill="currentColor" opacity="0.2" />
+          
+          {/* Solution bottle */}
+          <rect x="18" y="26" width="4" height="6" rx="1" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="1.5" />
+          <line x1="20" y1="26" x2="20" y2="24" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          
+          {/* Lens case (circular) */}
+          <circle cx="28" cy="29" r="3" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="1.5" />
+          <circle cx="28" cy="29" r="1.5" fill="currentColor" opacity="0.5" />
+          
+          {/* Cleaning cloth */}
+          <rect x="16" y="32" width="8" height="2" rx="1" fill="currentColor" opacity="0.4" />
+        </svg>
+      ),
+      description: {
+        en: 'Cases, solutions, more',
+        hi: 'केस, सॉल्यूशन, और अधिक',
+        hinglish: 'Cases, solutions, more'
+      },
       color: 'from-purple-500 to-purple-600',
     },
   ];
 
   const handleNext = async () => {
     if (!selectedCategory) {
-      showToast('error', 'Please select a lens type');
+      const errorMsg = getText('Please select a lens type', 'कृपया लेंस का प्रकार चुनें', 'Please select a lens type');
+      showToast('error', errorMsg);
       return;
     }
 
@@ -103,11 +249,21 @@ export default function LensTypePage() {
           // Navigate directly to accessories page
           router.push(`/questionnaire/${data.data.sessionId}/accessories`);
         } else {
-          showToast('error', data.error?.message || 'Failed to start accessories flow');
+          const errorMsg = getText(
+            data.error?.message || 'Failed to start accessories flow',
+            data.error?.message || 'सामान फ्लो शुरू करने में विफल',
+            data.error?.message || 'Failed to start accessories flow'
+          );
+          showToast('error', errorMsg);
         }
       } catch (error: any) {
         console.error('Failed to create session:', error);
-        showToast('error', 'Failed to start accessories flow');
+        const errorMsg = getText(
+          'Failed to start accessories flow',
+          'सामान फ्लो शुरू करने में विफल',
+          'Failed to start accessories flow'
+        );
+        showToast('error', errorMsg);
       }
       return;
     }
@@ -117,18 +273,19 @@ export default function LensTypePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl w-full">
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 shadow-2xl">
+        <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl">
           {/* Header */}
           <div className="text-center mb-6 sm:mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">What are you looking for?</h1>
-            <p className="text-slate-400">Select the type of lens you need</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-2">
+              {getText('What are you looking for?', 'आप क्या ढूंढ रहे हैं?', 'What are you looking for?')}
+            </h1>
           </div>
 
           {/* Category Cards */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            {categories.map((category) => (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+            {categories.slice(0, 4).map((category) => (
               <button
                 key={category.value}
                 onClick={async () => {
@@ -136,8 +293,36 @@ export default function LensTypePage() {
                   // Save selection immediately
                   localStorage.setItem('lenstrack_lens_type', category.value);
                   
-                  // If ACCESSORIES is selected, create session and go directly to accessories page
-                  if (category.value === ProductCategory.ACCESSORIES) {
+                  // For other categories, navigate to prescription
+                  router.push('/questionnaire/prescription');
+                }}
+                className={`p-6 rounded-xl border-2 transition-all cursor-pointer ${
+                  selectedCategory === category.value
+                    ? 'border-blue-500 bg-blue-500/10 dark:bg-blue-500/10'
+                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600'
+                }`}
+              >
+                <div className={`w-16 h-16 rounded-lg bg-gradient-to-br ${category.color} flex items-center justify-center text-white mb-4 mx-auto`}>
+                  {category.icon}
+                </div>
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+                  {getText(category.label.en, category.label.hi, category.label.hinglish)}
+                </h3>
+                <p className="text-slate-600 dark:text-slate-400 text-sm">
+                  {getText(category.description.en, category.description.hi, category.description.hinglish)}
+                </p>
+              </button>
+            ))}
+            {/* Fifth box (Accessories) - centered */}
+            {categories[4] && (
+              <div className="col-span-2 md:col-span-1 md:col-start-2 flex justify-center">
+                <button
+                  onClick={async () => {
+                    setSelectedCategory(categories[4].value);
+                    // Save selection immediately
+                    localStorage.setItem('lenstrack_lens_type', categories[4].value);
+                    
+                    // If ACCESSORIES is selected, create session and go directly to accessories page
                     try {
                       // Get store code from localStorage or use default
                       const storeCode = localStorage.getItem('lenstrack_store_code') || 'MAIN-001';
@@ -162,42 +347,52 @@ export default function LensTypePage() {
                         // Navigate directly to accessories page
                         router.push(`/questionnaire/${data.data.sessionId}/accessories`);
                       } else {
-                        showToast('error', data.error?.message || 'Failed to start accessories flow');
+                        const errorMsg = getText(
+                          data.error?.message || 'Failed to start accessories flow',
+                          data.error?.message || 'सामान फ्लो शुरू करने में विफल',
+                          data.error?.message || 'Failed to start accessories flow'
+                        );
+                        showToast('error', errorMsg);
                       }
                     } catch (error: any) {
                       console.error('Failed to create session:', error);
-                      showToast('error', 'Failed to start accessories flow');
+                      const errorMsg = getText(
+                        'Failed to start accessories flow',
+                        'सामान फ्लो शुरू करने में विफल',
+                        'Failed to start accessories flow'
+                      );
+                      showToast('error', errorMsg);
                     }
-                    return;
-                  }
-                  
-                  // For other categories, navigate to prescription
-                  router.push('/questionnaire/prescription');
-                }}
-                className={`p-6 rounded-xl border-2 transition-all cursor-pointer ${
-                  selectedCategory === category.value
-                    ? 'border-blue-500 bg-blue-500/10'
-                    : 'border-slate-700 bg-slate-700/50 hover:border-slate-600'
-                }`}
-              >
-                <div className={`w-16 h-16 rounded-lg bg-gradient-to-br ${category.color} flex items-center justify-center text-white mb-4 mx-auto`}>
-                  {category.icon}
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-2">{category.label}</h3>
-                <p className="text-slate-400 text-sm">{category.description}</p>
-              </button>
-            ))}
+                  }}
+                  className={`p-6 rounded-xl border-2 transition-all cursor-pointer w-full max-w-[280px] ${
+                    selectedCategory === categories[4].value
+                      ? 'border-blue-500 bg-blue-500/10 dark:bg-blue-500/10'
+                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600'
+                  }`}
+                >
+                  <div className={`w-16 h-16 rounded-lg bg-gradient-to-br ${categories[4].color} flex items-center justify-center text-white mb-4 mx-auto`}>
+                    {categories[4].icon}
+                  </div>
+                  <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+                    {getText(categories[4].label.en, categories[4].label.hi, categories[4].label.hinglish)}
+                  </h3>
+                  <p className="text-slate-600 dark:text-slate-400 text-sm">
+                    {getText(categories[4].description.en, categories[4].description.hi, categories[4].description.hinglish)}
+                  </p>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Navigation - Only Back button now */}
-          <div className="flex justify-start pt-6 border-t border-slate-700">
+          <div className="flex justify-start pt-6 border-t border-slate-200 dark:border-slate-700">
             <Button
               variant="outline"
               onClick={() => router.push('/questionnaire/language')}
               className="flex items-center gap-2"
             >
               <ArrowLeft size={18} />
-              Back
+              {getText('Back', 'वापस', 'Back')}
             </Button>
           </div>
         </div>

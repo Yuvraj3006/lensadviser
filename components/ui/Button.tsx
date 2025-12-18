@@ -31,13 +31,13 @@ export function Button({
     primary:
       'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 active:bg-blue-800',
     secondary:
-      'bg-slate-200 text-slate-900 hover:bg-slate-300 focus:ring-slate-400 active:bg-slate-400',
+      'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-300 dark:hover:bg-slate-600 focus:ring-slate-400 active:bg-slate-400 dark:active:bg-slate-500',
     danger:
       'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 active:bg-red-800',
     ghost:
-      'bg-transparent text-slate-700 hover:bg-slate-100 focus:ring-slate-300',
+      'bg-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 focus:ring-slate-300 dark:focus:ring-slate-600',
     outline:
-      'border-2 border-slate-300 bg-transparent text-slate-700 hover:bg-slate-50 focus:ring-slate-300',
+      'border-2 border-slate-300 dark:border-slate-600 bg-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 focus:ring-slate-300 dark:focus:ring-slate-600',
   };
 
   const sizes = {

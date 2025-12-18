@@ -129,7 +129,7 @@ export default function PathChoicePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-purple-900 dark:to-slate-900 flex items-center justify-center">
         <Spinner size="lg" />
       </div>
     );
@@ -138,64 +138,38 @@ export default function PathChoicePage() {
   // If combo is OFF, show loading while redirecting
   if (config?.combo_offer_status === 'OFF') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-purple-900 dark:to-slate-900 flex items-center justify-center">
         <Spinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-purple-900 dark:to-slate-900">
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-white mb-4">
+            <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-4">
               Choose How You Want To Buy
             </h1>
-            <p className="text-slate-300 text-lg">
+            <p className="text-slate-600 dark:text-slate-300 text-lg">
               Select the purchase path that works best for you
             </p>
           </div>
 
           {/* Path Options */}
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* REGULAR Path */}
-            <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-4 sm:p-6 lg:p-8 hover:border-blue-500 transition-all cursor-pointer">
+          <div className="flex justify-center">
+            {/* COMBO Path - Centered */}
+            <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-200 dark:border-purple-700 p-4 sm:p-6 lg:p-8 hover:border-purple-500 dark:hover:border-purple-500 transition-all w-full max-w-md">
               <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mb-4 border border-blue-500/30">
-                  <ShoppingBag className="text-blue-400" size={32} />
+                <div className="w-16 h-16 bg-purple-100 dark:bg-purple-500/20 rounded-full flex items-center justify-center mb-4 border border-purple-300 dark:border-purple-500/30">
+                  <Sparkles className="text-purple-600 dark:text-purple-400" size={32} />
                 </div>
-                <h2 className="text-2xl font-semibold text-white mb-2">
-                  Build My Glasses
-                </h2>
-                <p className="text-slate-300 mb-6">
-                  Choose your frame and lens freely. All offers and discounts apply.
-                </p>
-                <Button
-                  onClick={() => handlePathSelect('REGULAR')}
-                  disabled={selecting}
-                  loading={selecting}
-                  size="lg"
-                  fullWidth
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  Continue
-                  <ArrowRight className="ml-2" size={20} />
-                </Button>
-              </div>
-            </div>
-
-            {/* COMBO Path */}
-            <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-purple-700 p-8 hover:border-purple-500 transition-all cursor-pointer">
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mb-4 border border-purple-500/30">
-                  <Sparkles className="text-purple-400" size={32} />
-                </div>
-                <h2 className="text-2xl font-semibold text-white mb-2">
+                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-2">
                   Smart Value Combo
                 </h2>
-                <p className="text-slate-300 mb-6">
+                <p className="text-slate-600 dark:text-slate-300 mb-6">
                   Pre-configured bundles with great value. Fixed combo pricing.
                 </p>
                 <Button
@@ -204,10 +178,24 @@ export default function PathChoicePage() {
                   loading={selecting}
                   size="lg"
                   fullWidth
-                  className="bg-purple-600 hover:bg-purple-700"
+                  className="bg-purple-600 hover:bg-purple-700 mb-4"
                 >
                   View Combos
                   <ArrowRight className="ml-2" size={20} />
+                </Button>
+                
+                {/* Build Your Glasses Button */}
+                <Button
+                  onClick={() => handlePathSelect('REGULAR')}
+                  disabled={selecting}
+                  loading={selecting}
+                  variant="outline"
+                  size="lg"
+                  fullWidth
+                  className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  <ShoppingBag className="mr-2" size={20} />
+                  Build Your Glasses
                 </Button>
               </div>
             </div>

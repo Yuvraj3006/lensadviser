@@ -21,16 +21,16 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
       'w-full rounded-lg border px-4 py-2.5 pr-10 text-sm transition-colors appearance-none',
       'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
       error
-        ? 'border-red-300 bg-red-50 text-red-900 focus:ring-red-500'
-        : 'border-slate-300 bg-white text-slate-900',
-      props.disabled && 'opacity-50 cursor-not-allowed bg-slate-100',
+        ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-200 focus:ring-red-500'
+        : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100',
+      props.disabled && 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800',
       className
     );
 
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
             {label}
             {required && <span className="text-red-500 ml-1">*</span>}
           </label>
@@ -60,13 +60,13 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             ))}
           </select>
           
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
             <ChevronDown size={18} />
           </div>
         </div>
 
         {error && (
-          <p id={`${props.id}-error`} className="mt-1.5 text-sm text-red-600" role="alert">
+          <p id={`${props.id}-error`} className="mt-1.5 text-sm text-red-600 dark:text-red-400" role="alert">
             {typeof error === 'string' ? error : typeof error === 'object' && error !== null
               ? (error as any).message || JSON.stringify(error)
               : String(error)}
