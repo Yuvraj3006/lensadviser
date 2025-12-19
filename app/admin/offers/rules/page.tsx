@@ -57,6 +57,7 @@ interface OfferRule {
   endDate?: string | null;
   createdAt: string;
   config?: any; // Additional configuration for offer rules
+  upsellEnabled?: boolean; // Whether upsell is enabled for this rule
   upsellThreshold?: number | null; // Upsell threshold for offers
   upsellRewardText?: string | null; // Upsell reward text
 }
@@ -77,6 +78,7 @@ export default function OfferRulesPage() {
     priority: 100,
     isActive: true,
     isSecondPairRule: false,
+    upsellEnabled: false,
     lensBrandLines: [],
     lensItCodes: [],
   });
@@ -170,6 +172,9 @@ export default function OfferRulesPage() {
       priority: 100,
       isActive: true,
       isSecondPairRule: false,
+      upsellEnabled: false,
+      upsellThreshold: null,
+      upsellRewardText: null,
       lensBrandLines: [],
       lensItCodes: [],
     });
@@ -183,6 +188,11 @@ export default function OfferRulesPage() {
     const ruleWithConfig = {
       ...rule,
       config: (rule as any).config || {},
+      frameBrand: (rule as any).frameBrands?.[0] || rule.frameBrand || null,
+      frameSubCategory: (rule as any).frameSubCategories?.[0] || rule.frameSubCategory || null,
+      upsellEnabled: (rule as any).upsellEnabled ?? false,
+      upsellThreshold: (rule as any).upsellThreshold ?? null,
+      upsellRewardText: (rule as any).upsellRewardText ?? null,
     };
     setFormData(ruleWithConfig);
     setEditingRule(rule);
@@ -1005,31 +1015,53 @@ export default function OfferRulesPage() {
             </div>
           )}
 
-          {(formData.offerType === 'PERCENT_OFF' || formData.offerType === 'FLAT_OFF') && (
-            <div className="space-y-4">
-              <Input
-                label="Upsell Threshold (₹)"
-                type="number"
-                value={((formData as any).upsellThreshold) || ''}
+          {/* Upsell Configuration - Available for all offer types */}
+          <div className="space-y-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={(formData as any).upsellEnabled || false}
                 onChange={(e) => setFormData({ 
                   ...formData, 
-                  upsellThreshold: e.target.value ? parseFloat(e.target.value) : null
+                  upsellEnabled: e.target.checked,
+                  // Clear upsell fields if disabled
+                  ...(e.target.checked ? {} : { upsellThreshold: null, upsellRewardText: null })
                 })}
-                placeholder="Bill value threshold for upsell"
               />
-              <Input
-                label="Upsell Reward Text"
-                value={((formData as any).upsellRewardText) || ''}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  upsellRewardText: e.target.value
-                })}
-                placeholder="e.g., FREE Sunglasses worth ₹1499"
-              />
-            </div>
-          )}
+              <span className="text-sm sm:text-base font-medium">Enable Upsell</span>
+            </label>
+            
+            {(formData as any).upsellEnabled && (
+              <div className="space-y-4 pl-6 border-l-2 border-blue-200 dark:border-blue-700">
+                <Input
+                  label="Upsell Threshold (₹)"
+                  type="number"
+                  value={((formData as any).upsellThreshold) || ''}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    upsellThreshold: e.target.value ? parseFloat(e.target.value) : null
+                  })}
+                  placeholder="Bill value threshold for upsell (e.g., 5000)"
+                  required={(formData as any).upsellEnabled}
+                />
+                <Input
+                  label="Upsell Reward Text"
+                  value={((formData as any).upsellRewardText) || ''}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    upsellRewardText: e.target.value
+                  })}
+                  placeholder="e.g., FREE Sunglasses worth ₹1499"
+                  required={(formData as any).upsellEnabled}
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Customer will see this upsell banner if their current total is below the threshold
+                </p>
+              </div>
+            )}
+          </div>
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border-t border-slate-200 dark:border-slate-700 pt-4">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"

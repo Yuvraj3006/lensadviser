@@ -881,7 +881,7 @@ export default function OfferSummaryPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-20 sm:pb-24 md:pb-28">
       {/* Header */}
       <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur border-b border-slate-200 dark:border-slate-700 py-8 px-6">
         <div className="max-w-5xl mx-auto">
@@ -1741,20 +1741,20 @@ export default function OfferSummaryPage() {
 
       {/* Upsell Strip - Sticky Banner */}
       {data.offerResult.upsell ? (
-        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 py-4 px-6 shadow-2xl border-t-4 border-yellow-600 z-50 backdrop-blur-xl animate-slide-up">
+        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 py-2 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 shadow-2xl border-t-2 sm:border-t-4 border-yellow-600 z-40 backdrop-blur-xl">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-          <div className="max-w-5xl mx-auto relative flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="relative flex-shrink-0">
+          <div className="max-w-5xl mx-auto relative flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0 w-full sm:w-auto">
+              <div className="relative flex-shrink-0 hidden sm:block">
                 <div className="absolute inset-0 bg-yellow-600 rounded-full blur-lg animate-pulse opacity-75" />
-                <Gift className="relative text-yellow-900 animate-bounce" size={28} />
+                <Gift className="relative text-yellow-900" size={20} />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-yellow-900 font-bold text-base md:text-lg leading-tight mb-1">
+              <div className="flex-1 min-w-0 text-center sm:text-left">
+                <p className="text-yellow-900 font-bold text-xs sm:text-sm md:text-base leading-tight">
                   {data.offerResult.upsell.message}
                 </p>
                 {data.offerResult.upsell.rewardText && (
-                  <p className="text-yellow-800 text-sm font-semibold">
+                  <p className="text-yellow-800 text-xs sm:text-sm font-semibold hidden sm:block">
                     ?? {data.offerResult.upsell.rewardText}
                   </p>
                 )}
@@ -1762,7 +1762,7 @@ export default function OfferSummaryPage() {
             </div>
             <Button
               onClick={fetchEligibleProducts}
-              className="bg-yellow-900 hover:bg-yellow-800 text-white font-bold px-6 py-3 whitespace-nowrap shadow-xl transform hover:scale-105 transition-all duration-300 border-2 border-yellow-800 rounded-lg"
+              className="bg-yellow-900 hover:bg-yellow-800 text-white font-bold px-3 sm:px-4 md:px-6 py-1.5 sm:py-2 md:py-3 text-xs sm:text-sm whitespace-nowrap shadow-xl transform hover:scale-105 transition-all duration-300 border-2 border-yellow-800 rounded-lg w-full sm:w-auto"
             >
               See eligible products
             </Button>
@@ -1794,26 +1794,26 @@ export default function OfferSummaryPage() {
             });
             
             return (
-              <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 py-4 px-6 shadow-2xl border-t-4 border-yellow-600 z-50 backdrop-blur-xl animate-slide-up">
+              <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 py-2 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 shadow-2xl border-t-2 sm:border-t-4 border-yellow-600 z-40 backdrop-blur-xl">
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                <div className="max-w-5xl mx-auto relative flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="relative flex-shrink-0">
+                <div className="max-w-5xl mx-auto relative flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4">
+                  <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0 w-full sm:w-auto">
+                    <div className="relative flex-shrink-0 hidden sm:block">
                       <div className="absolute inset-0 bg-yellow-600 rounded-full blur-lg animate-pulse opacity-75" />
-                      <Gift className="relative text-yellow-900 animate-bounce" size={28} />
+                      <Gift className="relative text-yellow-900" size={20} />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-yellow-900 font-bold text-base md:text-lg leading-tight mb-1">
+                    <div className="flex-1 min-w-0 text-center sm:text-left">
+                      <p className="text-yellow-900 font-bold text-xs sm:text-sm md:text-base leading-tight">
                         Add ₹{remaining.toLocaleString()} more and get {bestThreshold.reward}
                       </p>
-                      <p className="text-yellow-800 text-sm font-semibold">
+                      <p className="text-yellow-800 text-xs sm:text-sm font-semibold hidden sm:block">
                         ?? Unlock amazing rewards with just a little more!
                       </p>
                     </div>
                   </div>
                   <Button
                     onClick={fetchEligibleProducts}
-                    className="bg-yellow-900 hover:bg-yellow-800 text-white font-bold px-6 py-3 whitespace-nowrap shadow-xl transform hover:scale-105 transition-all duration-300 border-2 border-yellow-800 rounded-lg"
+                    className="bg-yellow-900 hover:bg-yellow-800 text-white font-bold px-3 sm:px-4 md:px-6 py-1.5 sm:py-2 md:py-3 text-xs sm:text-sm whitespace-nowrap shadow-xl transform hover:scale-105 transition-all duration-300 border-2 border-yellow-800 rounded-lg w-full sm:w-auto"
                   >
                     See eligible products
                   </Button>

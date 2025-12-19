@@ -159,7 +159,7 @@ export default function PathChoicePage() {
           </div>
 
           {/* Path Options */}
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center">
             {/* COMBO Path - Centered */}
             <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-200 dark:border-purple-700 p-4 sm:p-6 lg:p-8 hover:border-purple-500 dark:hover:border-purple-500 transition-all w-full max-w-md">
               <div className="flex flex-col items-center text-center">
@@ -178,26 +178,23 @@ export default function PathChoicePage() {
                   loading={selecting}
                   size="lg"
                   fullWidth
-                  className="bg-purple-600 hover:bg-purple-700 mb-4"
+                  className="bg-purple-600 hover:bg-purple-700"
                 >
                   View Combos
                   <ArrowRight className="ml-2" size={20} />
                 </Button>
-                
-                {/* Build Your Glasses Button */}
-                <Button
-                  onClick={() => handlePathSelect('REGULAR')}
-                  disabled={selecting}
-                  loading={selecting}
-                  variant="outline"
-                  size="lg"
-                  fullWidth
-                  className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                >
-                  <ShoppingBag className="mr-2" size={20} />
-                  Build Your Glasses
-                </Button>
               </div>
+            </div>
+            
+            {/* Build Your Glasses - Clickable Text Below Card */}
+            <div className="text-center mt-6">
+              <button
+                onClick={() => handlePathSelect('REGULAR')}
+                disabled={selecting}
+                className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Build Your Glasses
+              </button>
             </div>
           </div>
         </div>

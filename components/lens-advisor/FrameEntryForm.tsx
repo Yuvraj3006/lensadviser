@@ -29,47 +29,65 @@ const frameTypes = [
     label: 'Full Rim',
     icon: (
       <svg 
-        width="40" 
-        height="28" 
-        viewBox="0 0 40 28" 
+        width="56" 
+        height="24" 
+        viewBox="0 0 291 127" 
         fill="none" 
         xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="xMidYMid meet"
       >
-        {/* Shadow */}
-        <ellipse cx="20" cy="24" rx="18" ry="2" fill="#1F2937" opacity="0.3" />
-        
-        {/* Left lens frame - black thick frame */}
-        <rect x="2" y="8" width="14" height="10" rx="2.5" fill="#000000" stroke="#000000" strokeWidth="3" />
-        {/* Left lens - light blue */}
-        <rect x="3.5" y="9.5" width="11" height="7" rx="1.5" fill="#BFDBFE" opacity="0.7" />
-        {/* Left lens highlight */}
-        <path d="M 4 10.5 Q 9 9 14 10.5" stroke="#FFFFFF" strokeWidth="1.5" fill="none" opacity="0.6" />
-        
-        {/* Bridge - black */}
-        <rect x="16" y="12" width="2.5" height="2" rx="1" fill="#000000" />
-        
-        {/* Right lens frame - black thick frame */}
-        <rect x="23.5" y="8" width="14" height="10" rx="2.5" fill="#000000" stroke="#000000" strokeWidth="3" />
-        {/* Right lens - light blue */}
-        <rect x="25" y="9.5" width="11" height="7" rx="1.5" fill="#BFDBFE" opacity="0.7" />
-        {/* Right lens highlight */}
-        <path d="M 25.5 10.5 Q 30.5 9 35.5 10.5" stroke="#FFFFFF" strokeWidth="1.5" fill="none" opacity="0.6" />
-        
-        {/* Temples - black */}
-        <path d="M 2 13 L -1 13 L -1 10" stroke="#000000" strokeWidth="3" strokeLinecap="round" fill="none" />
-        <path d="M 37.5 13 L 40.5 13 L 40.5 10" stroke="#000000" strokeWidth="3" strokeLinecap="round" fill="none" />
+        <circle cx="63.1883" cy="63.1882" r="53.5" transform="rotate(-2.09413 63.1883 63.1882)" stroke="#FB0B0B" strokeWidth="15" fill="none"/>
+        <circle cx="227.322" cy="63.3982" r="53.5" transform="rotate(-2.09413 227.322 63.3982)" stroke="#F70C0C" strokeWidth="15" fill="none"/>
+        <mask id="full-rim-bridge-mask" fill="white">
+          <path d="M110.212 63.3496C110.191 55.4055 113.922 47.777 120.582 42.1422C127.242 36.5074 136.288 33.3279 145.728 33.3033C155.168 33.2786 164.229 36.4107 170.919 42.0105C177.609 47.6104 181.379 55.2193 181.4 63.1634L166.179 63.2032C166.167 58.6563 164.009 54.3012 160.18 51.096C156.351 47.8908 151.164 46.0981 145.761 46.1123C140.358 46.1264 135.181 47.9462 131.369 51.1714C127.556 54.3966 125.421 58.7629 125.433 63.3098L110.212 63.3496Z"/>
+        </mask>
+        <path d="M110.212 63.3496C110.191 55.4055 113.922 47.777 120.582 42.1422C127.242 36.5074 136.288 33.3279 145.728 33.3033C155.168 33.2786 164.229 36.4107 170.919 42.0105C177.609 47.6104 181.379 55.2193 181.4 63.1634L166.179 63.2032C166.167 58.6563 164.009 54.3012 160.18 51.096C156.351 47.8908 151.164 46.0981 145.761 46.1123C140.358 46.1264 135.181 47.9462 131.369 51.1714C127.556 54.3966 125.421 58.7629 125.433 63.3098L110.212 63.3496Z" fill="#FF0000" stroke="#FF1B1B" strokeWidth="14" mask="url(#full-rim-bridge-mask)"/>
       </svg>
     )
   },
   { 
     value: 'HALF_RIM', 
     label: 'Half Rim',
-    icon: <Circle size={24} className="stroke-[2]" />
+    icon: (
+      <svg 
+        width="56" 
+        height="26" 
+        viewBox="0 0 282 130" 
+        fill="none" 
+        xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <mask id="half-rim-bridge-mask" fill="white">
+          <path d="M106.078 65.1397C106.058 57.1956 109.788 49.567 116.448 43.9322C123.109 38.2975 132.154 35.118 141.594 35.0933C151.034 35.0686 160.096 38.2007 166.785 43.8006C173.475 49.4004 177.245 57.0094 177.266 64.9535L162.045 64.9933C162.033 60.4463 159.875 56.0912 156.046 52.8861C152.217 49.6809 147.031 47.8882 141.627 47.9023C136.224 47.9164 131.047 49.7363 127.235 52.9614C123.423 56.1866 121.288 60.5529 121.299 65.0999L106.078 65.1397Z"/>
+        </mask>
+        <path d="M106.078 65.1397C106.058 57.1956 109.788 49.567 116.448 43.9322C123.109 38.2975 132.154 35.118 141.594 35.0933C151.034 35.0686 160.096 38.2007 166.785 43.8006C173.475 49.4004 177.245 57.0094 177.266 64.9535L162.045 64.9933C162.033 60.4463 159.875 56.0912 156.046 52.8861C152.217 49.6809 147.031 47.8882 141.627 47.9023C136.224 47.9164 131.047 49.7363 127.235 52.9614C123.423 56.1866 121.288 60.5529 121.299 65.0999L106.078 65.1397Z" fill="#FF0000" stroke="#FF1B1B" strokeWidth="14" mask="url(#half-rim-bridge-mask)"/>
+        <path d="M121 65C121 47.7609 114.626 31.2279 103.28 19.0381C91.934 6.8482 76.5456 1.30151e-06 60.5 0C44.4544 -1.30151e-06 29.066 6.84819 17.72 19.0381C6.37409 31.2279 2.42282e-06 47.7609 0 65L14.8501 65C14.8501 51.9924 19.6597 39.5175 28.2207 30.3197C36.7817 21.1219 48.3929 15.9547 60.5 15.9547C72.6071 15.9547 84.2183 21.122 92.7793 30.3197C101.34 39.5175 106.15 51.9924 106.15 65H121Z" fill="#FF2626"/>
+        <path d="M5.46952 66.353C5.84318 81.0405 12.0963 94.9764 22.8534 105.095C33.6104 115.214 47.9902 120.686 62.8293 120.309C77.6683 119.931 91.7512 113.735 101.98 103.082C112.208 92.4295 117.745 78.1936 117.371 63.5062L113.88 63.595C114.23 77.366 109.039 90.7136 99.449 100.701C89.8586 110.689 76.6545 116.499 62.7413 116.853C48.8282 117.207 35.3457 112.076 25.2599 102.589C15.1741 93.1015 9.31111 80.0352 8.96076 66.2642L5.46952 66.353Z" fill="#FF2626"/>
+        <path d="M165.409 63.226C165.783 77.9135 172.036 91.8495 182.793 101.968C193.55 112.087 207.93 117.559 222.769 117.182C237.608 116.804 251.691 110.608 261.919 99.9551C272.148 89.3026 277.684 75.0667 277.311 60.3792L273.819 60.468C274.17 74.239 268.979 87.5866 259.388 97.5745C249.798 107.562 236.594 113.372 222.681 113.726C208.768 114.08 195.285 108.949 185.199 99.4619C175.113 89.9746 169.25 76.9082 168.9 63.1372L165.409 63.226Z" fill="#FF2626"/>
+        <path d="M282 65C282 47.7609 275.626 31.2279 264.28 19.0381C252.934 6.8482 237.546 1.30151e-06 221.5 0C205.454 -1.30151e-06 190.066 6.84819 178.72 19.0381C167.374 31.2279 161 47.7609 161 65L175.85 65C175.85 51.9924 180.66 39.5175 189.221 30.3197C197.782 21.1219 209.393 15.9547 221.5 15.9547C233.607 15.9547 245.218 21.122 253.779 30.3197C262.34 39.5175 267.15 51.9924 267.15 65H282Z" fill="#FF2626"/>
+      </svg>
+    )
   },
   { 
     value: 'RIMLESS', 
     label: 'Rimless',
-    icon: <Minus size={24} className="stroke-[2]" />
+    icon: (
+      <svg 
+        width="56" 
+        height="24" 
+        viewBox="0 0 291 127" 
+        fill="none" 
+        xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <circle cx="63.1883" cy="63.1882" r="60.5" transform="rotate(-2.09413 63.1883 63.1882)" stroke="#FB0B0B" strokeWidth="2" fill="none"/>
+        <circle cx="227.322" cy="63.3982" r="60.5" transform="rotate(-2.09413 227.322 63.3982)" stroke="#F70C0C" strokeWidth="2" fill="none"/>
+        <mask id="rimless-bridge-mask" fill="white">
+          <path d="M121.871 63.319C121.85 55.3749 124.314 47.7497 128.721 42.1208C133.128 36.4919 139.117 33.3204 145.371 33.304C151.624 33.2877 157.63 36.4278 162.066 42.0335C166.503 47.6393 169.007 55.2515 169.027 63.1956L165.679 63.2044C165.661 56.3884 163.513 49.857 159.706 45.0473C155.9 40.2375 150.747 37.5433 145.382 37.5574C140.016 37.5714 134.878 40.2925 131.097 45.1221C127.315 49.9517 125.201 56.4942 125.219 63.3102L121.871 63.319Z"/>
+        </mask>
+        <path d="M121.871 63.319C121.85 55.3749 124.314 47.7497 128.721 42.1208C133.128 36.4919 139.117 33.3204 145.371 33.304C151.624 33.2877 157.63 36.4278 162.066 42.0335C166.503 47.6393 169.007 55.2515 169.027 63.1956L165.679 63.2044C165.661 56.3884 163.513 49.857 159.706 45.0473C155.9 40.2375 150.747 37.5433 145.382 37.5574C140.016 37.5714 134.878 40.2925 131.097 45.1221C127.315 49.9517 125.201 56.4942 125.219 63.3102L121.871 63.319Z" fill="#A43131" stroke="#FF1B1B" strokeWidth="6" mask="url(#rimless-bridge-mask)"/>
+      </svg>
+    )
   },
 ];
 
@@ -345,14 +363,16 @@ export function FrameEntryForm({ hideNextButton = false }: FrameEntryFormProps =
                     console.log('[FrameEntryForm] Immediately syncing frame to store:', updatedFrame);
                     setFrame(updatedFrame);
                   }}
-                  className={`flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                  className={`flex flex-col items-center justify-center gap-3 p-5 rounded-lg border-2 transition-all min-h-[110px] ${
                     isSelected
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
                       : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
                   }`}
                 >
-                  <div className={`${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                    {type.icon}
+                  <div className={`flex items-center justify-center ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                    <div className="w-16 h-10 flex items-center justify-center">
+                      {type.icon}
+                    </div>
                   </div>
                   <span className="text-sm font-medium">{type.label}</span>
                 </button>

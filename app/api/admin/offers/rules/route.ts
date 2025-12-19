@@ -25,7 +25,7 @@ const offerRuleSchema = z.object({
     return typeof val === 'string' ? parseFloat(val) : val;
   }).nullable().optional(),
   config: z.any().optional(), // JSON field for flexible configuration
-  upsellEnabled: z.union([z.boolean(), z.undefined()]).default(true),
+  upsellEnabled: z.union([z.boolean(), z.undefined()]).default(false),
   upsellThreshold: z.union([z.number(), z.string(), z.null(), z.undefined()]).transform(val => {
     if (val === null || val === undefined || val === '') return null;
     return typeof val === 'string' ? parseFloat(val) : val;
@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
       frameSubCategories,
       lensBrandLines,
       config: ruleConfigData,
-      upsellEnabled: data.upsellEnabled ?? true,
+      upsellEnabled: data.upsellEnabled ?? false, // Default to false, must be explicitly enabled
       priority: BigInt(priorityValue), // Convert to BigInt for Prisma
       isActive: data.isActive ?? true,
       organizationId: data.organizationId,
