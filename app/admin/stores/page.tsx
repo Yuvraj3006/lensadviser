@@ -8,7 +8,8 @@ import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { DataTable, Column } from '@/components/data-display/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Plus, Search, Edit2, Trash2, Store as StoreIcon, RotateCcw } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Store as StoreIcon, RotateCcw, QrCode, Download } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface Store {
   id: string;
@@ -58,6 +59,7 @@ export default function StoresPage() {
     gstNumber: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [qrCodeStore, setQrCodeStore] = useState<Store | null>(null);
 
   useEffect(() => {
     fetchStores();
@@ -336,6 +338,14 @@ export default function StoresPage() {
                     <Button
                       size="sm"
                       variant="ghost"
+                      icon={<QrCode size={14} />}
+                      onClick={() => setQrCodeStore(store)}
+                    >
+                      QR Code
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       icon={<Edit2 size={14} />}
                       onClick={() => handleEdit(store)}
                     >
@@ -467,6 +477,142 @@ export default function StoresPage() {
           Are you sure you want to deactivate <strong>{deleteConfirm?.name}</strong>?
           This will not delete the store but will mark it as inactive.
         </p>
+      </Modal>
+
+      {/* QR Code Modal */}
+      <Modal
+        isOpen={!!qrCodeStore}
+        onClose={() => setQrCodeStore(null)}
+        title={`QR Code - ${qrCodeStore?.name}`}
+        size="sm"
+        footer={
+          <div className="flex gap-3 w-full">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (qrCodeStore) {
+                  const qrUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/questionnaire?code=${qrCodeStore.code}`;
+                  const link = document.createElement('a');
+                  link.href = qrUrl;
+                  link.download = `QR-${qrCodeStore.code}.png`;
+                  link.click();
+                }
+              }}
+              className="flex-1"
+            >
+              <Download size={16} className="mr-2" />
+              Download Link
+            </Button>
+            <Button variant="outline" onClick={() => setQrCodeStore(null)}>
+              Close
+            </Button>
+          </div>
+        }
+      >
+        {qrCodeStore && (
+          <div className="space-y-4">
+            <div className="flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-800 rounded-lg">
+              <QRCodeSVG
+                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/questionnaire?code=${qrCodeStore.code}`}
+                size={256}
+                level="H"
+                includeMargin={true}
+                fgColor="#1e293b"
+                bgColor="#ffffff"
+              />
+            </div>
+            
+            <div className="text-center space-y-2">
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                {qrCodeStore.name}
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 font-mono">
+                Code: {qrCodeStore.code}
+              </p>
+              {qrCodeStore.city && (
+                <p className="text-xs text-slate-500 dark:text-slate-500">
+                  {qrCodeStore.city}, {qrCodeStore.state}
+                </p>
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+              <p className="text-xs text-slate-600 dark:text-slate-400 text-center mb-3">
+                Customers can scan this QR code to access the questionnaire
+              </p>
+              <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg">
+                <p className="text-xs font-mono text-slate-700 dark:text-slate-300 break-all">
+                  {typeof window !== 'undefined' ? window.location.origin : ''}/questionnaire?code={qrCodeStore.code}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                fullWidth
+                onClick={() => {
+                  const canvas = document.querySelector('canvas');
+                  if (canvas) {
+                    const url = canvas.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `QR-${qrCodeStore.code}.png`;
+                    link.click();
+                  }
+                }}
+              >
+                <Download size={14} className="mr-2" />
+                Download QR Image
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                fullWidth
+                onClick={() => {
+                  const canvas = document.querySelector('canvas');
+                  if (canvas) {
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow) {
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>QR Code - ${qrCodeStore.code}</title>
+                            <style>
+                              body {
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                padding: 40px;
+                                font-family: Arial, sans-serif;
+                              }
+                              h1 { margin-bottom: 10px; }
+                              p { margin: 5px 0; }
+                              img { margin: 20px 0; }
+                            </style>
+                          </head>
+                          <body>
+                            <h1>${qrCodeStore.name}</h1>
+                            <p><strong>Code:</strong> ${qrCodeStore.code}</p>
+                            ${qrCodeStore.city ? `<p><strong>Location:</strong> ${qrCodeStore.city}, ${qrCodeStore.state}</p>` : ''}
+                            <img src="${canvas.toDataURL('image/png')}" alt="QR Code" />
+                            <p style="font-size: 12px; color: #666;">Scan this QR code to access LensTrack questionnaire</p>
+                          </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                      printWindow.print();
+                    }
+                  }
+                }}
+              >
+                Print
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

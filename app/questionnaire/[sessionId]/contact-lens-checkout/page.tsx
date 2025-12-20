@@ -242,7 +242,7 @@ export default function ContactLensCheckoutPage() {
       
       if (data.success) {
         showToast('success', 'Order placed successfully!');
-        router.push(`/questionnaire/${sessionId}/order-success?orderId=${data.data.id}`);
+        router.push(`/questionnaire/${sessionId}/order-success/${data.data.id}`);
       } else {
         showToast('error', data.error?.message || 'Failed to place order');
       }
