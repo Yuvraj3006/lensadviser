@@ -486,32 +486,14 @@ export default function StoresPage() {
         title={`QR Code - ${qrCodeStore?.name}`}
         size="sm"
         footer={
-          <div className="flex gap-3 w-full">
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (qrCodeStore) {
-                  const qrUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/questionnaire?code=${qrCodeStore.code}`;
-                  const link = document.createElement('a');
-                  link.href = qrUrl;
-                  link.download = `QR-${qrCodeStore.code}.png`;
-                  link.click();
-                }
-              }}
-              className="flex-1"
-            >
-              <Download size={16} className="mr-2" />
-              Download Link
-            </Button>
-            <Button variant="outline" onClick={() => setQrCodeStore(null)}>
-              Close
-            </Button>
-          </div>
+          <Button variant="outline" onClick={() => setQrCodeStore(null)}>
+            Close
+          </Button>
         }
       >
         {qrCodeStore && (
           <div className="space-y-4">
-            <div className="flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-800 rounded-lg">
+            <div className="flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-800 rounded-lg" id="qr-code-container">
               <QRCodeSVG
                 value={`${typeof window !== 'undefined' ? window.location.origin : ''}/questionnaire?code=${qrCodeStore.code}`}
                 size={256}
@@ -553,13 +535,33 @@ export default function StoresPage() {
                 size="sm"
                 fullWidth
                 onClick={() => {
-                  const canvas = document.querySelector('canvas');
-                  if (canvas) {
-                    const url = canvas.toDataURL('image/png');
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `QR-${qrCodeStore.code}.png`;
-                    link.click();
+                  const svgElement = document.querySelector('#qr-code-container svg');
+                  if (svgElement) {
+                    const svgData = new XMLSerializer().serializeToString(svgElement);
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const img = new Image();
+                    
+                    canvas.width = 256;
+                    canvas.height = 256;
+                    
+                    img.onload = () => {
+                      ctx?.drawImage(img, 0, 0);
+                      canvas.toBlob((blob) => {
+                        if (blob) {
+                          const url = URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.download = `QR-${qrCodeStore.code}.png`;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          URL.revokeObjectURL(url);
+                        }
+                      }, 'image/png');
+                    };
+                    
+                    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
                   }
                 }}
               >
@@ -571,10 +573,12 @@ export default function StoresPage() {
                 size="sm"
                 fullWidth
                 onClick={() => {
-                  const canvas = document.querySelector('canvas');
-                  if (canvas) {
+                  const svgElement = document.querySelector('#qr-code-container svg');
+                  if (svgElement) {
+                    const svgData = new XMLSerializer().serializeToString(svgElement);
                     const printWindow = window.open('', '_blank');
                     if (printWindow) {
+                      const svgBase64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
                       printWindow.document.write(`
                         <html>
                           <head>
@@ -590,20 +594,22 @@ export default function StoresPage() {
                               }
                               h1 { margin-bottom: 10px; }
                               p { margin: 5px 0; }
-                              img { margin: 20px 0; }
+                              img { margin: 20px 0; width: 256px; height: 256px; }
                             </style>
                           </head>
                           <body>
                             <h1>${qrCodeStore.name}</h1>
                             <p><strong>Code:</strong> ${qrCodeStore.code}</p>
                             ${qrCodeStore.city ? `<p><strong>Location:</strong> ${qrCodeStore.city}, ${qrCodeStore.state}</p>` : ''}
-                            <img src="${canvas.toDataURL('image/png')}" alt="QR Code" />
+                            <img src="${svgBase64}" alt="QR Code" />
                             <p style="font-size: 12px; color: #666;">Scan this QR code to access LensTrack questionnaire</p>
                           </body>
                         </html>
                       `);
                       printWindow.document.close();
-                      printWindow.print();
+                      setTimeout(() => {
+                        printWindow.print();
+                      }, 250);
                     }
                   }
                 }}
