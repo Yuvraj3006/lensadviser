@@ -573,44 +573,110 @@ export default function StoresPage() {
                 size="sm"
                 fullWidth
                 onClick={() => {
-                  const svgElement = document.querySelector('#qr-code-container svg');
-                  if (svgElement) {
-                    const svgData = new XMLSerializer().serializeToString(svgElement);
-                    const printWindow = window.open('', '_blank');
-                    if (printWindow) {
-                      const svgBase64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-                      printWindow.document.write(`
-                        <html>
-                          <head>
-                            <title>QR Code - ${qrCodeStore.code}</title>
-                            <style>
-                              body {
-                                display: flex;
-                                flex-direction: column;
-                                align-items: center;
-                                justify-content: center;
-                                padding: 40px;
-                                font-family: Arial, sans-serif;
-                              }
-                              h1 { margin-bottom: 10px; }
-                              p { margin: 5px 0; }
-                              img { margin: 20px 0; width: 256px; height: 256px; }
-                            </style>
-                          </head>
-                          <body>
-                            <h1>${qrCodeStore.name}</h1>
-                            <p><strong>Code:</strong> ${qrCodeStore.code}</p>
-                            ${qrCodeStore.city ? `<p><strong>Location:</strong> ${qrCodeStore.city}, ${qrCodeStore.state}</p>` : ''}
-                            <img src="${svgBase64}" alt="QR Code" />
-                            <p style="font-size: 12px; color: #666;">Scan this QR code to access LensTrack questionnaire</p>
-                          </body>
-                        </html>
-                      `);
-                      printWindow.document.close();
-                      setTimeout(() => {
-                      printWindow.print();
-                      }, 250);
+                  try {
+                    const svgElement = document.querySelector('#qr-code-container svg') as SVGElement;
+                    if (!svgElement) {
+                      showToast('error', 'QR code not found');
+                      return;
                     }
+
+                    // Serialize SVG to string
+                    const svgData = new XMLSerializer().serializeToString(svgElement);
+                    
+                    // Convert SVG to canvas first for better print quality
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const img = new Image();
+                    
+                    canvas.width = 512; // Higher resolution for print
+                    canvas.height = 512;
+                    
+                    // Load SVG as image
+                    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+                    const url = URL.createObjectURL(svgBlob);
+                    
+                    img.onload = () => {
+                      URL.revokeObjectURL(url); // Clean up
+                      
+                      if (ctx) {
+                        ctx.drawImage(img, 0, 0, 512, 512);
+                        
+                        // Convert canvas to data URL
+                        const canvasDataUrl = canvas.toDataURL('image/png');
+                        
+                        // Open print window
+                        const printWindow = window.open('', '_blank', 'width=800,height=600');
+                        if (!printWindow) {
+                          showToast('error', 'Please allow popups to print');
+                          return;
+                        }
+                        
+                        printWindow.document.write(`
+                          <!DOCTYPE html>
+                          <html>
+                            <head>
+                              <title>QR Code - ${qrCodeStore.code}</title>
+                              <style>
+                                @media print {
+                                  body { margin: 0; padding: 20px; }
+                                  @page { margin: 0.5in; }
+                                }
+                                body {
+                                  display: flex;
+                                  flex-direction: column;
+                                  align-items: center;
+                                  justify-content: center;
+                                  padding: 40px;
+                                  font-family: Arial, sans-serif;
+                                  margin: 0;
+                                }
+                                h1 { 
+                                  margin-bottom: 10px; 
+                                  font-size: 24px;
+                                  color: #1e293b;
+                                }
+                                p { 
+                                  margin: 5px 0; 
+                                  color: #475569;
+                                }
+                                img { 
+                                  margin: 20px 0; 
+                                  width: 400px; 
+                                  height: 400px;
+                                  border: 2px solid #e2e8f0;
+                                  padding: 10px;
+                                  background: white;
+                                }
+                                .info {
+                                  text-align: center;
+                                  margin-top: 20px;
+                                }
+                              </style>
+                            </head>
+                            <body>
+                              <h1>${qrCodeStore.name}</h1>
+                              <p><strong>Code:</strong> ${qrCodeStore.code}</p>
+                              ${qrCodeStore.city ? `<p><strong>Location:</strong> ${qrCodeStore.city}, ${qrCodeStore.state}</p>` : ''}
+                              <img src="${canvasDataUrl}" alt="QR Code" onload="window.focus(); setTimeout(() => window.print(), 100);" />
+                              <div class="info">
+                                <p style="font-size: 12px; color: #666;">Scan this QR code to access LensTrack questionnaire</p>
+                              </div>
+                            </body>
+                          </html>
+                        `);
+                        printWindow.document.close();
+                      }
+                    };
+                    
+                    img.onerror = () => {
+                      URL.revokeObjectURL(url);
+                      showToast('error', 'Failed to load QR code image');
+                    };
+                    
+                    img.src = url;
+                  } catch (error) {
+                    console.error('Print error:', error);
+                    showToast('error', 'Failed to print QR code');
                   }
                 }}
               >
