@@ -267,9 +267,9 @@ export function FrameEntryForm({ hideNextButton = false }: FrameEntryFormProps =
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">Your Frame</h2>
           <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Step 2 of 5</span>
         </div>
-        {storeName && (
+          {storeName && (
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">{storeName}</p>
-        )}
+          )}
         
         {/* Progress Bar */}
         <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
@@ -353,16 +353,16 @@ export function FrameEntryForm({ hideNextButton = false }: FrameEntryFormProps =
                   onClick={() => {
                     console.log('[FrameEntryForm] Frame type selected:', type.value);
                     handleChange('frameType', type.value as 'FULL_RIM' | 'HALF_RIM' | 'RIMLESS');
-                    // Immediately sync to store
-                    const updatedFrame: FrameInput = {
-                      brand: formData.brand || '',
-                      subCategory: formData.subCategory || null,
-                      mrp: formData.mrp || 0,
+            // Immediately sync to store
+            const updatedFrame: FrameInput = {
+              brand: formData.brand || '',
+              subCategory: formData.subCategory || null,
+              mrp: formData.mrp || 0,
                       frameType: type.value as 'FULL_RIM' | 'HALF_RIM' | 'RIMLESS',
-                    };
-                    console.log('[FrameEntryForm] Immediately syncing frame to store:', updatedFrame);
-                    setFrame(updatedFrame);
-                  }}
+            };
+            console.log('[FrameEntryForm] Immediately syncing frame to store:', updatedFrame);
+            setFrame(updatedFrame);
+          }}
                   className={`flex flex-col items-center justify-center gap-3 p-5 rounded-lg border-2 transition-all min-h-[110px] ${
                     isSelected
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'

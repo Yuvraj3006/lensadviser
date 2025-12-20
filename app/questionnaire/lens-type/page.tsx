@@ -321,8 +321,8 @@ export default function LensTypePage() {
                     setSelectedCategory(categories[4].value);
                     // Save selection immediately
                     localStorage.setItem('lenstrack_lens_type', categories[4].value);
-                    
-                    // If ACCESSORIES is selected, create session and go directly to accessories page
+                  
+                  // If ACCESSORIES is selected, create session and go directly to accessories page
                     try {
                       // Get store code from localStorage or use default
                       const storeCode = localStorage.getItem('lenstrack_store_code') || 'MAIN-001';
@@ -363,23 +363,23 @@ export default function LensTypePage() {
                       );
                       showToast('error', errorMsg);
                     }
-                  }}
+                }}
                   className={`p-6 rounded-xl border-2 transition-all cursor-pointer w-full max-w-[280px] ${
                     selectedCategory === categories[4].value
                       ? 'border-blue-500 bg-blue-500/10 dark:bg-blue-500/10'
                       : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600'
-                  }`}
-                >
+                }`}
+              >
                   <div className={`w-16 h-16 rounded-lg bg-gradient-to-br ${categories[4].color} flex items-center justify-center text-white mb-4 mx-auto`}>
                     {categories[4].icon}
-                  </div>
+                </div>
                   <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
                     {getText(categories[4].label.en, categories[4].label.hi, categories[4].label.hinglish)}
                   </h3>
                   <p className="text-slate-600 dark:text-slate-400 text-sm">
                     {getText(categories[4].description.en, categories[4].description.hi, categories[4].description.hinglish)}
                   </p>
-                </button>
+              </button>
               </div>
             )}
           </div>

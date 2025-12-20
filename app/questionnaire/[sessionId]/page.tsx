@@ -69,7 +69,25 @@ export default function QuestionnaireSessionPage() {
   const fetchSession = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+      const response = await fetch(`/api/public/questionnaire/sessions/${sessionId}`, {
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error?.message || `Failed to load (${response.status})`;
+        console.error('[fetchSession] API error:', { status: response.status, error: errorData });
+        showToast('error', errorMessage);
+        router.push('/questionnaire');
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -78,11 +96,18 @@ export default function QuestionnaireSessionPage() {
         // Store all questions for sub-question lookup
         setAllQuestions(data.data.allQuestions || data.data.questions);
       } else {
-        showToast('error', 'Session not found');
+        const errorMessage = data?.error?.message || 'Session not found';
+        console.error('[fetchSession] API returned error:', data);
+        showToast('error', errorMessage);
         router.push('/questionnaire');
       }
     } catch (error) {
-      showToast('error', 'Failed to load session');
+      console.error('[fetchSession] Exception:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        showToast('error', 'Request timed out. Please try again.');
+      } else {
+        showToast('error', 'Failed to load session. Please check your connection.');
+      }
       router.push('/questionnaire');
     } finally {
       setLoading(false);

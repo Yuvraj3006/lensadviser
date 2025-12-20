@@ -1033,32 +1033,32 @@ export default function OfferRulesPage() {
             
             {(formData as any).upsellEnabled && (
               <div className="space-y-4 pl-6 border-l-2 border-blue-200 dark:border-blue-700">
-                <Input
-                  label="Upsell Threshold (₹)"
-                  type="number"
-                  value={((formData as any).upsellThreshold) || ''}
-                  onChange={(e) => setFormData({ 
-                    ...formData, 
-                    upsellThreshold: e.target.value ? parseFloat(e.target.value) : null
-                  })}
+              <Input
+                label="Upsell Threshold (₹)"
+                type="number"
+                value={((formData as any).upsellThreshold) || ''}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  upsellThreshold: e.target.value ? parseFloat(e.target.value) : null
+                })}
                   placeholder="Bill value threshold for upsell (e.g., 5000)"
                   required={(formData as any).upsellEnabled}
-                />
-                <Input
-                  label="Upsell Reward Text"
-                  value={((formData as any).upsellRewardText) || ''}
-                  onChange={(e) => setFormData({ 
-                    ...formData, 
-                    upsellRewardText: e.target.value
-                  })}
-                  placeholder="e.g., FREE Sunglasses worth ₹1499"
+              />
+              <Input
+                label="Upsell Reward Text"
+                value={((formData as any).upsellRewardText) || ''}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  upsellRewardText: e.target.value
+                })}
+                placeholder="e.g., FREE Sunglasses worth ₹1499"
                   required={(formData as any).upsellEnabled}
-                />
+              />
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Customer will see this upsell banner if their current total is below the threshold
                 </p>
-              </div>
-            )}
+            </div>
+          )}
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border-t border-slate-200 dark:border-slate-700 pt-4">

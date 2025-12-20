@@ -9,6 +9,7 @@ import { useLensAdvisorStore, RxInput } from '@/stores/lens-advisor-store';
 import { useSessionStore } from '@/stores/session-store';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { DragInput } from '@/components/ui/DragInput';
 import { Select } from '@/components/ui/Select';
 import { Eye, HelpCircle, AlertTriangle, Info, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { IndexRecommendationService } from '@/services/index-recommendation.service';
@@ -228,68 +229,61 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             <table className="w-full min-w-[600px]">
                 <thead className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
-                  <tr>
+                <tr>
                     <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">Eye</th>
                     <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">SPH</th>
                     <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">CYL</th>
                     <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">AXIS</th>
-                    {showAddFields && (
+                  {showAddFields && (
                       <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">ADD</th>
-                    )}
-                  </tr>
-                </thead>
+                  )}
+                </tr>
+              </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 {/* Right Eye (OD) */}
                 <tr>
-                  <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm font-medium text-slate-900 dark:text-slate-100">
+                  <td className="px-3 sm:px-4 py-4 sm:py-4 text-sm sm:text-sm font-semibold text-slate-900 dark:text-slate-100">
                     Right Eye (OD)
                   </td>
-                  <td className="px-2 sm:px-4 py-3 sm:py-4">
-                    <Input
-                      type="number"
-                      step="0.25"
-                      min="-20"
-                      max="20"
-                      value={rx.odSphere?.toString() || ''}
-                      onChange={(e) => handleChange('odSphere', e.target.value ? parseFloat(e.target.value) : null)}
+                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                    <DragInput
+                      value={rx.odSphere ?? null}
+                      onChange={(value) => handleChange('odSphere', value)}
+                      step={0.25}
+                      min={-20}
+                      max={20}
                       placeholder="e.g., -2.50"
                       error={validationErrors.odSphere}
-                      className="text-base sm:text-sm"
                     />
                   </td>
-                  <td className="px-2 sm:px-4 py-3 sm:py-4">
-                    <Input
-                      type="number"
-                      step="0.25"
-                      max="0"
-                      value={rx.odCylinder?.toString() || ''}
-                      onChange={(e) => handleChange('odCylinder', e.target.value ? parseFloat(e.target.value) : null)}
+                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                    <DragInput
+                      value={rx.odCylinder ?? null}
+                      onChange={(value) => handleChange('odCylinder', value)}
+                      step={0.25}
+                      max={0}
                       placeholder="e.g., -0.75"
                       error={validationErrors.odCylinder}
-                      className="text-base sm:text-sm"
                     />
                   </td>
-                  <td className="px-2 sm:px-4 py-3 sm:py-4">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="180"
-                      value={rx.odAxis?.toString() || ''}
-                      onChange={(e) => handleChange('odAxis', e.target.value ? parseInt(e.target.value) : null)}
+                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                    <DragInput
+                      value={rx.odAxis ?? null}
+                      onChange={(value) => handleChange('odAxis', value)}
+                      step={1}
+                      min={0}
+                      max={180}
                       placeholder="0-180"
                       error={validationErrors.odAxis}
-                      className="text-base sm:text-sm"
                     />
                   </td>
                   {showAddFields && (
-                    <td className="px-2 sm:px-4 py-3 sm:py-4">
-                      <Input
-                        type="number"
-                        step="0.25"
-                        value={rx.odAdd?.toString() || ''}
-                        onChange={(e) => handleChange('odAdd', e.target.value ? parseFloat(e.target.value) : null)}
+                    <td className="px-3 sm:px-4 py-4 sm:py-4">
+                      <DragInput
+                        value={rx.odAdd ?? null}
+                        onChange={(value) => handleChange('odAdd', value)}
+                        step={0.25}
                         placeholder="e.g., +2.00"
-                        className="text-base sm:text-sm"
                       />
                     </td>
                   )}
@@ -297,55 +291,48 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
                 
                 {/* Left Eye (OS) */}
                 <tr>
-                  <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm font-medium text-slate-900 dark:text-slate-100">
+                  <td className="px-3 sm:px-4 py-4 sm:py-4 text-sm sm:text-sm font-semibold text-slate-900 dark:text-slate-100">
                     Left Eye (OS)
                   </td>
-                  <td className="px-2 sm:px-4 py-3 sm:py-4">
-                    <Input
-                      type="number"
-                      step="0.25"
-                      min="-20"
-                      max="20"
-                      value={rx.osSphere?.toString() || ''}
-                      onChange={(e) => handleChange('osSphere', e.target.value ? parseFloat(e.target.value) : null)}
+                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                    <DragInput
+                      value={rx.osSphere ?? null}
+                      onChange={(value) => handleChange('osSphere', value)}
+                      step={0.25}
+                      min={-20}
+                      max={20}
                       placeholder="e.g., -2.50"
                       error={validationErrors.osSphere}
-                      className="text-base sm:text-sm"
                     />
                   </td>
-                  <td className="px-2 sm:px-4 py-3 sm:py-4">
-                    <Input
-                      type="number"
-                      step="0.25"
-                      max="0"
-                      value={rx.osCylinder?.toString() || ''}
-                      onChange={(e) => handleChange('osCylinder', e.target.value ? parseFloat(e.target.value) : null)}
+                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                    <DragInput
+                      value={rx.osCylinder ?? null}
+                      onChange={(value) => handleChange('osCylinder', value)}
+                      step={0.25}
+                      max={0}
                       placeholder="e.g., -0.75"
                       error={validationErrors.osCylinder}
-                      className="text-base sm:text-sm"
                     />
                   </td>
-                  <td className="px-2 sm:px-4 py-3 sm:py-4">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="180"
-                      value={rx.osAxis?.toString() || ''}
-                      onChange={(e) => handleChange('osAxis', e.target.value ? parseInt(e.target.value) : null)}
+                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                    <DragInput
+                      value={rx.osAxis ?? null}
+                      onChange={(value) => handleChange('osAxis', value)}
+                      step={1}
+                      min={0}
+                      max={180}
                       placeholder="0-180"
                       error={validationErrors.osAxis}
-                      className="text-base sm:text-sm"
                     />
                   </td>
                   {showAddFields && (
-                    <td className="px-2 sm:px-4 py-3 sm:py-4">
-                      <Input
-                        type="number"
-                        step="0.25"
-                        value={rx.osAdd?.toString() || ''}
-                        onChange={(e) => handleChange('osAdd', e.target.value ? parseFloat(e.target.value) : null)}
+                    <td className="px-3 sm:px-4 py-4 sm:py-4">
+                      <DragInput
+                        value={rx.osAdd ?? null}
+                        onChange={(value) => handleChange('osAdd', value)}
+                        step={0.25}
                         placeholder="e.g., +2.00"
-                        className="text-base sm:text-sm"
                       />
                     </td>
                   )}

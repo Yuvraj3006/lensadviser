@@ -666,7 +666,7 @@ export default function RecommendationsPage() {
 
           return (
             /* LA-05: 4-Card Layout - Grid layout for parallel cards */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
               {sortedDisplayRecommendations.map((rec) => {
             const roleTag = getRoleTag(rec.id);
             const label = getLabel(rec.id);
@@ -799,7 +799,7 @@ export default function RecommendationsPage() {
               </div>
             );
           })}
-            </div>
+        </div>
           );
         })()}
 

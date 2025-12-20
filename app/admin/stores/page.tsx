@@ -486,9 +486,9 @@ export default function StoresPage() {
         title={`QR Code - ${qrCodeStore?.name}`}
         size="sm"
         footer={
-          <Button variant="outline" onClick={() => setQrCodeStore(null)}>
-            Close
-          </Button>
+            <Button variant="outline" onClick={() => setQrCodeStore(null)}>
+              Close
+            </Button>
         }
       >
         {qrCodeStore && (
@@ -550,11 +550,11 @@ export default function StoresPage() {
                       canvas.toBlob((blob) => {
                         if (blob) {
                           const url = URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = url;
-                          link.download = `QR-${qrCodeStore.code}.png`;
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `QR-${qrCodeStore.code}.png`;
                           document.body.appendChild(link);
-                          link.click();
+                    link.click();
                           document.body.removeChild(link);
                           URL.revokeObjectURL(url);
                         }
@@ -608,7 +608,7 @@ export default function StoresPage() {
                       `);
                       printWindow.document.close();
                       setTimeout(() => {
-                        printWindow.print();
+                      printWindow.print();
                       }, 250);
                     }
                   }
