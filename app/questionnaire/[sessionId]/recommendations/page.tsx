@@ -515,8 +515,10 @@ export default function RecommendationsPage() {
   // Find cheapest lens that's NOT in top 3
   const cheapestLens = sortedByPrice.find(rec => !topThreeIds.has(rec.id)) || sortedByPrice[0];
   
-  // Combine: 3 best match + 1 cheapest
-  const bestMatchRecommendations = [...topThreeBestMatch, cheapestLens].filter(Boolean);
+  // Combine: 3 best match + 1 cheapest, then deduplicate by id
+  const bestMatchRecommendations = [...topThreeBestMatch, cheapestLens]
+    .filter(Boolean)
+    .filter((rec, index, self) => self.findIndex(r => r.id === rec.id) === index);
 
   // Anti-Walkout: 4 cheapest among all matched glasses
   // Filter: matchPercent >= 40, not invalid, then sort by price (lowest first)
@@ -567,7 +569,12 @@ export default function RecommendationsPage() {
   };
 
   // Sort all recommendations for View All modal (use valid recommendations only)
-  const sortedRecommendations = [...validRecommendations].sort((a, b) => {
+  // Deduplicate first, then sort
+  const uniqueValidRecommendations = validRecommendations.filter(
+    (rec, index, self) => self.findIndex(r => r.id === rec.id) === index
+  );
+  
+  const sortedRecommendations = [...uniqueValidRecommendations].sort((a, b) => {
     switch (sortBy) {
       case 'price-high':
         return getLensPrice(b) - getLensPrice(a);
@@ -646,8 +653,12 @@ export default function RecommendationsPage() {
             displayRecommendations = topFourRecommendations;
           }
 
-          // Apply sortBy filter to display recommendations
-          const sortedDisplayRecommendations = [...displayRecommendations].sort((a, b) => {
+          // Deduplicate by id first, then apply sortBy filter
+          const uniqueDisplayRecommendations = displayRecommendations.filter(
+            (rec, index, self) => self.findIndex(r => r.id === rec.id) === index
+          );
+          
+          const sortedDisplayRecommendations = [...uniqueDisplayRecommendations].sort((a, b) => {
             switch (sortBy) {
               case 'price-high':
                 return getLensPrice(b) - getLensPrice(a);
@@ -667,7 +678,7 @@ export default function RecommendationsPage() {
           return (
             /* LA-05: 4-Card Layout - Grid layout for parallel cards */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-              {sortedDisplayRecommendations.map((rec) => {
+              {sortedDisplayRecommendations.map((rec, index) => {
             const roleTag = getRoleTag(rec.id);
             const label = getLabel(rec.id);
             const tagConfig = {
@@ -681,19 +692,28 @@ export default function RecommendationsPage() {
             // Get MRP - only use if explicitly set (not null/undefined)
             const lensMRP = (rec.mrp && rec.mrp > 0) ? rec.mrp : null;
             
-            // Extract lens index from product name or use default
-            const lensIndex = rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
+            // Extract lens index - prioritize rec.lensIndex, then name, then default
+            let lensIndexStr = rec.lensIndex || rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
+            // Convert INDEX_167 format to 1.67 format if needed
+            const lensIndex = formatIndexDisplay(lensIndexStr) || (lensIndexStr.match(/\d+\.\d+/) ? lensIndexStr : '1.50');
             const indexLabel = lensIndex === '1.50' ? 'Standard' : lensIndex === '1.60' ? 'Thin' : lensIndex === '1.67' ? 'Thinner' : lensIndex === '1.74' ? 'Thinnest' : 'Standard';
             
             // Get brand line from product name or brand
             const brandLine = rec.brand || 'Premium';
             
-            // Get 3-4 key benefits from features
-            const benefits = rec.features?.slice(0, 4).map(f => f?.name).filter(Boolean) || [];
+            // Get all features (show all, not limited)
+            // Handle both array format and ensure name exists
+            const benefits = rec.features
+              ?.map((f: any) => {
+                if (typeof f === 'string') return f;
+                if (f && typeof f === 'object') return f.name || f.key || null;
+                return null;
+              })
+              .filter((name): name is string => Boolean(name && name.trim())) || [];
 
             return (
               <div
-                key={rec.id}
+                key={`${rec.id}-${index}`}
                 className="bg-white dark:bg-slate-800/50 rounded-2xl border-2 border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl hover:shadow-2xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 overflow-hidden group"
               >
                 {/* Tag & Match Score Header */}
@@ -946,7 +966,7 @@ export default function RecommendationsPage() {
 
             {/* List */}
             <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50 dark:bg-slate-900/50">
-              {sortedRecommendations.map((rec) => {
+              {sortedRecommendations.map((rec, index) => {
                 const lensPrice = getLensPrice(rec);
                 // Get MRP - only use if explicitly set (not null/undefined)
                 const lensMRP = (rec.mrp && rec.mrp > 0) ? rec.mrp : null;
@@ -955,7 +975,15 @@ export default function RecommendationsPage() {
                 const lensIndexStr = rec.lensIndex || rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
                 const lensIndexDisplay = formatIndexDisplay(lensIndexStr);
                 const brandLine = rec.brand || 'Premium';
-                const benefits = rec.features?.slice(0, 3).map((f: any) => f?.name).filter(Boolean) || [];
+                // Get all features (show all, not limited)
+                // Handle both array format and ensure name exists
+                const benefits = rec.features
+                  ?.map((f: any) => {
+                    if (typeof f === 'string') return f;
+                    if (f && typeof f === 'object') return f.name || f.key || null;
+                    return null;
+                  })
+                  .filter((name): name is string => Boolean(name && name.trim())) || [];
                 
                 // Get label based on match percent and price (same logic as top 4)
                 const label = getLabel(rec.id);
@@ -983,7 +1011,7 @@ export default function RecommendationsPage() {
                 const thicknessInfo = getThicknessDisplay();
                 
                 return (
-                  <div key={rec.id} className={`border-2 rounded-xl p-5 hover:shadow-lg transition-all bg-white dark:bg-slate-800/50 group ${
+                  <div key={`${rec.id}-${index}`} className={`border-2 rounded-xl p-5 hover:shadow-lg transition-all bg-white dark:bg-slate-800/50 group ${
                     indexInvalid ? 'border-red-300 dark:border-red-700 bg-red-50/30 dark:bg-red-900/20' : thicknessWarning ? 'border-yellow-300 dark:border-yellow-700 bg-yellow-50/30 dark:bg-yellow-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
                   }`}>
                     <div className="flex items-start justify-between gap-6">

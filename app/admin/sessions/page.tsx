@@ -340,10 +340,11 @@ export default function SessionsPage() {
             {/* Recommendations */}
             <div>
               <h3 className="font-semibold text-slate-900 mb-2 text-sm sm:text-base">
-                Product Recommendations ({selectedSession.recommendations.length})
+                Product Recommendations ({(selectedSession.recommendations || []).length})
               </h3>
               <div className="space-y-2">
-                {selectedSession.recommendations.map((rec) => (
+                {(selectedSession.recommendations || []).length > 0 ? (
+                  (selectedSession.recommendations || []).map((rec) => (
                   <div
                     key={rec.rank}
                     className={`p-2 sm:p-3 rounded-lg border-2 ${
@@ -379,7 +380,12 @@ export default function SessionsPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-slate-500 text-sm">
+                    No recommendations found for this session
+                  </div>
+                )}
               </div>
             </div>
           </div>

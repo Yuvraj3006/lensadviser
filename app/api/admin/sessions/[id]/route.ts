@@ -131,12 +131,24 @@ export async function GET(
     const productMap = new Map(products.map((p) => [p.id, p]));
 
     // Format recommendations with product data
-    const recommendations = sessionRecommendations.map((rec) => ({
-      ...rec,
-      // Convert BigInt rank to Number
-      rank: Number(rec.rank),
-      product: productMap.get(rec.productId) || null,
-    }));
+    const recommendations = sessionRecommendations.map((rec) => {
+      const product = productMap.get(rec.productId);
+      return {
+        id: rec.id,
+        sessionId: rec.sessionId,
+        productId: rec.productId,
+        matchScore: rec.matchScore,
+        rank: Number(rec.rank),
+        isSelected: rec.isSelected,
+        createdAt: rec.createdAt,
+        product: product || null,
+      };
+    });
+
+    // Extract prescription and frame data from customerEmail JSON field
+    const sessionNotes = session.customerEmail as any;
+    const prescription = sessionNotes?.prescription || null;
+    const frame = sessionNotes?.frame || null;
 
     return Response.json({
       success: true,
@@ -145,7 +157,9 @@ export async function GET(
         store: store || null,
         user: sessionUser || null,
         answers,
-        recommendations,
+        recommendations: recommendations.length > 0 ? recommendations : [], // Return empty array instead of null
+        prescription: prescription,
+        frame: frame,
       },
     });
   } catch (error) {

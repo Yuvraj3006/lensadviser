@@ -224,28 +224,138 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
           </div>
         )}
 
-        {/* Rx Form Table */}
+        {/* Rx Form - Mobile Card Layout / Desktop Table */}
         <div className="bg-white dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-          <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-            <table className="w-full min-w-[600px]">
+          {/* Mobile: Card Layout */}
+          <div className="block md:hidden space-y-4 p-4">
+            {/* Right Eye (OD) */}
+            <div className="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4 space-y-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-3">Right Eye (OD)</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">SPH</label>
+                  <DragInput
+                    value={rx.odSphere ?? null}
+                    onChange={(value) => handleChange('odSphere', value)}
+                    step={0.25}
+                    min={-20}
+                    max={20}
+                    placeholder="e.g., -2.50"
+                    error={validationErrors.odSphere}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">CYL</label>
+                  <DragInput
+                    value={rx.odCylinder ?? null}
+                    onChange={(value) => handleChange('odCylinder', value)}
+                    step={0.25}
+                    max={0}
+                    placeholder="e.g., -0.75"
+                    error={validationErrors.odCylinder}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">AXIS</label>
+                  <DragInput
+                    value={rx.odAxis ?? null}
+                    onChange={(value) => handleChange('odAxis', value)}
+                    step={1}
+                    min={0}
+                    max={180}
+                    placeholder="0-180"
+                    error={validationErrors.odAxis}
+                  />
+                </div>
+                {showAddFields && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">ADD</label>
+                    <DragInput
+                      value={rx.odAdd ?? null}
+                      onChange={(value) => handleChange('odAdd', value)}
+                      step={0.25}
+                      placeholder="e.g., +2.00"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Left Eye (OS) */}
+            <div className="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4 space-y-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-3">Left Eye (OS)</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">SPH</label>
+                  <DragInput
+                    value={rx.osSphere ?? null}
+                    onChange={(value) => handleChange('osSphere', value)}
+                    step={0.25}
+                    min={-20}
+                    max={20}
+                    placeholder="e.g., -2.50"
+                    error={validationErrors.osSphere}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">CYL</label>
+                  <DragInput
+                    value={rx.osCylinder ?? null}
+                    onChange={(value) => handleChange('osCylinder', value)}
+                    step={0.25}
+                    max={0}
+                    placeholder="e.g., -0.75"
+                    error={validationErrors.osCylinder}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">AXIS</label>
+                  <DragInput
+                    value={rx.osAxis ?? null}
+                    onChange={(value) => handleChange('osAxis', value)}
+                    step={1}
+                    min={0}
+                    max={180}
+                    placeholder="0-180"
+                    error={validationErrors.osAxis}
+                  />
+                </div>
+                {showAddFields && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">ADD</label>
+                    <DragInput
+                      value={rx.osAdd ?? null}
+                      onChange={(value) => handleChange('osAdd', value)}
+                      step={0.25}
+                      placeholder="e.g., +2.00"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop: Table Layout */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full">
                 <thead className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                    <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">Eye</th>
-                    <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">SPH</th>
-                    <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">CYL</th>
-                    <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">AXIS</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Eye</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">SPH</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">CYL</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">AXIS</th>
                   {showAddFields && (
-                      <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">ADD</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">ADD</th>
                   )}
                 </tr>
               </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 {/* Right Eye (OD) */}
                 <tr>
-                  <td className="px-3 sm:px-4 py-4 sm:py-4 text-sm sm:text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <td className="px-4 py-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
                     Right Eye (OD)
                   </td>
-                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                  <td className="px-4 py-4">
                     <DragInput
                       value={rx.odSphere ?? null}
                       onChange={(value) => handleChange('odSphere', value)}
@@ -256,7 +366,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
                       error={validationErrors.odSphere}
                     />
                   </td>
-                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                  <td className="px-4 py-4">
                     <DragInput
                       value={rx.odCylinder ?? null}
                       onChange={(value) => handleChange('odCylinder', value)}
@@ -266,7 +376,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
                       error={validationErrors.odCylinder}
                     />
                   </td>
-                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                  <td className="px-4 py-4">
                     <DragInput
                       value={rx.odAxis ?? null}
                       onChange={(value) => handleChange('odAxis', value)}
@@ -278,7 +388,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
                     />
                   </td>
                   {showAddFields && (
-                    <td className="px-3 sm:px-4 py-4 sm:py-4">
+                    <td className="px-4 py-4">
                       <DragInput
                         value={rx.odAdd ?? null}
                         onChange={(value) => handleChange('odAdd', value)}
@@ -291,10 +401,10 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
                 
                 {/* Left Eye (OS) */}
                 <tr>
-                  <td className="px-3 sm:px-4 py-4 sm:py-4 text-sm sm:text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <td className="px-4 py-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
                     Left Eye (OS)
                   </td>
-                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                  <td className="px-4 py-4">
                     <DragInput
                       value={rx.osSphere ?? null}
                       onChange={(value) => handleChange('osSphere', value)}
@@ -305,7 +415,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
                       error={validationErrors.osSphere}
                     />
                   </td>
-                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                  <td className="px-4 py-4">
                     <DragInput
                       value={rx.osCylinder ?? null}
                       onChange={(value) => handleChange('osCylinder', value)}
@@ -315,7 +425,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
                       error={validationErrors.osCylinder}
                     />
                   </td>
-                  <td className="px-3 sm:px-4 py-4 sm:py-4">
+                  <td className="px-4 py-4">
                     <DragInput
                       value={rx.osAxis ?? null}
                       onChange={(value) => handleChange('osAxis', value)}
@@ -327,7 +437,7 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
                     />
                   </td>
                   {showAddFields && (
-                    <td className="px-3 sm:px-4 py-4 sm:py-4">
+                    <td className="px-4 py-4">
                       <DragInput
                         value={rx.osAdd ?? null}
                         onChange={(value) => handleChange('osAdd', value)}

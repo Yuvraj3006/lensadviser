@@ -141,11 +141,7 @@ export class RecommendationsAdapterService {
           include: {
             features: {
               include: {
-                feature: {
-                  include: {
-                    // Feature model fields
-                  },
-                },
+                feature: true, // Include full feature object
               },
             },
             benefits: true, // We'll fetch BenefitFeature separately
@@ -195,24 +191,18 @@ export class RecommendationsAdapterService {
         // Calculate offers (simplified - full offer calculation happens later)
         const offers: any[] = [];
 
-        // Format features - ProductFeature has featureId, need to fetch Feature separately
-        const featureIds = fullProduct.features?.map((pf: any) => pf.featureId) || [];
-        const featuresData = featureIds.length > 0
-          ? await (prisma as any).feature.findMany({
-              where: { id: { in: featureIds } },
-            })
-          : [];
-        const featureMap = new Map(featuresData.map((f: any) => [f.id, f]));
-        
+        // Format features - feature is already included in the query
         const features = fullProduct.features?.map((pf: any) => {
-          const feature = featureMap.get(pf.featureId);
+          // Feature is already included via the query, so use pf.feature directly
+          const feature = pf.feature;
           if (!feature || typeof feature !== 'object' || !('id' in feature)) {
             return null;
           }
           return {
-            id: (feature as any).id,
-            name: (feature as any).name || 'Feature',
-            key: (feature as any).code || '',
+            id: String(feature.id),
+            name: feature.name || 'Feature',
+            key: feature.code || '',
+            strength: 5, // Default strength for display (0-10 scale, 5 = medium)
             price: 0, // Features don't have prices anymore
           };
         }).filter((f: any) => f !== null) || [];
@@ -402,6 +392,9 @@ export class RecommendationsAdapterService {
       })
     );
 
+    // Save recommendations to database for admin panel
+    await this.saveRecommendationsToDatabase(sessionId, enrichedRecommendations);
+
     return {
       sessionId,
       category: session.category,
@@ -413,6 +406,43 @@ export class RecommendationsAdapterService {
       benefitScores: recommendationResult.benefitScores,
       fourLensOutput,
     };
+  }
+
+  /**
+   * Save recommendations to SessionRecommendation table for admin panel
+   */
+  private async saveRecommendationsToDatabase(
+    sessionId: string,
+    recommendations: any[]
+  ): Promise<void> {
+    try {
+      // Delete existing recommendations for this session
+      await prisma.sessionRecommendation.deleteMany({
+        where: { sessionId },
+      });
+
+      // Save top recommendations (limit to 10)
+      const topRecommendations = recommendations.slice(0, 10);
+      const now = new Date();
+
+      await Promise.all(
+        topRecommendations.map((rec, index) =>
+          prisma.sessionRecommendation.create({
+            data: {
+              sessionId,
+              productId: rec.id,
+              matchScore: rec.matchPercent || rec.matchScore || 0,
+              rank: BigInt(index + 1),
+              isSelected: false,
+              createdAt: now,
+            },
+          })
+        )
+      );
+    } catch (error) {
+      console.error('[RecommendationsAdapter] Error saving recommendations to database:', error);
+      // Don't throw - recommendations are still returned to frontend
+    }
   }
 
   /**
