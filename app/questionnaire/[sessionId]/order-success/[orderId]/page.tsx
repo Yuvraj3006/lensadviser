@@ -14,7 +14,8 @@ import {
   Download,
   Share2,
   ExternalLink,
-  FileText
+  FileText,
+  Gift
 } from 'lucide-react';
 
 interface OrderData {
@@ -40,6 +41,14 @@ interface OrderData {
     brandLine?: string;
   };
   offerData?: any; // OfferCalculationResult
+  secondPairData?: {
+    frameMRP: number;
+    brand: string;
+    subBrand?: string;
+    lensId: string;
+    lensName: string;
+    lensPrice: number;
+  } | null;
 }
 
 export default function OrderSuccessPage() {
@@ -98,6 +107,33 @@ export default function OrderSuccessPage() {
   const fetchOrderData = async () => {
     setLoading(true);
     try {
+      // ✅ Fetch second pair data from session database
+      let secondPairData: OrderData['secondPairData'] = null;
+      if (sessionId) {
+        try {
+          const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+          if (sessionResponse.ok) {
+            const sessionData = await sessionResponse.json();
+            if (sessionData.success && sessionData.data?.session?.secondPairData) {
+              const parsed = sessionData.data.session.secondPairData as any;
+              if (parsed && parsed.frameMRP && parsed.lensId && parsed.lensPrice > 0) {
+                secondPairData = {
+                  frameMRP: parsed.frameMRP,
+                  brand: parsed.brand || 'Unknown',
+                  subBrand: parsed.subBrand || undefined,
+                  lensId: parsed.lensId,
+                  lensName: parsed.lensName || 'Lens',
+                  lensPrice: parsed.lensPrice,
+                };
+                console.log('[OrderSuccess] ✅ Loaded second pair data from session:', secondPairData);
+              }
+            }
+          }
+        } catch (sessionError) {
+          console.warn('[OrderSuccess] Failed to fetch second pair data from session:', sessionError);
+        }
+      }
+      
       // Try to fetch from API first
       try {
         const response = await fetch(`/api/order/${orderId}`);
@@ -118,6 +154,7 @@ export default function OrderSuccessPage() {
               frameData: typeof order.frameData === 'string' ? JSON.parse(order.frameData) : order.frameData,
               lensData: typeof order.lensData === 'string' ? JSON.parse(order.lensData) : order.lensData,
               offerData: order.offerData || null, // Include offer data from API
+              secondPairData: secondPairData, // Include second pair data
             });
             setLoading(false);
             return;
@@ -132,6 +169,31 @@ export default function OrderSuccessPage() {
       const orderInfo = JSON.parse(localStorage.getItem(`lenstrack_order_${orderId}`) || '{}');
       const currentStoreName = storeName || localStorage.getItem('lenstrack_store_name') || undefined;
       
+      // ✅ Fetch second pair data from session if not already fetched
+      if (!secondPairData && sessionId) {
+        try {
+          const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+          if (sessionResponse.ok) {
+            const sessionData = await sessionResponse.json();
+            if (sessionData.success && sessionData.data?.session?.secondPairData) {
+              const parsed = sessionData.data.session.secondPairData as any;
+              if (parsed && parsed.frameMRP && parsed.lensId && parsed.lensPrice > 0) {
+                secondPairData = {
+                  frameMRP: parsed.frameMRP,
+                  brand: parsed.brand || 'Unknown',
+                  subBrand: parsed.subBrand || undefined,
+                  lensId: parsed.lensId,
+                  lensName: parsed.lensName || 'Lens',
+                  lensPrice: parsed.lensPrice,
+                };
+              }
+            }
+          }
+        } catch (sessionError) {
+          console.warn('[OrderSuccess] Failed to fetch second pair data from session (fallback):', sessionError);
+        }
+      }
+      
       if (orderInfo.id) {
         setOrderData({
           ...orderInfo,
@@ -139,6 +201,7 @@ export default function OrderSuccessPage() {
           frameData: orderInfo.frameData || frameData,
           lensData: orderInfo.lensData || { name: 'Unknown', price: 0 },
           offerData: orderInfo.offerData || null,
+          secondPairData: secondPairData,
         });
       } else {
         // Fallback: reconstruct from available data
@@ -153,6 +216,7 @@ export default function OrderSuccessPage() {
           frameData: frameData,
           lensData: orderInfo.lensData || { name: 'Unknown', price: 0 },
           offerData: orderInfo.offerData || null,
+          secondPairData: secondPairData,
         });
       }
     } catch (error: any) {
@@ -198,26 +262,70 @@ export default function OrderSuccessPage() {
       // Dynamically import html2pdf only on client side
       const html2pdf = (await import('html2pdf.js')).default;
       
-      // Create a temporary element with receipt content
-      const receiptElement = document.createElement('div');
-      receiptElement.innerHTML = generateReceiptHTML(orderData);
-      receiptElement.style.position = 'absolute';
-      receiptElement.style.left = '-9999px';
-      document.body.appendChild(receiptElement);
+      // Generate full HTML
+      const fullHTML = generateReceiptHTML(orderData);
+      
+      // Create a hidden iframe to render the HTML with all styles
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.left = '-9999px';
+      iframe.style.top = '0';
+      iframe.style.width = '210mm';
+      iframe.style.height = '297mm';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+      
+      // Write HTML to iframe
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) {
+        document.body.removeChild(iframe);
+        throw new Error('Could not access iframe document');
+      }
+      
+      iframeDoc.open();
+      iframeDoc.write(fullHTML);
+      iframeDoc.close();
+      
+      // Wait for iframe to fully load
+      await new Promise<void>((resolve) => {
+        const checkLoad = () => {
+          if (iframe.contentWindow?.document.readyState === 'complete') {
+            // Additional wait for styles to apply
+            setTimeout(() => resolve(), 500);
+          } else {
+            setTimeout(checkLoad, 100);
+          }
+        };
+        checkLoad();
+        // Fallback timeout
+        setTimeout(() => resolve(), 3000);
+      });
+      
+      // Get the receipt element from iframe
+      const receiptElement = iframeDoc.querySelector('.receipt') as HTMLElement;
+      
+      if (!receiptElement) {
+        document.body.removeChild(iframe);
+        throw new Error('Receipt element not found in iframe');
+      }
 
-      // Configure PDF options for A3 size
+      console.log('[OrderSuccess] Receipt element found, generating PDF...');
+
+      // Configure PDF options for A4 size (standard receipt format)
       const opt = {
-        margin: [10, 10, 10, 10] as [number, number, number, number],
+        margin: [15, 15, 15, 15] as [number, number, number, number],
         filename: `Receipt_${orderData.id}_${new Date().toISOString().split('T')[0]}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { 
           scale: 2,
           useCORS: true,
           letterRendering: true,
+          backgroundColor: '#ffffff',
+          logging: false,
         },
         jsPDF: { 
           unit: 'mm' as const, 
-          format: 'a3' as const, 
+          format: 'a4' as const, 
           orientation: 'portrait' as const,
           compress: true,
         },
@@ -228,11 +336,14 @@ export default function OrderSuccessPage() {
       await html2pdf().set(opt).from(receiptElement).save();
       
       // Clean up
-      document.body.removeChild(receiptElement);
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+      
       showToast('success', 'PDF receipt downloaded successfully!');
     } catch (error) {
       console.error('[OrderSuccess] PDF download error:', error);
-      showToast('error', 'Failed to download PDF receipt');
+      showToast('error', `Failed to download PDF receipt: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -263,7 +374,9 @@ export default function OrderSuccessPage() {
     const offerResult = order.offerData;
     const frameMRP = offerResult?.frameMRP || order.frameData.mrp;
     const lensPrice = offerResult?.lensPrice || order.lensData.price;
-    const baseTotal = offerResult?.baseTotal || (frameMRP + lensPrice);
+    const firstPairTotal = offerResult?.baseTotal || (frameMRP + lensPrice);
+    const secondPairTotal = order.secondPairData ? (order.secondPairData.frameMRP + order.secondPairData.lensPrice) : 0;
+    const baseTotal = firstPairTotal + secondPairTotal;
     const effectiveBase = offerResult?.effectiveBase || baseTotal;
     const finalPayable = order.finalPrice;
     const totalDiscount = baseTotal - finalPayable;
@@ -281,7 +394,7 @@ export default function OrderSuccessPage() {
             offersHTML += `
             <div class="item-row discount">
               <span class="item-label">${offer.description || offer.ruleCode}</span>
-              <span class="item-value discount">-₹${Math.round(offer.savings).toLocaleString()}</span>
+              <span class="item-value discount">-₹${Math.round(offer.savings).toLocaleString('en-IN')}</span>
             </div>`;
             offerDetailsHTML += `
             <div class="offer-detail">
@@ -296,7 +409,7 @@ export default function OrderSuccessPage() {
         offersHTML += `
         <div class="item-row discount">
           <span class="item-label">${offerResult.categoryDiscount.description}</span>
-          <span class="item-value discount">-₹${Math.round(offerResult.categoryDiscount.savings).toLocaleString()}</span>
+          <span class="item-value discount">-₹${Math.round(offerResult.categoryDiscount.savings).toLocaleString('en-IN')}</span>
         </div>`;
         offerDetailsHTML += `
         <div class="offer-detail">
@@ -309,7 +422,7 @@ export default function OrderSuccessPage() {
         offersHTML += `
         <div class="item-row discount">
           <span class="item-label">${offerResult.couponDiscount.description}</span>
-          <span class="item-value discount">-₹${Math.round(offerResult.couponDiscount.savings).toLocaleString()}</span>
+          <span class="item-value discount">-₹${Math.round(offerResult.couponDiscount.savings).toLocaleString('en-IN')}</span>
         </div>`;
         offerDetailsHTML += `
         <div class="offer-detail">
@@ -322,7 +435,7 @@ export default function OrderSuccessPage() {
         offersHTML += `
         <div class="item-row discount">
           <span class="item-label">${offerResult.secondPairDiscount.description}</span>
-          <span class="item-value discount">-₹${Math.round(offerResult.secondPairDiscount.savings).toLocaleString()}</span>
+          <span class="item-value discount">-₹${Math.round(offerResult.secondPairDiscount.savings).toLocaleString('en-IN')}</span>
         </div>`;
         offerDetailsHTML += `
         <div class="offer-detail">
@@ -349,125 +462,163 @@ export default function OrderSuccessPage() {
       box-sizing: border-box;
     }
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Times New Roman', 'DejaVu Serif', serif;
       padding: ${isPrintMode ? '0' : '20px'};
       background: white;
       color: #000;
+      line-height: 1.6;
     }
     .receipt {
-      max-width: ${isPrintMode ? '297mm' : '600px'};
-      width: ${isPrintMode ? '297mm' : '100%'};
-      min-height: ${isPrintMode ? '420mm' : 'auto'};
+      max-width: ${isPrintMode ? '210mm' : '600px'};
+      width: ${isPrintMode ? '210mm' : '100%'};
+      min-height: ${isPrintMode ? '297mm' : 'auto'};
       margin: 0 auto;
-      border: ${isPrintMode ? 'none' : '2px solid #000'};
-      padding: ${isPrintMode ? '15mm' : '30px'};
+      border: ${isPrintMode ? 'none' : '1px solid #ccc'};
+      padding: ${isPrintMode ? '20mm' : '40px'};
       background: white;
       box-sizing: border-box;
     }
     .header {
       text-align: center;
-      border-bottom: 2px solid #000;
+      border-bottom: 3px double #000;
       padding-bottom: 20px;
-      margin-bottom: 20px;
+      margin-bottom: 25px;
     }
     .header h1 {
-      font-size: 28px;
-      margin-bottom: 10px;
-      color: #059669;
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #000;
+      letter-spacing: 1px;
     }
-    .header p {
-      font-size: 14px;
-      color: #666;
+    .header .subtitle {
+      font-size: 16px;
+      color: #333;
+      font-weight: normal;
+      text-transform: uppercase;
+      letter-spacing: 2px;
     }
     .order-info {
-      margin-bottom: 20px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid #ddd;
+      margin-bottom: 25px;
+      padding: 15px;
+      background: #f9f9f9;
+      border: 1px solid #ddd;
     }
-    .order-info p {
-      margin: 5px 0;
+    .order-info-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 8px 0;
       font-size: 14px;
     }
-    .order-info strong {
+    .order-info-label {
       font-weight: bold;
+      color: #333;
+      min-width: 120px;
+    }
+    .order-info-value {
+      color: #000;
+      text-align: right;
     }
     .items {
-      margin-bottom: 20px;
+      margin-bottom: 25px;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #000;
+      text-transform: uppercase;
+      letter-spacing: 1px;
     }
     .item-row {
       display: flex;
       justify-content: space-between;
-      padding: 10px 0;
-      border-bottom: 1px solid #eee;
+      padding: 12px 0;
+      border-bottom: 1px dotted #ccc;
+      font-size: 14px;
     }
     .item-row:last-child {
       border-bottom: none;
     }
     .item-row.discount {
       color: #059669;
+      font-style: italic;
     }
     .item-label {
-      font-weight: 600;
+      font-weight: normal;
+      color: #333;
+      flex: 1;
     }
     .item-value {
       font-weight: bold;
+      color: #000;
+      text-align: right;
+      min-width: 100px;
     }
     .item-value.discount {
       color: #059669;
     }
     .total-section {
-      margin-top: 20px;
+      margin-top: 25px;
       padding-top: 20px;
       border-top: 2px solid #000;
     }
     .total-row {
       display: flex;
       justify-content: space-between;
-      padding: 8px 0;
+      padding: 10px 0;
       font-size: 16px;
+      border-bottom: 1px solid #ddd;
     }
     .final-total {
-      font-size: 24px;
+      font-size: 20px;
       font-weight: bold;
-      color: #059669;
-      margin-top: 10px;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 3px double #000;
+    }
+    .final-total .item-label {
+      font-size: 20px;
+    }
+    .final-total .item-value {
+      font-size: 22px;
+      color: #000;
     }
     .footer {
-      margin-top: 30px;
+      margin-top: 40px;
       padding-top: 20px;
       border-top: 1px solid #ddd;
       text-align: center;
-      font-size: 12px;
+      font-size: 11px;
       color: #666;
+      line-height: 1.8;
     }
     .price-breakdown {
-      margin-top: 20px;
-      padding-top: 20px;
-      border-top: 1px solid #ddd;
-    }
-    .breakdown-title {
-      font-size: 18px;
-      font-weight: bold;
-      margin-bottom: 15px;
-      color: #059669;
+      margin-top: 25px;
     }
     .offer-details {
-      margin-top: 20px;
+      margin-top: 25px;
       padding: 15px;
-      background: #f9fafb;
-      border-radius: 8px;
-      border-left: 4px solid #059669;
+      background: #f5f5f5;
+      border: 1px solid #ddd;
     }
     .offer-details h4 {
-      font-size: 16px;
+      font-size: 14px;
       font-weight: bold;
-      margin-bottom: 10px;
-      color: #059669;
+      margin-bottom: 12px;
+      color: #000;
+      text-transform: uppercase;
     }
     .offer-detail {
-      margin: 8px 0;
-      font-size: 14px;
-      color: #374151;
+      margin: 6px 0;
+      font-size: 12px;
+      color: #444;
+      padding-left: 15px;
+    }
+    .divider {
+      border-top: 1px solid #ddd;
+      margin: 15px 0;
     }
     @media print {
       body {
@@ -476,14 +627,14 @@ export default function OrderSuccessPage() {
       }
       .receipt {
         border: none;
-        padding: 15mm;
-        max-width: 297mm;
-        width: 297mm;
-        min-height: 420mm;
+        padding: 20mm;
+        max-width: 210mm;
+        width: 210mm;
+        min-height: 297mm;
       }
       @page {
-        size: A3;
-        margin: 15mm;
+        size: A4;
+        margin: 20mm;
       }
     }
   </style>
@@ -491,52 +642,91 @@ export default function OrderSuccessPage() {
 <body>
   <div class="receipt">
     <div class="header">
-      <h1>LensTrack</h1>
-      <p>Order Receipt</p>
+      <h1>LENSTRACK</h1>
+      <p class="subtitle">TAX INVOICE / RECEIPT</p>
     </div>
     
     <div class="order-info">
-      <p><strong>Order ID:</strong> ${order.id}</p>
-      <p><strong>Date:</strong> ${orderDate}</p>
-      ${order.storeName ? `<p><strong>Store:</strong> ${order.storeName}</p>` : ''}
-      ${order.customerName ? `<p><strong>Customer:</strong> ${order.customerName}</p>` : ''}
-      ${order.customerPhone ? `<p><strong>Phone:</strong> ${order.customerPhone}</p>` : ''}
-      <p><strong>Mode:</strong> ${order.salesMode === 'STAFF_ASSISTED' ? 'POS Mode' : 'Self-Service'}</p>
+      <div class="order-info-row">
+        <span class="order-info-label">Invoice No.:</span>
+        <span class="order-info-value">${order.id}</span>
+      </div>
+      <div class="order-info-row">
+        <span class="order-info-label">Date & Time:</span>
+        <span class="order-info-value">${orderDate}</span>
+      </div>
+      ${order.storeName ? `
+      <div class="order-info-row">
+        <span class="order-info-label">Store Name:</span>
+        <span class="order-info-value">${order.storeName}</span>
+      </div>` : ''}
+      ${order.customerName ? `
+      <div class="order-info-row">
+        <span class="order-info-label">Customer Name:</span>
+        <span class="order-info-value">${order.customerName}</span>
+      </div>` : ''}
+      ${order.customerPhone ? `
+      <div class="order-info-row">
+        <span class="order-info-label">Contact No.:</span>
+        <span class="order-info-value">${order.customerPhone}</span>
+      </div>` : ''}
+      <div class="order-info-row">
+        <span class="order-info-label">Sales Mode:</span>
+        <span class="order-info-value">${order.salesMode === 'STAFF_ASSISTED' ? 'POS Mode' : 'Self-Service'}</span>
+      </div>
     </div>
     
     <div class="price-breakdown">
-      <div class="breakdown-title">Price Breakdown</div>
+      <div class="section-title">Item Details & Price Breakdown</div>
       <div class="items">
         <div class="item-row">
-          <span class="item-label">Frame MRP (${frameDisplayName}${order.frameData.frameType ? ` - ${order.frameData.frameType.replace('_', ' ')}` : ''})</span>
-          <span class="item-value">₹${Math.round(frameMRP).toLocaleString()}</span>
+          <span class="item-label">Frame (${frameDisplayName}${order.frameData.frameType ? ` - ${order.frameData.frameType.replace('_', ' ')}` : ''})</span>
+          <span class="item-value">₹${Math.round(frameMRP).toLocaleString('en-IN')}</span>
         </div>
         <div class="item-row">
-          <span class="item-label">Lens Price (${order.lensData.name}${order.lensData.index ? ` - Index ${order.lensData.index}` : ''}${order.lensData.brandLine ? ` - ${order.lensData.brandLine}` : ''})</span>
-          <span class="item-value">₹${Math.round(lensPrice).toLocaleString()}</span>
+          <span class="item-label">Lens (${order.lensData.name}${order.lensData.index ? ` - Index ${order.lensData.index}` : ''}${order.lensData.brandLine ? ` - ${order.lensData.brandLine}` : ''})</span>
+          <span class="item-value">₹${Math.round(lensPrice).toLocaleString('en-IN')}</span>
         </div>
         ${(order.lensData as any).rxAddOnBreakdown && Array.isArray((order.lensData as any).rxAddOnBreakdown) && (order.lensData as any).rxAddOnBreakdown.length > 0 ? 
           (order.lensData as any).rxAddOnBreakdown.map((addOn: any) => `
             <div class="item-row">
               <span class="item-label">${addOn.label || 'High Power Add-On'}</span>
-              <span class="item-value">+₹${Math.round(addOn.charge || 0).toLocaleString()}</span>
+              <span class="item-value">+₹${Math.round(addOn.charge || 0).toLocaleString('en-IN')}</span>
             </div>
           `).join('') : ''}
         ${(order.lensData as any).totalRxAddOn && (order.lensData as any).totalRxAddOn > 0 && (!(order.lensData as any).rxAddOnBreakdown || !Array.isArray((order.lensData as any).rxAddOnBreakdown) || (order.lensData as any).rxAddOnBreakdown.length === 0) ? `
           <div class="item-row">
             <span class="item-label">RX Add-On Charge</span>
-            <span class="item-value">+₹${Math.round((order.lensData as any).totalRxAddOn).toLocaleString()}</span>
+            <span class="item-value">+₹${Math.round((order.lensData as any).totalRxAddOn).toLocaleString('en-IN')}</span>
           </div>
         ` : ''}
+        <div class="divider"></div>
+        <div class="item-row">
+          <span class="item-label"><strong>1st Pair Total</strong></span>
+          <span class="item-value"><strong>₹${Math.round(firstPairTotal).toLocaleString('en-IN')}</strong></span>
+        </div>
+        ${order.secondPairData ? `
+        <div class="divider"></div>
+        <div class="item-row">
+          <span class="item-label">2nd Pair - Frame (${order.secondPairData.brand}${order.secondPairData.subBrand ? ` - ${order.secondPairData.subBrand}` : ''})</span>
+          <span class="item-value">₹${Math.round(order.secondPairData.frameMRP).toLocaleString('en-IN')}</span>
+        </div>
+        <div class="item-row">
+          <span class="item-label">2nd Pair - Lens (${order.secondPairData.lensName})</span>
+          <span class="item-value">₹${Math.round(order.secondPairData.lensPrice).toLocaleString('en-IN')}</span>
+        </div>
+        ` : ''}
+        <div class="divider"></div>
         <div class="item-row">
           <span class="item-label"><strong>Subtotal</strong></span>
-          <span class="item-value"><strong>₹${Math.round(baseTotal).toLocaleString()}</strong></span>
+          <span class="item-value"><strong>₹${Math.round(baseTotal).toLocaleString('en-IN')}</strong></span>
         </div>
         ${offersHTML}
         ${totalDiscount > 0 ? `
+        <div class="divider"></div>
         <div class="item-row">
           <span class="item-label"><strong>Total Discount</strong></span>
-          <span class="item-value discount"><strong>-₹${Math.round(totalDiscount).toLocaleString()}</strong></span>
+          <span class="item-value discount"><strong>-₹${Math.round(totalDiscount).toLocaleString('en-IN')}</strong></span>
         </div>` : ''}
       </div>
       
@@ -549,14 +739,22 @@ export default function OrderSuccessPage() {
     
     <div class="total-section">
       <div class="total-row final-total">
-        <span>Total Amount</span>
-        <span>₹${Math.round(finalPayable).toLocaleString()}</span>
+        <span class="item-label">TOTAL AMOUNT PAYABLE</span>
+        <span class="item-value">₹${Math.round(finalPayable).toLocaleString('en-IN')}</span>
       </div>
     </div>
     
+    ${offerDetailsHTML ? `
+    <div class="offer-details">
+      <h4>Terms & Conditions / Offer Details:</h4>
+      ${offerDetailsHTML}
+    </div>` : ''}
+    
     <div class="footer">
-      <p>Thank you for your order!</p>
-      <p>For any queries, please contact the store.</p>
+      <p><strong>Thank you for your business!</strong></p>
+      <p>This is a computer-generated invoice and does not require a signature.</p>
+      <p>For any queries or complaints, please contact the store.</p>
+      <p style="margin-top: 15px; font-size: 10px; color: #999;">Generated on ${new Date().toLocaleString('en-IN')}</p>
     </div>
   </div>
 </body>
@@ -655,6 +853,32 @@ export default function OrderSuccessPage() {
               <p className="text-xl font-bold text-purple-600">₹{Math.round(orderData.lensData.price).toLocaleString()}</p>
             </div>
           </div>
+
+          {/* Second Pair - Frame + Lens Details (BOGO) */}
+          {orderData.secondPairData && (
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                <Gift size={16} className="text-green-600 dark:text-green-400" />
+                2nd Pair (BOGO Offer)
+              </h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-300 dark:border-green-500/50">
+                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Frame</h3>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{orderData.secondPairData.brand}</p>
+                  {orderData.secondPairData.subBrand && (
+                    <p className="text-sm text-purple-700 dark:text-purple-300 font-medium mb-1">{orderData.secondPairData.subBrand}</p>
+                  )}
+                  <p className="text-xl font-semibold text-green-600 dark:text-green-400">₹{Math.round(orderData.secondPairData.frameMRP).toLocaleString()}</p>
+                </div>
+
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-300 dark:border-green-500/50">
+                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Lens</h3>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{orderData.secondPairData.lensName}</p>
+                  <p className="text-xl font-semibold text-green-600 dark:text-green-400">₹{Math.round(orderData.secondPairData.lensPrice).toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Price Breakdown */}
           {orderData.offerData && (

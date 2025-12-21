@@ -434,7 +434,7 @@ export default function OfferRulesPage() {
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         title={editingRule ? 'Edit Offer Rule' : 'Create Offer Rule'}
-        size="full"
+        size="xl"
         footer={
           <>
             <Button type="button" variant="secondary" onClick={() => setIsCreateOpen(false)} className="w-full sm:w-auto">
@@ -446,7 +446,7 @@ export default function OfferRulesPage() {
           </>
         }
       >
-        <form id="offer-rule-form" onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+        <form id="offer-rule-form" onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 lg:space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Input
               label="Name"

@@ -254,6 +254,8 @@ export async function POST(
     const purchaseContext = (session.purchaseContext as 'REGULAR' | 'COMBO' | 'YOPO' | null) || null;
     const selectedComboCode = session.selectedComboCode || null;
 
+    const { selectedOfferType } = body; // Get selected offer type from request
+    
     const offerResult = await offerEngineService.calculateOffers({
       frame: frameInput, // null for lens-only flow
       lens: lensInput,
@@ -265,6 +267,7 @@ export async function POST(
       otherItems, // Include accessories in offer calculation
       purchaseContext, // Pass purchase context (REGULAR/COMBO/YOPO)
       selectedComboCode, // Pass selected combo tier code for COMBO context
+      selectedOfferType: selectedOfferType || null, // Pass selected offer type
     });
 
     console.log('[recalculate-offers] Offer engine returned:', {

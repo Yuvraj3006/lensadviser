@@ -47,6 +47,14 @@ interface CheckoutData {
     mrp: number;
     frameType?: string;
   };
+  secondPair?: {
+    frameMRP: number;
+    brand: string;
+    subBrand?: string;
+    lensId: string;
+    lensName: string;
+    lensPrice: number;
+  } | null;
   offerResult: OfferCalculationResult;
   purchaseContext?: 'REGULAR' | 'COMBO' | 'YOPO';
 }
@@ -158,10 +166,11 @@ export default function CheckoutPage() {
         quantity: 1,
       }));
       
-      // ✅ BEST PRACTICE: Load category discount from session (database) first, then localStorage as fallback
+      // ✅ IMPORTANT: Load category discount ONLY from session (database), NOT from localStorage
+      // This ensures that if category was removed, it won't be fetched from stale localStorage
       let customerCategory: string | null = null;
       
-      // Try to get from session first (database)
+      // Get from session (database) ONLY - no localStorage fallback
       try {
         const sessionResponse = await fetch(
           `/api/public/questionnaire/sessions/${sessionId}`
@@ -171,27 +180,83 @@ export default function CheckoutPage() {
           if (sessionData.success && sessionData.data?.session?.customerCategory) {
             customerCategory = sessionData.data.session.customerCategory;
             console.log('[Checkout] ✅ Loaded category discount from session (database):', customerCategory);
+          } else {
+            console.log('[Checkout] No category discount in session (database)');
           }
         }
       } catch (sessionError) {
-        console.warn('[Checkout] Could not load from session, trying localStorage...', sessionError);
+        console.warn('[Checkout] Could not load from session:', sessionError);
+        // Don't use localStorage as fallback - if session doesn't have it, it's not applied
       }
       
-      // Fallback to localStorage if session doesn't have it
-      if (!customerCategory) {
-        const savedCategoryDiscount = localStorage.getItem('lenstrack_category_discount');
-        if (savedCategoryDiscount) {
-          try {
-            const categoryData = JSON.parse(savedCategoryDiscount);
-            customerCategory = categoryData.category || null;
-            console.log('[Checkout] Loaded category discount from localStorage (fallback):', customerCategory);
-          } catch (e) {
-            console.error('[Checkout] Failed to parse saved category discount:', e);
+      // ✅ BEST PRACTICE: Load second pair data from session database (not localStorage)
+      let secondPairData: any = null;
+      let secondPairDetails: CheckoutData['secondPair'] = null;
+      
+      // Get second pair data from session (database)
+      // Reuse sessionResponse from customerCategory fetch if available, otherwise fetch separately
+      try {
+        // Fetch session data (we need it for secondPairData)
+        const sessionResponseForSecondPair = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+        if (sessionResponseForSecondPair.ok) {
+          const sessionDataForSecondPair = await sessionResponseForSecondPair.json();
+          console.log('[Checkout] Full session data:', sessionDataForSecondPair);
+          
+          if (sessionDataForSecondPair?.success && sessionDataForSecondPair?.data?.session?.secondPairData) {
+            const parsed = sessionDataForSecondPair.data.session.secondPairData as any;
+            console.log('[Checkout] Second pair data from database:', parsed);
+            console.log('[Checkout] Validation check:', {
+              hasParsed: !!parsed,
+              enabled: parsed?.enabled,
+              frameMRP: parsed?.frameMRP,
+              lensId: parsed?.lensId,
+              lensPrice: parsed?.lensPrice,
+              brand: parsed?.brand,
+              lensName: parsed?.lensName,
+            });
+            
+            // More lenient check - if data exists, use it (enabled might not be set in old data)
+            if (parsed && parsed.frameMRP && parsed.lensId && parsed.lensPrice > 0) {
+              secondPairData = {
+                enabled: true,
+                secondPairFrameMRP: parsed.frameMRP,
+                secondPairLensPrice: parsed.lensPrice,
+              };
+              
+              secondPairDetails = {
+                frameMRP: parsed.frameMRP,
+                brand: parsed.brand || 'Unknown',
+                subBrand: parsed.subBrand || undefined,
+                lensId: parsed.lensId,
+                lensName: parsed.lensName || 'Lens',
+                lensPrice: parsed.lensPrice,
+              };
+              console.log('[Checkout] ✅ Loaded second pair details from session database:', secondPairDetails);
+            } else {
+              console.log('[Checkout] Second pair data exists but is incomplete:', {
+                parsed,
+                hasFrameMRP: !!parsed?.frameMRP,
+                hasLensId: !!parsed?.lensId,
+                hasLensPrice: parsed?.lensPrice > 0,
+              });
+            }
+          } else {
+            console.log('[Checkout] No second pair data in session database');
+            console.log('[Checkout] Session data structure:', {
+              success: sessionDataForSecondPair?.success,
+              hasData: !!sessionDataForSecondPair?.data,
+              hasSession: !!sessionDataForSecondPair?.data?.session,
+              hasSecondPairData: !!sessionDataForSecondPair?.data?.session?.secondPairData,
+            });
           }
+        } else {
+          console.warn('[Checkout] Failed to fetch session for second pair data:', sessionResponseForSecondPair.status);
         }
+      } catch (e) {
+        console.error('[Checkout] Failed to load second pair data from database:', e);
       }
       
-      // Calculate offers using offer engine (include accessories and category discount)
+      // Calculate offers using offer engine (include accessories, category discount, and second pair)
       const offersResponse = await fetch(
         `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
         {
@@ -201,7 +266,7 @@ export default function CheckoutPage() {
             productId: productId,
             couponCode: null,
             customerCategory: customerCategory,
-            secondPair: null,
+            secondPair: secondPairData,
             accessories: otherItems.length > 0 ? otherItems : undefined,
           }),
         }
@@ -229,6 +294,8 @@ export default function CheckoutPage() {
         lensPrice: offerResult.lensPrice,
       });
 
+      console.log('[Checkout] Setting checkoutData with secondPair:', secondPairDetails);
+      
       setCheckoutData({
         sessionId,
         productId,
@@ -245,8 +312,11 @@ export default function CheckoutPage() {
           mrp: offerResult.frameMRP,
           frameType: frameData.frameType,
         },
+        secondPair: secondPairDetails,
         offerResult,
       });
+      
+      console.log('[Checkout] checkoutData set successfully, secondPair:', secondPairDetails);
     } catch (error: any) {
       console.error('[Checkout] Error:', error);
       showToast('error', error.message || 'Failed to load checkout data');
@@ -437,31 +507,65 @@ export default function CheckoutPage() {
           </h2>
           
           <div className="space-y-4">
-            {/* Frame + Lens Details */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
-                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Frame</h3>
-                <p className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{checkoutData.selectedFrame.brand}</p>
-                {checkoutData.selectedFrame.subBrand && (
-                  <p className="text-sm text-purple-700 dark:text-purple-300 font-medium mb-1">{checkoutData.selectedFrame.subBrand}</p>
-                )}
-                {checkoutData.selectedFrame.frameType && (
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{checkoutData.selectedFrame.frameType.replace('_', ' ')}</p>
-                )}
-                <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">₹{Math.round(checkoutData.selectedFrame.mrp).toLocaleString()}</p>
-              </div>
-
-              <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
-                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Lens</h3>
-                <p className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{checkoutData.selectedLens.name}</p>
-                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-2">
-                  <span>Index {checkoutData.selectedLens.index}</span>
-                  <span>•</span>
-                  <span>{checkoutData.selectedLens.brandLine}</span>
+            {/* First Pair - Frame + Lens Details */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">1st Pair</h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Frame</h3>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{checkoutData.selectedFrame.brand}</p>
+                  {checkoutData.selectedFrame.subBrand && (
+                    <p className="text-sm text-purple-700 dark:text-purple-300 font-medium mb-1">{checkoutData.selectedFrame.subBrand}</p>
+                  )}
+                  {checkoutData.selectedFrame.frameType && (
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{checkoutData.selectedFrame.frameType.replace('_', ' ')}</p>
+                  )}
+                  <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">₹{Math.round(checkoutData.selectedFrame.mrp).toLocaleString()}</p>
                 </div>
-                <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">₹{Math.round(checkoutData.selectedLens.price).toLocaleString()}</p>
+
+                <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Lens</h3>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{checkoutData.selectedLens.name}</p>
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-2">
+                    <span>Index {checkoutData.selectedLens.index}</span>
+                    <span>•</span>
+                    <span>{checkoutData.selectedLens.brandLine}</span>
+                  </div>
+                  <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">₹{Math.round(checkoutData.selectedLens.price).toLocaleString()}</p>
+                </div>
               </div>
             </div>
+
+            {/* Second Pair - Frame + Lens Details (BOGO) */}
+            {(() => {
+              console.log('[Checkout] Rendering check - secondPair:', checkoutData.secondPair);
+              console.log('[Checkout] Rendering check - secondPair exists?', !!checkoutData.secondPair);
+              return null;
+            })()}
+            {checkoutData.secondPair && (
+              <div>
+                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                  <Gift size={16} className="text-green-600 dark:text-green-400" />
+                  2nd Pair (BOGO Offer)
+                </h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-300 dark:border-green-500/50">
+                    <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Frame</h3>
+                    <p className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{checkoutData.secondPair.brand}</p>
+                    {checkoutData.secondPair.subBrand && (
+                      <p className="text-sm text-purple-700 dark:text-purple-300 font-medium mb-1">{checkoutData.secondPair.subBrand}</p>
+                    )}
+                    <p className="text-xl font-semibold text-green-600 dark:text-green-400">₹{Math.round(checkoutData.secondPair.frameMRP).toLocaleString()}</p>
+                  </div>
+
+                  <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-300 dark:border-green-500/50">
+                    <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Lens</h3>
+                    <p className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{checkoutData.secondPair.lensName}</p>
+                    <p className="text-xl font-semibold text-green-600 dark:text-green-400">₹{Math.round(checkoutData.secondPair.lensPrice).toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Price Breakdown */}
             <div className="py-4 border-t border-slate-200 dark:border-slate-700">

@@ -83,6 +83,7 @@ export default function OfferSummaryPage() {
   const [loadingLenses, setLoadingLenses] = useState(false);
   const [frameBrands, setFrameBrands] = useState<any[]>([]);
   const [availableSubBrands, setAvailableSubBrands] = useState<string[]>([]);
+  const [selectedOfferType, setSelectedOfferType] = useState<string | null>(null);
 
   useEffect(() => {
     if (sessionId && productId) {
@@ -94,6 +95,83 @@ export default function OfferSummaryPage() {
       // Category will only be applied when user explicitly selects and applies it
     }
   }, [sessionId, productId]);
+
+  // Auto-enable second pair if BOGO rule is available
+  useEffect(() => {
+    if (data?.offerResult?.availableBOGORule && !secondPairEnabled) {
+      console.log('[OfferSummary] Auto-enabling second pair for BOGO offer');
+      setSecondPairEnabled(true);
+    }
+  }, [data?.offerResult?.availableBOGORule, secondPairEnabled]);
+
+  // ✅ Save second pair data to session database whenever it changes (best practice)
+  useEffect(() => {
+    // Don't save if we're in the middle of restoring (to avoid overwriting)
+    if (!data || !data.offerResult) return;
+    
+    const saveSecondPairToDatabase = async () => {
+      if (secondPairEnabled && secondPairFrameMRP && secondPairLensId && secondPairLensPrice > 0) {
+        // Get lens name from availableLenses
+        const selectedLens = availableLenses.find(l => l.id === secondPairLensId);
+        const lensName = selectedLens?.name || 'Lens';
+        
+        const secondPairData = {
+          enabled: true,
+          frameMRP: parseFloat(secondPairFrameMRP),
+          brand: secondPairBrand,
+          subBrand: secondPairSubBrand,
+          lensId: secondPairLensId,
+          lensName: lensName,
+          lensPrice: secondPairLensPrice,
+        };
+        
+        try {
+          const response = await fetch(`/api/public/questionnaire/sessions/${sessionId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              secondPairData: secondPairData,
+            }),
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            console.log('[OfferSummary] ✅ Saved second pair data to session database:', secondPairData);
+            console.log('[OfferSummary] Database response:', result);
+          } else {
+            const errorText = await response.text();
+            console.warn('[OfferSummary] ⚠️ Failed to save second pair data to database:', response.status, errorText);
+          }
+        } catch (error) {
+          console.error('[OfferSummary] Error saving second pair data:', error);
+        }
+      } else if (!secondPairEnabled) {
+        // Clear if disabled
+        try {
+          const response = await fetch(`/api/public/questionnaire/sessions/${sessionId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              secondPairData: null,
+            }),
+          });
+          
+          if (response.ok) {
+            console.log('[OfferSummary] ✅ Cleared second pair data from session database');
+          } else {
+            const errorText = await response.text();
+            console.warn('[OfferSummary] ⚠️ Failed to clear second pair data:', response.status, errorText);
+          }
+        } catch (error) {
+          console.error('[OfferSummary] Error clearing second pair data:', error);
+        }
+      }
+    };
+    
+    // Debounce to avoid too many API calls
+    const timeoutId = setTimeout(saveSecondPairToDatabase, 500);
+    return () => clearTimeout(timeoutId);
+  }, [sessionId, secondPairEnabled, secondPairFrameMRP, secondPairBrand, secondPairSubBrand, secondPairLensId, secondPairLensPrice, availableLenses, data]);
 
   const fetchAvailableCategories = async () => {
     try {
@@ -199,9 +277,35 @@ export default function OfferSummaryPage() {
   const fetchOfferSummary = async () => {
     setLoading(true);
     try {
-      // Don't auto-load category - user must select it manually
-      // Only use category if user has already selected it in current session
-      let customerCategoryToUse: string | null = appliedCategory || null;
+      // ✅ IMPORTANT: Load category discount ONLY from session (database), NOT from localStorage
+      // This ensures that if category was removed, it won't be fetched from stale localStorage
+      let customerCategoryToUse: string | null = null;
+      
+      // Get from session (database) ONLY - no localStorage fallback
+      try {
+        const sessionResponse = await fetch(
+          `/api/public/questionnaire/sessions/${sessionId}`
+        );
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          if (sessionData.success && sessionData.data?.session?.customerCategory) {
+            customerCategoryToUse = sessionData.data.session.customerCategory;
+            console.log('[OfferSummary] ✅ Loaded category discount from session (database):', customerCategoryToUse);
+            // Sync appliedCategory state with session data
+            setAppliedCategory(customerCategoryToUse);
+          } else {
+            console.log('[OfferSummary] No category discount in session (database)');
+            // Clear appliedCategory if session doesn't have it
+            setAppliedCategory(null);
+          }
+        }
+      } catch (sessionError) {
+        console.warn('[OfferSummary] Could not load from session:', sessionError);
+        // Don't use localStorage as fallback - if session doesn't have it, it's not applied
+        setAppliedCategory(null);
+      }
+      
+      // ✅ REMOVED: localStorage check - we only use session database to prevent stale data
       
       // Get selected product from recommendations
       const recommendationsResponse = await fetch(
@@ -266,12 +370,19 @@ export default function OfferSummaryPage() {
         categoryDiscount: offerResult.categoryDiscount,
         couponDiscount: offerResult.couponDiscount,
         secondPairDiscount: offerResult.secondPairDiscount,
+        availableBOGORule: offerResult.availableBOGORule,
         upsell: offerResult.upsell,
         finalPayable: offerResult.finalPayable,
         baseTotal: offerResult.baseTotal,
         frameMRP: offerResult.frameMRP,
         lensPrice: offerResult.lensPrice,
       });
+      
+      // Auto-enable second pair if BOGO rule is available and frame is eligible
+      if (offerResult.availableBOGORule && !secondPairEnabled) {
+        console.log('[OfferSummary] BOGO rule available, auto-enabling second pair selection');
+        setSecondPairEnabled(true);
+      }
       
       // Debug: Log each offer in detail
       if (offerResult.offersApplied && offerResult.offersApplied.length > 0) {
@@ -347,6 +458,9 @@ export default function OfferSummaryPage() {
       
       // Fetch all applicable offers (always fetch)
       fetchAllApplicableOffers(offerResult);
+      
+      // ✅ Restore second pair data from localStorage if available (after data is set)
+      // This will be handled in a separate useEffect after data is loaded
     } catch (error: any) {
       console.error('[OfferSummary] Error:', error);
       showToast('error', error.message || 'Failed to load offer summary');
@@ -418,7 +532,8 @@ export default function OfferSummaryPage() {
           });
         }
         // Always add category discounts (they are separate from primary offers)
-        else if (isCategoryDiscount && offer.savings > 0) {
+        // But only if categoryDiscount exists in offerResult (not removed)
+        else if (isCategoryDiscount && offer.savings > 0 && offerResult.categoryDiscount) {
           const explanation = getOfferExplanation(offer.ruleCode, offer);
           offers.push({
             type: 'CATEGORY_DISCOUNT',
@@ -687,6 +802,62 @@ export default function OfferSummaryPage() {
       setAvailableSubBrands([]);
     }
   }, [secondPairBrand, frameBrands]);
+
+  // ✅ Restore second pair data from session database when data and lenses are loaded (best practice)
+  useEffect(() => {
+    if (!data || !data.offerResult || availableLenses.length === 0) return; // Wait for data and lenses to be loaded
+    
+    const restoreSecondPairFromDatabase = async () => {
+      try {
+        const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          console.log('[OfferSummary] Session data for restore:', sessionData);
+          
+          if (sessionData.success && sessionData.data?.session?.secondPairData) {
+            const parsed = sessionData.data.session.secondPairData as any;
+            console.log('[OfferSummary] Parsed secondPairData:', parsed);
+            
+            if (parsed && parsed.enabled && parsed.frameMRP && parsed.lensId && parsed.lensPrice > 0) {
+              console.log('[OfferSummary] ✅ Restoring second pair data from session database:', parsed);
+              
+              // Set all state first
+              setSecondPairEnabled(true);
+              setSecondPairFrameMRP(parsed.frameMRP.toString());
+              setSecondPairBrand(parsed.brand || '');
+              setSecondPairSubBrand(parsed.subBrand || '');
+              setSecondPairLensId(parsed.lensId);
+              setSecondPairLensPrice(parsed.lensPrice);
+              
+              // Recalculate offers with second pair data after a delay to ensure state is set
+              setTimeout(() => {
+                if (data && productId) {
+                  console.log('[OfferSummary] Recalculating offers with restored second pair data');
+                  recalculateOffersWithSecondPair({
+                    frameMRP: parsed.frameMRP,
+                    brand: parsed.brand || '',
+                    subBrand: parsed.subBrand || '',
+                    lensId: parsed.lensId,
+                    lensPrice: parsed.lensPrice,
+                  });
+                }
+              }, 1500); // Increased delay to ensure all state is set
+            } else {
+              console.log('[OfferSummary] Second pair data exists but is incomplete:', parsed);
+            }
+          } else {
+            console.log('[OfferSummary] No second pair data in session');
+          }
+        } else {
+          console.warn('[OfferSummary] Failed to fetch session for restore:', sessionResponse.status);
+        }
+      } catch (e) {
+        console.error('[OfferSummary] Failed to restore second pair data from database:', e);
+      }
+    };
+    
+    restoreSecondPairFromDatabase();
+  }, [data, sessionId, productId, availableLenses.length]); // Run when data and lenses are loaded
 
   const recalculateOffersWithSecondPair = async (secondPairData: {
     frameMRP: number;
@@ -1132,7 +1303,8 @@ export default function OfferSummaryPage() {
                       if (offersData.data.categoryDiscount) {
                         setAppliedCategory(selectedCategory);
                         
-                        // ✅ BEST PRACTICE: Update session in database (not just localStorage)
+                        // ✅ IMPORTANT: Update session in database ONLY (no localStorage)
+                        // localStorage is not used anymore to prevent stale data issues
                         try {
                           const sessionUpdateResponse = await fetch(
                             `/api/public/questionnaire/sessions/${sessionId}`,
@@ -1161,11 +1333,7 @@ export default function OfferSummaryPage() {
                           offerResult: offersData.data,
                         } : null);
                         
-                        // Also save to localStorage as fallback (for backward compatibility)
-                        localStorage.setItem('lenstrack_category_discount', JSON.stringify({
-                          category: selectedCategory,
-                          idImage: idImageBase64,
-                        }));
+                        // ✅ REMOVED: localStorage save - we only use session database now
                         
                         const discountAmount = offersData.data.categoryDiscount.savings || 0;
                         
@@ -1229,6 +1397,7 @@ export default function OfferSummaryPage() {
                             couponCode: null,
                             customerCategory: null,
                             secondPair: null,
+                            selectedOfferType: selectedOfferType, // Preserve selected offer type
                           }),
                         }
                       );
@@ -1239,12 +1408,40 @@ export default function OfferSummaryPage() {
                         setSelectedCategory('');
                         setCategoryIdImage(null);
                         setCategoryIdImagePreview(null);
-                        // Update data with new offer result
+                        // Remove from localStorage FIRST
+                        localStorage.removeItem('lenstrack_category_discount');
+                        
+                        // ✅ IMPORTANT: Update session in database to remove category discount
+                        // This ensures checkout page doesn't show the removed discount
+                        try {
+                          const sessionUpdateResponse = await fetch(
+                            `/api/public/questionnaire/sessions/${sessionId}`,
+                            {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                customerCategory: null, // Remove category from session
+                              }),
+                            }
+                          );
+                          if (sessionUpdateResponse.ok) {
+                            console.log('[OfferSummary] ✅ Session updated - category discount removed from database');
+                          } else {
+                            console.warn('[OfferSummary] ⚠️ Failed to update session, but continuing...');
+                          }
+                        } catch (sessionError) {
+                          console.error('[OfferSummary] Error updating session:', sessionError);
+                          // Continue even if session update fails
+                        }
+                        
+                        // Update data with new offer result (which should have categoryDiscount as null)
                         setData(prev => prev ? {
                           ...prev,
-                          offerResult: offersData.data,
+                          offerResult: {
+                            ...offersData.data,
+                            categoryDiscount: null, // Explicitly set to null to ensure it's removed
+                          },
                         } : null);
-                        localStorage.removeItem('lenstrack_category_discount');
                         
                         // Fetch all applicable offers after removing category
                         await fetchAllApplicableOffers(offersData.data);
@@ -1281,26 +1478,28 @@ export default function OfferSummaryPage() {
 
         {/* Second Pair Selection for BOGO Offers */}
         {(() => {
-          // Check if there's a BOGO/BOG50 offer available
-          // Check in allApplicableOffers, offersApplied, or secondPairDiscount
-          const hasBOGOInAllOffers = data.allApplicableOffers?.some((o: any) => 
-            o.type === 'BOGO' || o.type === 'BOG50' || o.code?.includes('BOGO') || o.code?.includes('BOG50')
-          );
-          const hasBOGOInApplied = data.offerResult?.offersApplied?.some((o: any) => 
-            o.ruleCode?.includes('BOGO') || o.ruleCode?.includes('BOG50') ||
-            o.description?.toUpperCase().includes('BOGO') || o.description?.toUpperCase().includes('BUY ONE GET')
-          );
-          const hasBOGOOffer = hasBOGOInAllOffers || hasBOGOInApplied || data.offerResult?.secondPairDiscount;
+          // Only show second pair section if BOGO/BOG50 is selected OR if second pair details are already entered
+          const isBOGOSelected = selectedOfferType === 'BOGO' || selectedOfferType === 'BOG50';
+          const hasSecondPairData = secondPairEnabled && (secondPairFrameMRP || secondPairBrand || secondPairLensId);
+          const hasSecondPairDiscount = !!data.offerResult?.secondPairDiscount;
+          
+          // Only show if:
+          // 1. BOGO is explicitly selected, OR
+          // 2. Second pair data is already entered (user has started filling it), OR
+          // 3. Second pair discount is already applied (from previous selection)
+          const shouldShowSecondPair = isBOGOSelected || hasSecondPairData || hasSecondPairDiscount;
           
           console.log('[OfferSummary] BOGO Offer Check:', {
-            hasBOGOInAllOffers,
-            hasBOGOInApplied,
-            hasSecondPairDiscount: !!data.offerResult?.secondPairDiscount,
-            hasBOGOOffer,
-            offersApplied: data.offerResult?.offersApplied,
+            selectedOfferType,
+            isBOGOSelected,
+            hasSecondPairData,
+            hasSecondPairDiscount,
+            secondPairEnabled,
+            secondPairFrameMRP,
+            shouldShowSecondPair,
           });
           
-          if (!hasBOGOOffer) return null;
+          if (!shouldShowSecondPair) return null;
           
           return (
             <div className="bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-700 p-6 mb-6">
@@ -1312,10 +1511,22 @@ export default function OfferSummaryPage() {
               </div>
               
               <div className="space-y-4">
+                {/* Auto-enable if BOGO rule is available */}
+                {data.offerResult?.availableBOGORule && !secondPairEnabled && (
+                  <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-green-300 font-medium">
+                      ✅ {data.offerResult.availableBOGORule.description}
+                    </p>
+                    <p className="text-xs text-green-400 mt-1">
+                      Your frame is eligible for this offer! Select second pair details below.
+                    </p>
+                  </div>
+                )}
+                
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={secondPairEnabled}
+                    checked={secondPairEnabled || !!data.offerResult?.availableBOGORule}
                     onChange={(e) => {
                       setSecondPairEnabled(e.target.checked);
                       if (!e.target.checked) {
@@ -1329,14 +1540,15 @@ export default function OfferSummaryPage() {
                         recalculateOffersWithSecondPair(null);
                       }
                     }}
-                    className="w-5 h-5 rounded border-2 border-slate-600 bg-slate-700 text-purple-500 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-800 cursor-pointer"
+                    disabled={!!data.offerResult?.availableBOGORule}
+                    className="w-5 h-5 rounded border-2 border-slate-600 bg-slate-700 text-purple-500 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-800 cursor-pointer disabled:opacity-50"
                   />
                   <span className="text-base font-semibold text-slate-200">
-                    Enable Second Pair Discount
+                    {data.offerResult?.availableBOGORule ? 'Second Pair Discount (Auto-enabled)' : 'Enable Second Pair Discount'}
                   </span>
                 </label>
                 
-                {secondPairEnabled && (
+                {(secondPairEnabled || !!data.offerResult?.availableBOGORule) && (
                   <div className="mt-4 pt-4 border-t border-slate-700/50 space-y-4">
                     <p className="text-sm text-slate-300 font-medium">Enter Second Pair Details:</p>
                     
@@ -1446,6 +1658,126 @@ export default function OfferSummaryPage() {
           );
         })()}
 
+        {/* Available Offers Selection */}
+        {data.offerResult.availableOffers && data.offerResult.availableOffers.length > 0 && (
+          <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6 mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-500/20 rounded-lg flex items-center justify-center border border-purple-300 dark:border-purple-500/30">
+                <Gift className="text-purple-600 dark:text-purple-400" size={18} />
+              </div>
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Available Offers</h2>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              Select an offer to apply. Only one offer can be applied at a time.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {data.offerResult.availableOffers.map((offer: any, index: number) => {
+                const isSelected = selectedOfferType === offer.type;
+                const isCurrentlyApplied = offers.some(o => 
+                  o.code === offer.code || 
+                  (o.type === offer.type && offer.type !== 'BOGO' && offer.type !== 'BOG50')
+                );
+                
+                return (
+                  <button
+                    key={index}
+                    onClick={async () => {
+                      if (isSelected) {
+                        // Deselect - recalculate without selected offer (apply default/highest priority)
+                        setSelectedOfferType(null);
+                        // Reset second pair if it was enabled
+                        if (secondPairEnabled) {
+                          setSecondPairEnabled(false);
+                          setSecondPairFrameMRP('');
+                          setSecondPairBrand('');
+                          setSecondPairSubBrand('');
+                          setSecondPairLensId('');
+                          setSecondPairLensPrice(0);
+                        }
+                        await fetchOfferSummary();
+                      } else {
+                        // Select this offer
+                        setSelectedOfferType(offer.type);
+                        
+                        // If BOGO is selected, enable second pair section
+                        if (offer.type === 'BOGO' || offer.type === 'BOG50') {
+                          setSecondPairEnabled(true);
+                        } else {
+                          // If non-BOGO offer is selected, disable and reset second pair
+                          setSecondPairEnabled(false);
+                          setSecondPairFrameMRP('');
+                          setSecondPairBrand('');
+                          setSecondPairSubBrand('');
+                          setSecondPairLensId('');
+                          setSecondPairLensPrice(0);
+                        }
+                        
+                        // Recalculate with selected offer
+                        setLoading(true);
+                        try {
+                          const offersResponse = await fetch(
+                            `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
+                            {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                productId: productId,
+                                couponCode: null,
+                                customerCategory: appliedCategory,
+                                secondPair: null, // Reset second pair when selecting non-BOGO offer
+                                selectedOfferType: offer.type,
+                              }),
+                            }
+                          );
+                          
+                          const offersData = await offersResponse.json();
+                          if (offersData.success && offersData.data) {
+                            setData(prev => prev ? {
+                              ...prev,
+                              offerResult: offersData.data,
+                            } : null);
+                            showToast('success', `${offer.description} selected!`);
+                          }
+                        } catch (error) {
+                          showToast('error', 'Failed to apply offer');
+                        } finally {
+                          setLoading(false);
+                        }
+                      }
+                    }}
+                    className={`p-4 rounded-lg border-2 transition-all text-left ${
+                      isSelected || isCurrentlyApplied
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-500/20 shadow-md'
+                        : 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 hover:border-purple-300 dark:hover:border-purple-500/50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold text-slate-900 dark:text-white">{offer.description}</h3>
+                          {(isSelected || isCurrentlyApplied) && (
+                            <span className="px-2 py-0.5 bg-purple-500 text-white text-xs rounded-full">Applied</span>
+                          )}
+                        </div>
+                        {offer.estimatedSavings > 0 && (
+                          <p className="text-sm text-green-600 dark:text-green-400 font-medium">
+                            Estimated Savings: ₹{Math.round(offer.estimatedSavings).toLocaleString()}
+                          </p>
+                        )}
+                        {offer.type === 'BOGO' || offer.type === 'BOG50' ? (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            Select second pair to see savings
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Price Breakdown Card */}
         <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6 mb-6">
           <div className="flex items-center gap-3 mb-6">
@@ -1471,7 +1803,14 @@ export default function OfferSummaryPage() {
                                               labelLower.includes('senior') ||
                                               labelLower.includes('corporate') ||
                                               labelLower.includes('armed') ||
-                                              labelLower.includes('forces');
+                                              labelLower.includes('forces') ||
+                                              labelLower.includes('citizen');
+                    
+                    // Also check if categoryDiscount exists in offerResult - if it's null/undefined, filter out any matching components
+                    const hasCategoryDiscount = !!data.offerResult?.categoryDiscount;
+                    if (!hasCategoryDiscount && isCategoryDiscount) {
+                      return false; // Hide category discount if it's been removed
+                    }
                     
                     // Filter out any component with 0 discount amount
                     const hasZeroDiscount = component.amount < 0 && Math.abs(component.amount) === 0;
@@ -1529,130 +1868,6 @@ export default function OfferSummaryPage() {
               </>
             )}
 
-            {/* Applied Offers */}
-            <div className="py-4 border-t border-slate-300 dark:border-slate-700">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-blue-500/30 rounded-full blur-lg animate-pulse" />
-                  <Gift className="relative text-blue-600 dark:text-blue-400" size={18} />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">🎉 All Applicable Offers</h3>
-              </div>
-              {(() => {
-                // Combine applied offers with all applicable offers from recommendations and fetched list
-                const allApplicableOffers = data.allApplicableOffers || [];
-                const fetchedApplicableOffers = allApplicableOffersList || [];
-                const appliedOfferCodes = new Set(offers.map(o => o.code));
-                
-                // Show applied offers first
-                const displayOffers = [...offers];
-                
-                // Combine all sources of applicable offers
-                const combinedOffers = [...allApplicableOffers, ...fetchedApplicableOffers];
-                
-                // Add other applicable offers that aren't applied yet
-                combinedOffers.forEach((offer: any) => {
-                  // Skip if already applied
-                  if (appliedOfferCodes.has(offer.code)) {
-                    return;
-                  }
-                  
-                  // Calculate discount amount if not provided
-                  let discountAmount = offer.discountAmount;
-                  if (!discountAmount && offer.discountPercent) {
-                    discountAmount = Math.round((data.offerResult.baseTotal * (offer.discountPercent || 0)) / 100);
-                  }
-                  
-                  // Include offer if it has discount or is a freebie type
-                  if (discountAmount > 0 || offer.type === 'FREE_LENS' || offer.type === 'BONUS_FREE_PRODUCT' || offer.isApplicable) {
-                    // Check if not already in displayOffers
-                    if (!displayOffers.find(o => o.code === offer.code)) {
-                      displayOffers.push({
-                        type: offer.type || 'DISCOUNT',
-                        code: offer.code || '',
-                        title: offer.title || offer.description || 'Discount',
-                        description: offer.description || '',
-                        discountAmount: discountAmount || 0,
-                        explanation: getExplanationFromLabel(offer.description || offer.title || '', discountAmount || 0),
-                      });
-                    }
-                  }
-                });
-                
-                return displayOffers.length > 0 ? (
-                  <div className="space-y-3">
-                    {displayOffers.map((offer, idx) => {
-                      const isApplied = offers.some(o => o.code === offer.code);
-                      return (
-                        <div 
-                          key={`${offer.code || offer.type || 'offer'}-${idx}`}
-                          className={`group relative overflow-hidden rounded-lg p-4 border-2 transition-all duration-300 transform hover:scale-[1.02] cursor-pointer ${
-                            isApplied
-                              ? 'bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 dark:from-blue-500/20 dark:via-purple-500/20 dark:to-pink-500/20 border-blue-300 dark:border-blue-500/50 hover:border-blue-400 dark:hover:border-blue-400'
-                              : 'bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 dark:from-slate-700/50 dark:via-slate-600/50 dark:to-slate-700/50 border-slate-300 dark:border-slate-600/50 hover:border-slate-400 dark:hover:border-slate-500 hover:border-yellow-400 dark:hover:border-yellow-500/50'
-                          }`}
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                          <div className="relative flex justify-between items-start gap-4">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                {isApplied ? (
-                                  <span className="px-2 py-0.5 bg-green-100 dark:bg-green-500/30 text-green-700 dark:text-green-300 text-xs font-semibold rounded border border-green-300 dark:border-green-500/50">
-                                    ✓ Applied
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-500/30 text-yellow-700 dark:text-yellow-300 text-xs font-semibold rounded border border-yellow-300 dark:border-yellow-500/50">
-                                    Available
-                                  </span>
-                                )}
-                                {offer.code && offer.code !== 'DISCOUNT' && offer.code.length > 0 && (
-                                  <span className={`px-3 py-1 text-white text-xs font-bold rounded-lg border shadow-lg whitespace-nowrap ${
-                                    isApplied
-                                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 border-blue-400/50'
-                                      : 'bg-slate-500 dark:bg-slate-600 border-slate-400 dark:border-slate-500'
-                                  }`}>
-                                    {offer.code}
-                                  </span>
-                                )}
-                                <span className="text-base font-bold text-slate-900 dark:text-white break-words">{offer.title || 'Discount'}</span>
-                              </div>
-                              {offer.explanation && (
-                                <p className={`text-sm mt-1 break-words ${isApplied ? 'text-blue-700 dark:text-blue-200' : 'text-slate-600 dark:text-slate-300'}`}>
-                                  {offer.explanation}
-                                </p>
-                              )}
-                              {!isApplied && (
-                                <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2 italic">
-                                  Note: A better offer is currently applied. This offer would save ₹{Math.round(offer.discountAmount || 0).toLocaleString()}.
-                                </p>
-                              )}
-                            </div>
-                            {(offer.discountAmount || 0) > 0 && (
-                              <div className="ml-4 text-right flex-shrink-0">
-                                <div className={`rounded-lg px-3 py-1 border shadow-lg whitespace-nowrap ${
-                                  isApplied
-                                    ? 'bg-gradient-to-r from-green-400 to-emerald-400 border-green-300/50'
-                                    : 'bg-slate-500 dark:bg-slate-600 border-slate-400 dark:border-slate-500'
-                                }`}>
-                                  <span className="text-lg font-bold text-white">
-                                    -₹{Math.round(offer.discountAmount || 0).toLocaleString()}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-slate-600 dark:text-slate-400 text-sm italic">No offers available</p>
-                  </div>
-                );
-              })()}
-            </div>
-
             {/* Discount components are already shown above, no need to duplicate */}
 
             {/* Subtotal - Show effectiveBase if YOPO/Combo is applied, otherwise baseTotal */}
@@ -1665,16 +1880,20 @@ export default function OfferSummaryPage() {
 
             {/* Total Discount - Only show if there are additional discounts beyond primary offer */}
             {(() => {
-              // Calculate discount from offersApplied (excluding primary offer which is already in effectiveBase)
-              const additionalDiscount = data.offerResult.categoryDiscount?.savings || 0 
-                + (data.offerResult.couponDiscount?.savings || 0)
-                + (data.offerResult.secondPairDiscount?.savings || 0);
-              
               // Total discount is baseTotal - finalPayable
+              // This should automatically exclude category discount if it's been removed
               const actualTotalDiscount = data.offerResult.baseTotal - data.offerResult.finalPayable;
               
-              // Only show if there's a discount and it's not already shown in priceComponents
-              if (actualTotalDiscount > 0) {
+              // Check if there are any active discounts (category, coupon, or second pair)
+              const hasCategoryDiscount = !!data.offerResult.categoryDiscount && (data.offerResult.categoryDiscount.savings || 0) > 0;
+              const hasCouponDiscount = !!data.offerResult.couponDiscount && (data.offerResult.couponDiscount.savings || 0) > 0;
+              const hasSecondPairDiscount = !!data.offerResult.secondPairDiscount && (data.offerResult.secondPairDiscount.savings || 0) > 0;
+              
+              // Only show total discount if:
+              // 1. There's an actual discount amount > 0
+              // 2. AND at least one active discount source exists (category, coupon, or second pair)
+              // This ensures that if category discount is removed, total discount won't show if it was the only discount
+              if (actualTotalDiscount > 0 && (hasCategoryDiscount || hasCouponDiscount || hasSecondPairDiscount)) {
                 return (
                   <div className="relative overflow-hidden flex justify-between items-center py-4 px-4 bg-gradient-to-r from-green-100 via-emerald-100 to-green-100 dark:from-green-500/20 dark:via-emerald-500/20 dark:to-green-500/20 rounded-lg border-2 border-green-300 dark:border-green-400/50 shadow-lg">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
@@ -1726,7 +1945,42 @@ export default function OfferSummaryPage() {
             Change Lens
           </Button>
           <Button
-            onClick={() => {
+            onClick={async () => {
+              // ✅ IMPORTANT: Save second pair data immediately before navigation
+              // This ensures data is saved even if debounce hasn't fired yet
+              if (secondPairEnabled && secondPairFrameMRP && secondPairLensId && secondPairLensPrice > 0) {
+                const selectedLens = availableLenses.find(l => l.id === secondPairLensId);
+                const lensName = selectedLens?.name || 'Lens';
+                
+                const secondPairData = {
+                  enabled: true,
+                  frameMRP: parseFloat(secondPairFrameMRP),
+                  brand: secondPairBrand,
+                  subBrand: secondPairSubBrand,
+                  lensId: secondPairLensId,
+                  lensName: lensName,
+                  lensPrice: secondPairLensPrice,
+                };
+                
+                try {
+                  const response = await fetch(`/api/public/questionnaire/sessions/${sessionId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      secondPairData: secondPairData,
+                    }),
+                  });
+                  
+                  if (response.ok) {
+                    console.log('[OfferSummary] ✅ Saved second pair data before checkout navigation:', secondPairData);
+                  } else {
+                    console.warn('[OfferSummary] ⚠️ Failed to save second pair data before checkout');
+                  }
+                } catch (error) {
+                  console.error('[OfferSummary] Error saving second pair data before checkout:', error);
+                }
+              }
+              
               // Navigate directly to checkout, skipping accessories page
               router.push(`/questionnaire/${sessionId}/checkout/${productId}`);
             }}

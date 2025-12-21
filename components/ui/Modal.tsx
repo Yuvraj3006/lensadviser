@@ -8,7 +8,7 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  size?: 'sm' | 'md' | 'lg' | 'full';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   children?: ReactNode;
   footer?: ReactNode;
   closeOnOverlay?: boolean;
@@ -52,12 +52,13 @@ export function Modal({
     sm: 'max-w-md',
     md: 'max-w-2xl',
     lg: 'max-w-4xl',
-    full: 'max-w-[95vw]',
+    xl: 'max-w-6xl',
+    full: 'max-w-[95vw] lg:max-w-[90vw] xl:max-w-[85vw]',
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 lg:pl-64 lg:pr-4 bg-black/50 backdrop-blur-sm"
       onClick={(e) => {
         if (closeOnOverlay && e.target === e.currentTarget) {
           onClose();
@@ -69,12 +70,15 @@ export function Modal({
     >
       <div
         className={clsx(
-          'bg-white rounded-xl shadow-2xl w-full max-h-[95vh] sm:max-h-[90vh] flex flex-col',
+          'bg-white rounded-xl shadow-2xl w-full flex flex-col',
+          size === 'full' 
+            ? 'max-h-[95vh] sm:max-h-[90vh] lg:max-h-[85vh]' 
+            : 'max-h-[95vh] sm:max-h-[90vh]',
           sizes[size]
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex-shrink-0">
           <h2 id="modal-title" className="text-base sm:text-lg font-bold text-slate-900 truncate pr-2">
             {title}
           </h2>
@@ -88,13 +92,13 @@ export function Modal({
         </div>
 
         {/* Body */}
-        <div className="px-4 sm:px-6 py-4 overflow-y-auto flex-1">
+        <div className="px-4 sm:px-6 py-4 overflow-y-auto flex-1 min-h-0">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 flex items-center justify-end gap-2 sm:gap-3 flex-wrap">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 flex items-center justify-end gap-2 sm:gap-3 flex-wrap flex-shrink-0">
             {footer}
           </div>
         )}

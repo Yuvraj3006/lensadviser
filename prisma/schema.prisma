@@ -871,6 +871,7 @@ model Session {
   purchaseContext   String? // REGULAR | COMBO | YOPO
   selectedComboCode String? // Selected combo tier code (BRONZE, SILVER, GOLD, PLATINUM)
   comboVersionUsed  Int? // Combo tier version used when tier was selected (for safe updates)
+  secondPairData    Json? // Second pair data for BOGO offers: { enabled, frameMRP, brand, subBrand, lensId, lensName, lensPrice }
   needsProfile      NeedsProfile? // One-to-one relationship
 
   @@index([storeId])

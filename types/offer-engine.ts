@@ -88,6 +88,8 @@ export interface OfferCalculationInput {
   purchaseContext?: 'REGULAR' | 'COMBO' | 'YOPO' | null; // REGULAR = all offers, COMBO = no discounts (only coupon)
   // Combo tier selection (for COMBO context)
   selectedComboCode?: string | null; // BRONZE, SILVER, GOLD, PLATINUM
+  // Selected offer type (for specific offer selection)
+  selectedOfferType?: string | null;
 }
 
 export interface UpsellSuggestion {
@@ -107,6 +109,14 @@ export interface RxAddOnBreakdown {
   };
 }
 
+export interface AvailableOffer {
+  type: string; // 'YOPO', 'BOGO', 'COMBO_PRICE', 'FREE_LENS', 'PERCENT_OFF', 'FLAT_OFF'
+  code: string; // Rule code
+  description: string; // Human readable description
+  estimatedSavings?: number; // Estimated savings if this offer is applied
+  isApplicable: boolean; // Whether this offer is applicable for current frame/lens
+}
+
 export interface OfferCalculationResult {
   frameMRP: number;
   lensPrice: number;
@@ -123,5 +133,11 @@ export interface OfferCalculationResult {
   totalRxAddOn?: number; // Total RX add-on charge (non-discountable)
   finalPayable: number;
   upsell?: UpsellSuggestion | null; // V2: Dynamic Upsell Engine
+  availableBOGORule?: { // Available BOGO rule if current frame is eligible
+    code: string;
+    offerType: string;
+    description: string;
+  } | null;
+  availableOffers?: AvailableOffer[]; // All applicable offers for this frame/lens combination
 }
 

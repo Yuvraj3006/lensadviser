@@ -169,6 +169,10 @@ export async function PATCH(
     if (body.customerCategory !== undefined) {
       updateData.customerCategory = body.customerCategory || null;
     }
+    // Update secondPairData (for BOGO offers)
+    if (body.secondPairData !== undefined) {
+      updateData.secondPairData = body.secondPairData || null;
+    }
 
     const updated = await prisma.session.update({
       where: { id: sessionId },

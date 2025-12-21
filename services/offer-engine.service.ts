@@ -84,10 +84,16 @@ export class OfferEngineService {
     const offersApplied: OfferApplied[] = [];
 
     // V2: PRIMARY OFFER (Waterfall: COMBO_PRICE > YOPO > FREE_LENS > PERCENT_OFF > FLAT_OFF)
-    const primaryRule = await this.findApplicablePrimaryRule(input);
+    // If a specific offer type is selected, find and apply that specific offer
+    // Otherwise, apply the highest priority applicable offer
+    const selectedOfferType = input.selectedOfferType;
+    const primaryRule = selectedOfferType
+      ? await this.findSpecificPrimaryRule(input, selectedOfferType)
+      : await this.findApplicablePrimaryRule(input);
     
     // Debug: Log YOPO eligibility and rule finding
     console.log('[OfferEngine] Primary rule search:', {
+      selectedOfferType,
       lensYopoEligible: lens?.yopoEligible,
       foundRule: primaryRule ? {
         code: primaryRule.code,
@@ -132,22 +138,58 @@ export class OfferEngineService {
     }
 
     // 2. SECOND PAIR OFFER (if applicable)
+    // BOGO Logic: Customer pays the HIGHEST price pair, lower pair is free
     let secondPairDiscount: OfferApplied | null = null;
     if (input.secondPair?.enabled) {
       const secondPairRule = await this.findApplicableSecondPairRule(input);
       if (secondPairRule) {
-        const result = this.applySecondPairRule(secondPairRule, input.secondPair!);
+        // effectiveBase is the first pair total AFTER primary offer (YOPO, COMBO, etc.)
+        const firstPairTotal = effectiveBase;
+        const secondPairTotal = (input.secondPair.secondPairFrameMRP || 0) + (input.secondPair.secondPairLensPrice || 0);
+        
+        const result = this.applySecondPairRule(secondPairRule, firstPairTotal, secondPairTotal);
         if (result.savings > 0) {
           secondPairDiscount = {
             ruleCode: secondPairRule.code,
             description: result.label,
             savings: result.savings,
           };
-          priceComponents.push({
-            label: result.label,
-            amount: -result.savings,
-          });
-          effectiveBase -= result.savings;
+          
+          // For BOGO: Show 1st pair price, then second pair, then discount
+          if (secondPairRule.offerType === 'BOGO') {
+            // Add 1st Pair Price (after primary offer)
+            priceComponents.push({
+              label: '1st Pair Price',
+              amount: firstPairTotal,
+            });
+            
+            // Add second pair details to price components for display
+            priceComponents.push({
+              label: 'Second Pair (Frame + Lens)',
+              amount: secondPairTotal,
+            });
+            
+            // Add BOGO discount
+            priceComponents.push({
+              label: `BOGO DISCOUNT 2ND FRAME FREE`,
+              amount: -result.savings,
+            });
+            
+            // Update effectiveBase to the higher value (what customer actually pays)
+            effectiveBase = result.payableAmount;
+          } else {
+            // BOG50: Apply discount on lower pair
+            priceComponents.push({
+              label: 'Second Pair (Frame + Lens)',
+              amount: secondPairTotal,
+            });
+            priceComponents.push({
+              label: result.label,
+              amount: -result.savings,
+            });
+            // For BOG50, customer pays: higher + (lower - discount)
+            effectiveBase = result.payableAmount;
+          }
         }
       }
     }
@@ -409,6 +451,39 @@ export class OfferEngineService {
       input.lens
     );
 
+    // 8. CHECK FOR AVAILABLE BOGO RULES (even if secondPair is not selected)
+    // This helps frontend to show BOGO section and auto-enable if frame is eligible
+    let availableBOGORule: any | null = null;
+    if (!input.secondPair?.enabled) {
+      const bogoRule = await this.findApplicableSecondPairRule(input);
+      if (bogoRule) {
+        // Check if current frame is eligible for BOGO
+        const config = bogoRule.config as any || {};
+        const eligibleBrands = config.eligibleBrands || [];
+        const frameBrand = input.frame?.brand || '';
+        const frameSubBrand = input.frame?.subCategory || '';
+        
+        // Check eligibility: '*' means all brands, or specific brand/sub-brand match
+        const isEligible = eligibleBrands.length === 0 || // No restriction = all eligible
+                          eligibleBrands.includes('*') || // Universal
+                          eligibleBrands.includes(frameBrand) || // Brand match
+                          eligibleBrands.includes(frameSubBrand); // Sub-brand match
+        
+        if (isEligible) {
+          availableBOGORule = {
+            code: bogoRule.code,
+            offerType: bogoRule.offerType,
+            description: bogoRule.offerType === 'BOGO' 
+              ? 'Buy One Get One Free - Second pair completely free'
+              : `Buy One Get ${config.secondPairPercent || 50}% Off - Second pair discount available`,
+          };
+        }
+      }
+    }
+
+    // 9. FIND ALL APPLICABLE OFFERS (for user selection)
+    const availableOffers = await this.findAllApplicableOffers(input);
+
     return {
       frameMRP,
       lensPrice,
@@ -425,7 +500,126 @@ export class OfferEngineService {
       totalRxAddOn: totalRxAddOn > 0 ? totalRxAddOn : undefined,
       finalPayable,
       upsell, // V3: Dynamic Upsell Engine result
+      availableBOGORule, // Available BOGO rule if frame is eligible
+      availableOffers, // All applicable offers for this frame + lens combination
     };
+  }
+
+  /**
+   * Find all applicable offers for the given frame/lens combination
+   * Returns all offers that match the frame and lens criteria
+   */
+  async findAllApplicableOffers(input: OfferCalculationInput): Promise<any[]> {
+    const { frame, lens, organizationId, storeId } = input;
+    const now = new Date();
+    const availableOffers: any[] = [];
+
+    // Validate organizationId
+    if (!organizationId || organizationId.trim() === '' || !/^[0-9a-fA-F]{24}$/.test(organizationId)) {
+      return availableOffers;
+    }
+
+    // 1. Check all primary offers (COMBO_PRICE, YOPO, FREE_LENS, PERCENT_OFF, FLAT_OFF)
+    const primaryOfferTypes = [OfferType.COMBO_PRICE, OfferType.YOPO, OfferType.FREE_LENS, OfferType.PERCENT_OFF, OfferType.FLAT_OFF];
+    
+    const primaryRules = await prisma.offerRule.findMany({
+      where: {
+        organizationId,
+        isActive: true,
+        offerType: { in: primaryOfferTypes as any },
+      } as any,
+      orderBy: {
+        priority: 'asc',
+      },
+    });
+
+    // Filter by store activation if storeId is provided
+    let storeActivatedRuleIds: Set<string> | null = null;
+    if (storeId && /^[0-9a-fA-F]{24}$/.test(storeId)) {
+      try {
+        const storeOfferMaps = await (prisma as any).storeOfferMap.findMany({
+          where: { storeId, isActive: true },
+          select: { offerRuleId: true },
+        });
+        storeActivatedRuleIds = new Set(storeOfferMaps.map((som: { offerRuleId: string }) => som.offerRuleId));
+      } catch (error) {
+        console.warn('[OfferEngine] Error fetching store offer maps:', error);
+      }
+    }
+
+    // Check each primary offer rule
+    for (const rule of primaryRules) {
+      // Check store activation
+      if (storeId && storeActivatedRuleIds && storeActivatedRuleIds.size > 0) {
+        if (!storeActivatedRuleIds.has(rule.id)) {
+          continue;
+        }
+      }
+
+      // Check if rule is applicable (matches frame/lens criteria)
+      const isApplicable = this.isRuleApplicable(rule, frame, lens, now);
+      
+      if (isApplicable) {
+        // Calculate estimated savings
+        const frameMRP = frame?.mrp || 0;
+        const lensPrice = lens?.price || 0;
+        const baseTotal = frameMRP + lensPrice;
+        let estimatedSavings = 0;
+
+        if (rule.offerType === 'COMBO_PRICE') {
+          const comboPrice = (rule.config as any)?.comboPrice || 0;
+          estimatedSavings = baseTotal - comboPrice;
+        } else if (rule.offerType === 'YOPO') {
+          const higher = Math.max(frameMRP, lensPrice);
+          estimatedSavings = baseTotal - higher;
+        } else if (rule.offerType === 'FREE_LENS') {
+          estimatedSavings = lensPrice;
+        } else if (rule.offerType === 'PERCENT_OFF') {
+          const discountPercent = (rule.config as any)?.discountPercent || 0;
+          estimatedSavings = (baseTotal * discountPercent) / 100;
+        } else if (rule.offerType === 'FLAT_OFF') {
+          estimatedSavings = (rule.config as any)?.flatAmount || 0;
+        }
+
+        availableOffers.push({
+          type: rule.offerType,
+          code: rule.code,
+          description: `${rule.offerType} Offer`,
+          estimatedSavings: Math.max(0, estimatedSavings),
+          isApplicable: true,
+        });
+      }
+    }
+
+    // 2. Check BOGO/BOG50 offers (if second pair is not enabled)
+    if (!input.secondPair?.enabled) {
+      const bogoRule = await this.findApplicableSecondPairRule(input);
+      if (bogoRule) {
+        const config = bogoRule.config as any || {};
+        const eligibleBrands = config.eligibleBrands || [];
+        const frameBrand = input.frame?.brand || '';
+        const frameSubBrand = input.frame?.subCategory || '';
+        
+        const isEligible = eligibleBrands.length === 0 ||
+                          eligibleBrands.includes('*') ||
+                          eligibleBrands.includes(frameBrand) ||
+                          eligibleBrands.includes(frameSubBrand);
+        
+        if (isEligible) {
+          availableOffers.push({
+            type: bogoRule.offerType,
+            code: bogoRule.code,
+            description: bogoRule.offerType === 'BOGO'
+              ? 'Buy One Get One Free - Second pair completely free'
+              : `Buy One Get ${config.secondPairPercent || 50}% Off - Second pair discount available`,
+            estimatedSavings: 0, // Will be calculated when second pair is selected
+            isApplicable: true,
+          });
+        }
+      }
+    }
+
+    return availableOffers;
   }
 
   /**
@@ -519,6 +713,74 @@ export class OfferEngineService {
     }
 
     console.log('[OfferEngine] ❌ No applicable primary rule found');
+    return null;
+  }
+
+  /**
+   * Find specific primary offer rule by type
+   * Used when user selects a specific offer type
+   */
+  async findSpecificPrimaryRule(
+    input: OfferCalculationInput,
+    offerType: string
+  ): Promise<any | null | undefined> {
+    const { frame, lens, organizationId, storeId } = input;
+    const now = new Date();
+
+    // Validate organizationId before querying
+    if (!organizationId || organizationId.trim() === '' || !/^[0-9a-fA-F]{24}$/.test(organizationId)) {
+      console.warn('[OfferEngine] Invalid organizationId, skipping rule lookup');
+      return null;
+    }
+
+    const rule = await prisma.offerRule.findFirst({
+      where: {
+        organizationId,
+        isActive: true,
+        offerType: offerType as any,
+      } as any,
+      orderBy: {
+        priority: 'asc',
+      },
+    });
+
+    if (!rule) {
+      console.log(`[OfferEngine] No ${offerType} rule found`);
+      return null;
+    }
+
+    // Check store activation if storeId is provided
+    if (storeId && /^[0-9a-fA-F]{24}$/.test(storeId)) {
+      try {
+        const storeOfferMaps = await (prisma as any).storeOfferMap.findMany({
+          where: {
+            storeId,
+            offerRuleId: rule.id,
+            isActive: true,
+          },
+        });
+        if (storeOfferMaps.length === 0) {
+          // Check if store has any activations - if yes, this rule is not activated
+          const allStoreActivations = await (prisma as any).storeOfferMap.findMany({
+            where: { storeId, isActive: true },
+          });
+          if (allStoreActivations.length > 0) {
+            console.log(`[OfferEngine] ${offerType} rule not activated for store`);
+            return null;
+          }
+        }
+      } catch (error) {
+        console.warn('[OfferEngine] Error checking store activation:', error);
+      }
+    }
+
+    const isApplicable = this.isRuleApplicable(rule, frame, lens, now);
+    if (isApplicable) {
+      console.log(`[OfferEngine] ✅ ${offerType} rule is applicable:`, rule.code);
+      return rule;
+    }
+
+    console.log(`[OfferEngine] ❌ ${offerType} rule is not applicable`);
     return null;
   }
 
@@ -807,7 +1069,7 @@ export class OfferEngineService {
 
       case 'PERCENT_OFF':
         // V2: Percent config
-        const discountPercent = config.discountPercent || rule.discountValue || 0;
+        const discountPercent = config.discountPercent || 0;
         let percentBase = baseTotal;
         if (config.appliesTo === 'FRAME_ONLY') {
           percentBase = frameMRP;
@@ -823,7 +1085,7 @@ export class OfferEngineService {
 
       case 'FLAT_OFF':
         // V2: Flat config
-        const flatAmount = config.flatAmount || rule.discountValue || 0;
+        const flatAmount = config.flatAmount || 0;
         const minBillValue = config.minBillValue || 0;
         if (baseTotal < minBillValue) {
           return { newTotal: baseTotal, savings: 0, label: 'Flat OFF (min bill not met)' };
@@ -904,20 +1166,24 @@ export class OfferEngineService {
 
   /**
    * Apply second pair rule
+   * BOGO Logic: Customer pays the HIGHEST price pair, lower pair is free
+   * @param firstPairTotal - First pair total AFTER primary offer (effectiveBase)
+   * @param secondPairTotal - Second pair total (frame + lens)
    */
   private applySecondPairRule(
     rule: any,
-    secondPair: NonNullable<OfferCalculationInput['secondPair']>
-  ): { savings: number; label: string } {
-    const first = secondPair.firstPairTotal;
-    const second = (secondPair.secondPairFrameMRP || 0) + (secondPair.secondPairLensPrice || 0);
-    const lower = Math.min(first, second);
+    firstPairTotal: number, // First pair after primary offer
+    secondPairTotal: number // Second pair total
+  ): { savings: number; label: string; payableAmount: number } {
+    const lower = Math.min(firstPairTotal, secondPairTotal);
+    const higher = Math.max(firstPairTotal, secondPairTotal);
 
-    // BOGO: Buy One Get One Free (100% off on second pair)
+    // BOGO: Buy One Get One Free - Customer pays HIGHEST price, lower pair is free
     if (rule.offerType === 'BOGO') {
       return {
-        savings: lower,
-        label: 'Buy One Get One Free (second pair free)',
+        savings: lower, // Lower pair is free (savings)
+        payableAmount: higher, // Customer pays the higher value
+        label: `BOGO discount 2nd pair free`,
       };
     }
 
@@ -928,13 +1194,16 @@ export class OfferEngineService {
 
     if (secondPairPercent) {
       const savings = (lower * secondPairPercent) / 100;
+      // For BOG50, customer pays: higher pair + (lower pair - discount on lower pair)
+      const payableAmount = higher + (lower - savings);
       return {
         savings,
-        label: `Second pair ${secondPairPercent}% off (lower value)`,
+        payableAmount,
+        label: `Second pair ${secondPairPercent}% off (lower value) - Pay ₹${Math.round(payableAmount).toLocaleString()}`,
       };
     }
 
-    return { savings: 0, label: 'No second pair benefit' };
+    return { savings: 0, payableAmount: firstPairTotal + secondPairTotal, label: 'No second pair benefit' };
   }
 
   /**
