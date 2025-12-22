@@ -81,7 +81,7 @@ export default function ComboTierDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-slate-50 flex items-center justify-center">
         <Spinner size="lg" />
       </div>
     );
@@ -89,7 +89,7 @@ export default function ComboTierDetailPage() {
 
   if (!tier) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-slate-600 mb-4">Combo tier not found</p>
           <Button onClick={() => router.push('/admin/combo-tiers')}>Back to List</Button>
@@ -99,7 +99,7 @@ export default function ComboTierDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
+    <div className="min-h-safe-screen bg-slate-50 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">

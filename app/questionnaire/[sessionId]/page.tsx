@@ -246,7 +246,7 @@ export default function QuestionnaireSessionPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4" />
           <p className="text-slate-600 dark:text-slate-400">Loading questions...</p>
@@ -257,7 +257,7 @@ export default function QuestionnaireSessionPage() {
 
   if (!currentQuestion) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-6">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-6">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">😔</div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">No Questions Available</h2>
@@ -273,7 +273,7 @@ export default function QuestionnaireSessionPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-4 sm:p-6">
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-4 sm:p-6">
       <div className="max-w-3xl mx-auto">
         {/* Progress Bar */}
         <div className="mb-8">

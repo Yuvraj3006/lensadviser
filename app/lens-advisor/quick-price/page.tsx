@@ -38,7 +38,7 @@ export default function QuickPricePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Quick Price Check</h1>

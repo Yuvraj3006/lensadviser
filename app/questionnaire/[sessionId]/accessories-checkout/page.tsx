@@ -207,7 +207,7 @@ export default function AccessoriesCheckoutPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 mx-auto mb-4 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin" />
           <h2 className="text-xl font-semibold text-white mb-2">Loading Checkout</h2>
@@ -219,7 +219,7 @@ export default function AccessoriesCheckoutPage() {
 
   if (accessories.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
         <div className="text-center max-w-md bg-slate-800/50 backdrop-blur rounded-xl p-6 sm:p-8 border border-slate-700 shadow-lg">
           <div className="text-5xl mb-4">⚠️</div>
           <h2 className="text-xl font-semibold text-white mb-2">No Accessories Selected</h2>
@@ -243,7 +243,7 @@ export default function AccessoriesCheckoutPage() {
   const canProceed = !isStaffRequired || selectedStaffId || assistedByName;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Header */}
       <div className="bg-slate-800/50 backdrop-blur border-b border-slate-700 py-6 sm:py-8 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">

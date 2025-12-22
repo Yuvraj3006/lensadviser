@@ -355,7 +355,7 @@ export function Sidebar({ isOpen: controlledIsOpen, onClose, isMobile: externalI
       {/* Sidebar - Always render, use transform to show/hide */}
       <aside
         className={clsx(
-          'bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0 z-[55] transition-transform duration-300 ease-in-out',
+          'bg-slate-900 text-white flex flex-col min-h-safe-screen fixed left-0 top-0 z-[55] transition-transform duration-300 ease-in-out',
           'w-64 lg:w-64', // Fixed width
           isMobile
             ? isOpen

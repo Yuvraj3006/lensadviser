@@ -73,9 +73,16 @@ export function DragInput({
       requestAnimationFrame(() => {
         if (!inputRef.current) return;
         
+        // Get the input's position relative to viewport
         const rect = inputRef.current.getBoundingClientRect();
-        const viewportHeight = window.innerHeight;
-        const viewportWidth = window.innerWidth;
+        
+        // Use visual viewport if available (for mobile browsers with dynamic UI)
+        const viewportHeight = window.visualViewport?.height || window.innerHeight;
+        const viewportWidth = window.visualViewport?.width || window.innerWidth;
+        
+        // Account for visual viewport offset (mobile browser UI)
+        const viewportOffsetTop = window.visualViewport?.offsetTop || 0;
+        const viewportOffsetLeft = window.visualViewport?.offsetLeft || 0;
         
         // Dropdown dimensions
         const dropdownMaxHeight = 300; // max-h-[300px]
@@ -83,8 +90,11 @@ export function DragInput({
         const edgeMargin = 8; // Margin from viewport edges
         
         // Calculate available space (using getBoundingClientRect which is relative to viewport)
-        const spaceBelow = viewportHeight - rect.bottom;
-        const spaceAbove = rect.top;
+        // Account for visual viewport offset on mobile
+        const adjustedTop = rect.top - viewportOffsetTop;
+        const adjustedBottom = rect.bottom - viewportOffsetTop;
+        const spaceBelow = viewportHeight - adjustedBottom;
+        const spaceAbove = adjustedTop;
         
         // Determine best position (prefer below, but open upwards if insufficient space below)
         // Minimum space required to show dropdown comfortably
@@ -100,18 +110,19 @@ export function DragInput({
         // Decision logic: open below if enough space, otherwise open above if more space there
         if (hasEnoughSpaceBelow) {
           // Enough space below - open downwards
-          top = rect.bottom + gap;
+          top = adjustedBottom + gap;
         } else if (hasEnoughSpaceAbove || spaceAbove > spaceBelow) {
           // Not enough space below, but more space above - open upwards
           const availableHeight = Math.min(dropdownMaxHeight, spaceAbove - gap);
-          top = rect.top - availableHeight - gap;
+          top = adjustedTop - availableHeight - gap;
         } else {
           // More space below (even if not ideal) - show below
-          top = rect.bottom + gap;
+          top = adjustedBottom + gap;
         }
         
         // Horizontal positioning - stick exactly to input field edges (viewport-relative)
-        left = rect.left;
+        // Account for visual viewport offset
+        left = rect.left - viewportOffsetLeft;
         width = rect.width;
         
         // Ensure dropdown doesn't go off-screen horizontally
@@ -148,11 +159,10 @@ export function DragInput({
         // Final bounds checking - ensure dropdown stays within viewport
         // If dropdown would go below viewport, try opening above instead
         if (top + dropdownMaxHeight > viewportHeight - edgeMargin) {
-          const spaceAbove = rect.top;
           // If we have more space above, switch to opening upwards
           if (spaceAbove > spaceBelow && spaceAbove >= 100) {
             const availableHeight = Math.min(dropdownMaxHeight, spaceAbove - gap);
-            top = Math.max(edgeMargin, rect.top - availableHeight - gap);
+            top = Math.max(edgeMargin, adjustedTop - availableHeight - gap);
           } else {
             // Can't open above, adjust to fit within viewport
             top = Math.max(edgeMargin, viewportHeight - dropdownMaxHeight - edgeMargin);
@@ -171,6 +181,16 @@ export function DragInput({
           top = Math.max(edgeMargin, viewportHeight - dropdownMaxHeight - edgeMargin);
         }
         
+        // Ensure left position is within viewport bounds
+        if (left < edgeMargin) {
+          left = edgeMargin;
+        }
+        
+        // Ensure dropdown doesn't go beyond right edge
+        if (left + width > viewportWidth - edgeMargin) {
+          width = viewportWidth - left - edgeMargin;
+        }
+        
         setDropdownPosition({
           top,
           left,
@@ -183,19 +203,33 @@ export function DragInput({
   // Scroll to selected value when dropdown opens and update position
   useEffect(() => {
     if (isDropdownOpen) {
-      // Update position immediately
+      // Update position multiple times to ensure accurate positioning
+      // First update immediately
       updateDropdownPosition();
       
-      // Small delay to ensure DOM is ready, then scroll to selected value
-      if (currentIndex >= 0 && dropdownRef.current) {
-        setTimeout(() => {
+      // Second update after a small delay to account for layout shifts
+      const timeout1 = setTimeout(() => {
+        updateDropdownPosition();
+      }, 10);
+      
+      // Third update after DOM is fully settled
+      const timeout2 = setTimeout(() => {
+        updateDropdownPosition();
+        
+        // Scroll to selected value after position is set
+        if (currentIndex >= 0 && dropdownRef.current) {
           const selectedElement = dropdownRef.current?.querySelector(`[data-index="${currentIndex}"]`);
           if (selectedElement) {
             selectedElement.scrollIntoView({ block: 'center', behavior: 'smooth' });
             setHighlightedIndex(currentIndex);
           }
-        }, 50);
-      }
+        }
+      }, 50);
+      
+      return () => {
+        clearTimeout(timeout1);
+        clearTimeout(timeout2);
+      };
     }
   }, [isDropdownOpen, currentIndex]);
 
@@ -366,24 +400,49 @@ export function DragInput({
     const scrollingDown = e.deltaY > 0;
     
     // If scrolling up when at top, or scrolling down when at bottom, prevent default
+    // But allow some momentum for smooth scrolling
     if ((scrollingUp && isAtTop) || (scrollingDown && isAtBottom)) {
       e.preventDefault();
       e.stopPropagation();
       return false;
     }
+    
+    // Allow normal scrolling within bounds
+    return true;
   };
 
   // Handle touch events and prevent page scroll when at dropdown boundaries
   useEffect(() => {
     if (isDropdownOpen && dropdownRef.current) {
       const element = dropdownRef.current;
+      let touchStartY = 0;
+      let touchStartScrollTop = 0;
+      let isUserScrolling = false;
+
+      const handleTouchStart = (e: TouchEvent) => {
+        if (!element.contains(e.target as Node)) return;
+        const touch = e.touches[0];
+        if (touch) {
+          touchStartY = touch.clientY;
+          touchStartScrollTop = element.scrollTop;
+          isUserScrolling = false;
+        }
+      };
 
       const handleTouchMove = (e: TouchEvent) => {
         if (!element.contains(e.target as Node)) return;
         
-        const { scrollTop, scrollHeight, clientHeight } = element;
         const touch = e.touches[0];
+        if (!touch) return;
+        
         const touchY = touch.clientY;
+        const deltaY = touchY - touchStartY;
+        const currentScrollTop = element.scrollTop;
+        
+        // Check if scroll position has changed (user is scrolling within dropdown)
+        if (Math.abs(currentScrollTop - touchStartScrollTop) > 2) {
+          isUserScrolling = true;
+        }
         
         // Get element bounds
         const rect = element.getBoundingClientRect();
@@ -391,13 +450,34 @@ export function DragInput({
         
         if (!isInsideDropdown) return;
         
-        const isAtTop = scrollTop <= 1;
-        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
+        const { scrollTop, scrollHeight, clientHeight } = element;
+        const isAtTop = scrollTop <= 0;
+        const isAtBottom = scrollTop + clientHeight >= scrollHeight;
         
-        // If at boundaries, prevent default to stop page scroll
-        if (isAtTop || isAtBottom) {
-          e.preventDefault();
-          e.stopPropagation();
+        // Determine scroll direction based on touch movement
+        const scrollingUp = deltaY > 0;
+        const scrollingDown = deltaY < 0;
+        
+        // Only prevent default if:
+        // 1. At boundary AND trying to scroll beyond boundary
+        // 2. AND user is not actively scrolling within the dropdown
+        // This allows smooth momentum scrolling to work
+        if (isUserScrolling) {
+          // User is scrolling - only prevent if at boundary and trying to go beyond
+          if ((isAtTop && scrollingUp) || (isAtBottom && scrollingDown)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        } else {
+          // Initial touch - be more lenient to allow scrolling to start
+          // Only prevent if clearly trying to scroll beyond boundary
+          const threshold = 10; // pixels
+          if (Math.abs(deltaY) > threshold) {
+            if ((isAtTop && scrollingUp) || (isAtBottom && scrollingDown)) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }
         }
       };
 
@@ -417,10 +497,12 @@ export function DragInput({
       };
 
       // Use capture phase to catch events before they bubble
+      element.addEventListener('touchstart', handleTouchStart, { passive: true });
       document.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
       document.addEventListener('wheel', handleBodyWheel, { passive: false, capture: true });
 
       return () => {
+        element.removeEventListener('touchstart', handleTouchStart);
         document.removeEventListener('touchmove', handleTouchMove, { capture: true });
         document.removeEventListener('wheel', handleBodyWheel, { capture: true });
       };
@@ -432,6 +514,7 @@ export function DragInput({
       ref={dropdownRef}
       onWheel={handleWheel}
       className="fixed z-[99999] bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg shadow-2xl max-h-[300px] overflow-y-auto"
+      data-dropdown-scroll="true"
       style={{
         top: `${dropdownPosition.top}px`,
         left: `${dropdownPosition.left}px`,
@@ -444,7 +527,13 @@ export function DragInput({
         touchAction: 'pan-y', // Allow vertical scrolling but prevent page scroll
         position: 'fixed',
         transform: 'translateZ(0)', // Force hardware acceleration
-        WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
+        WebkitOverflowScrolling: 'touch', // Smooth momentum scrolling on iOS
+        willChange: 'scroll-position', // Optimize for scrolling
+        backfaceVisibility: 'hidden', // Improve performance
+        WebkitTransform: 'translateZ(0)', // Force hardware acceleration on WebKit
+        // Ensure dropdown is positioned correctly on mobile
+        margin: 0,
+        padding: 0,
       }}
     >
       {options.map((option, index) => {

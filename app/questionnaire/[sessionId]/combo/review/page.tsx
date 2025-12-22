@@ -105,7 +105,7 @@ export default function ComboReviewPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <Spinner size="lg" />
       </div>
     );
@@ -113,7 +113,7 @@ export default function ComboReviewPage() {
 
   if (!comboTier) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center text-white">
           <p className="text-xl mb-4">Combo tier not found</p>
           <Button onClick={() => router.push(`/questionnaire/${sessionId}/combo/tiers`)}>
@@ -125,7 +125,7 @@ export default function ComboReviewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 lg:py-16">
         <div className="max-w-4xl mx-auto">
           <Button

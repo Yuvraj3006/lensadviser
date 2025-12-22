@@ -983,7 +983,7 @@ export default function OfferSummaryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 mx-auto mb-4 border-4 border-slate-300 dark:border-slate-700 border-t-blue-500 rounded-full animate-spin" />
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Calculating Your Best Offers</h2>
@@ -995,7 +995,7 @@ export default function OfferSummaryPage() {
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-6">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-6">
         <div className="text-center max-w-md bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-lg">
           <div className="text-5xl mb-4">??</div>
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Unable to Load Offer Summary</h2>
@@ -1052,7 +1052,7 @@ export default function OfferSummaryPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-20 sm:pb-24 md:pb-28">
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-20 sm:pb-24 md:pb-28">
       {/* Header */}
       <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur border-b border-slate-200 dark:border-slate-700 py-8 px-6">
         <div className="max-w-5xl mx-auto">

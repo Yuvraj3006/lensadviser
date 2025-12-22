@@ -333,7 +333,7 @@ export default function OfferSummaryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="relative w-24 h-24 mx-auto mb-6">
             <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 animate-spin" 
@@ -351,7 +351,7 @@ export default function OfferSummaryPage() {
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
         <div className="text-center max-w-md bg-slate-800/50 backdrop-blur rounded-2xl p-6 sm:p-8 border border-slate-700 shadow-xl">
           <div className="text-7xl mb-6">⚠️</div>
           <h2 className="text-2xl font-bold text-white mb-3">Unable to Load Offer Summary</h2>
@@ -371,7 +371,7 @@ export default function OfferSummaryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 py-8 px-6 shadow-xl">
         <div className="max-w-4xl mx-auto">

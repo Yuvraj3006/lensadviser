@@ -181,7 +181,7 @@ export default function PowerConverterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 lg:p-8">
           <div className="mb-6 sm:mb-8">

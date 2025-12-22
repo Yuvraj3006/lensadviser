@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
+import { ViewportHeightFix } from "@/components/ViewportHeightFix";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -37,8 +38,12 @@ export default function RootLayout({
   try {
     return (
       <html lang="en" className="overscroll-none">
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes" />
+        </head>
         <body className={`${inter.variable} font-sans antialiased overscroll-none`} suppressHydrationWarning>
           {appProvidersElement}
+          <ViewportHeightFix />
         </body>
       </html>
     );

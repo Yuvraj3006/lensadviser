@@ -19,38 +19,55 @@
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  /* Prevent mobile browser address bar from showing/hiding on scroll */
-  overscroll-behavior-y: none;
-  overscroll-behavior-x: none;
-  /* Prevent pull-to-refresh on mobile */
-  overscroll-behavior: none;
-  /* Use dynamic viewport height for mobile */
-  min-height: 100vh;
-  min-height: 100dvh;
-  /* Prevent unwanted scrolling */
-  touch-action: pan-y;
-  /* Prevent elastic scrolling on iOS */
-  -webkit-overflow-scrolling: touch;
+/* Dynamic viewport height variable - set via JavaScript */
+:root {
+  --vh: 1vh; /* Fallback, will be updated by JS */
 }
 
-/* Prevent address bar show/hide on mobile browsers */
 html {
   /* Prevent pull-to-refresh */
   overscroll-behavior-y: none;
   overscroll-behavior-x: none;
-  /* Use dynamic viewport height */
-  height: 100%;
-  height: 100dvh;
+  /* Use safe viewport height - no fixed height to prevent layout jumps */
+  height: auto;
+  min-height: 100svh; /* Small viewport height - excludes browser UI */
+  min-height: 100dvh; /* Dynamic viewport height - adjusts with browser UI */
+  /* Prevent horizontal overflow */
+  overflow-x: hidden;
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Use safe viewport height - min-height prevents layout jumps */
+  min-height: 100svh;
+  min-height: 100dvh;
+  /* Alternative using CSS variable for maximum compatibility */
+  min-height: calc(var(--vh, 1vh) * 100);
+  /* Prevent unwanted scrolling */
+  touch-action: pan-y;
+  /* Prevent elastic scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  /* Prevent horizontal overflow */
+  overflow-x: hidden;
+  /* Allow vertical scrolling */
+  overflow-y: auto;
+  /* Prevent pull-to-refresh */
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  /* Position relative for proper stacking */
+  position: relative;
 }
 
 /* Prevent address bar from showing/hiding on scroll */
 * {
   /* Prevent overscroll bounce on iOS */
   -webkit-overflow-scrolling: touch;
+  /* Prevent tap highlight on mobile */
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Contain scroll within scrollable areas */
@@ -62,31 +79,21 @@ main,
   overscroll-behavior-y: contain;
 }
 
-/* Prevent address bar from showing/hiding on mobile */
+/* Mobile-specific optimizations */
 @media (max-width: 768px) {
   html {
-    /* Lock viewport height to prevent address bar show/hide */
-    height: -webkit-fill-available;
+    /* Use safe viewport units on mobile */
+    min-height: 100svh;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available; /* iOS Safari fallback */
   }
   
   body {
-    /* Use fill-available height on mobile */
-    min-height: -webkit-fill-available;
+    /* Use safe viewport units on mobile */
+    min-height: 100svh;
     min-height: 100dvh;
-    /* Prevent address bar interaction */
-    position: relative;
-  }
-  
-  /* Prevent overscroll on touch devices */
-  * {
-    -webkit-tap-highlight-color: transparent;
-  }
-  
-  /* Prevent pull-to-refresh */
-  body,
-  html {
-    overscroll-behavior-y: none;
-    overscroll-behavior-x: none;
+    min-height: -webkit-fill-available; /* iOS Safari fallback */
+    min-height: calc(var(--vh, 1vh) * 100);
   }
 }
 
@@ -149,4 +156,29 @@ main,
 
 .animate-scale-in {
   animation: scale-in 0.3s ease-out forwards;
+}
+
+/* Safe viewport height utility classes */
+.min-h-safe-screen {
+  min-height: 100svh; /* Small viewport height - excludes browser UI */
+  min-height: 100dvh; /* Dynamic viewport height - adjusts with browser UI */
+  min-height: calc(var(--vh, 1vh) * 100); /* Fallback using CSS variable */
+}
+
+.h-safe-screen {
+  min-height: 100svh;
+  min-height: 100dvh;
+  min-height: calc(var(--vh, 1vh) * 100);
+  height: auto; /* Allow content to grow */
+}
+
+/* Smooth scrolling for dropdowns on mobile */
+[data-dropdown-scroll] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+  will-change: scroll-position;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
 }

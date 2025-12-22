@@ -442,7 +442,7 @@ function ComboTierDetailPageContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-slate-50 flex items-center justify-center">
         <Spinner size="lg" />
         <div className="ml-4 text-slate-600">Loading combo tier...</div>
       </div>
@@ -452,7 +452,7 @@ function ComboTierDetailPageContent() {
   const displayTier = editing ? { ...tier, ...formData } : tier;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-safe-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -1163,7 +1163,7 @@ function ComboTierDetailPageContent() {
 export default function ComboTierDetailPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-slate-50 flex items-center justify-center">
         <Spinner size="lg" />
         <div className="ml-4 text-slate-600">Suspense fallback loading...</div>
       </div>

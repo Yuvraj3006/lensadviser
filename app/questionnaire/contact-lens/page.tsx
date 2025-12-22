@@ -252,7 +252,7 @@ Comfort Score: ${product.comfortScore}/5
 
   if (showPackSelection && selectedProductData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
         <div className="max-w-4xl mx-auto">
           <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-2xl">
             <h1 className="text-3xl font-bold text-white mb-6">Select Pack & Quantity</h1>
@@ -398,7 +398,7 @@ Comfort Score: ${product.comfortScore}/5
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 shadow-2xl">
           <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">

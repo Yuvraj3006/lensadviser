@@ -764,7 +764,7 @@ export default function OrderSuccessPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center">
         <div className="text-center">
           <div className="relative w-24 h-24 mx-auto mb-6">
             <div className="absolute inset-0 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 animate-spin" 
@@ -781,7 +781,7 @@ export default function OrderSuccessPage() {
 
   if (!orderData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center p-6">
+      <div className="min-h-safe-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center p-6">
         <div className="text-center max-w-md bg-white rounded-2xl p-8 border-2 border-slate-200 shadow-xl">
           <div className="text-7xl mb-6">⚠️</div>
           <h2 className="text-2xl font-bold text-slate-900 mb-3">Order Not Found</h2>
@@ -803,7 +803,7 @@ export default function OrderSuccessPage() {
   const isPOSMode = orderData?.salesMode === 'STAFF_ASSISTED';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-green-50">
+    <div className="min-h-safe-screen bg-gradient-to-br from-green-50 via-emerald-50 to-green-50">
       {/* Success Header */}
       <div className="bg-gradient-to-r from-green-600 via-emerald-600 to-green-600 py-12 px-6 shadow-xl">
         <div className="max-w-2xl mx-auto text-center">
