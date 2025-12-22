@@ -263,8 +263,8 @@ export default function BrandsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Brands & Sub-Brands</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage product brands and their sub-brands</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Brands & Sub-Brands</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage product brands and their sub-brands</p>
         </div>
         <Button onClick={handleCreateBrand} className="w-full sm:w-auto">
           <Plus size={20} className="mr-2" />
@@ -272,10 +272,10 @@ export default function BrandsPage() {
         </Button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
         <div className="mb-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500" size={20} />
             <Input
               placeholder="Search brands..."
               value={search}
@@ -297,12 +297,12 @@ export default function BrandsPage() {
         ) : (
           <div className="space-y-2">
             {filteredBrands.map((brand) => (
-              <div key={brand.id} className="border border-slate-200 rounded-lg">
-                <div className="flex items-center justify-between p-4 hover:bg-slate-50">
+              <div key={brand.id} className="border border-slate-200 dark:border-slate-700 rounded-lg">
+                <div className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                   <div className="flex items-center gap-3 flex-1">
                     <button
                       onClick={() => toggleBrand(brand.id)}
-                      className="text-slate-400 hover:text-slate-600"
+                      className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                     >
                       {expandedBrands.has(brand.id) ? (
                         <ChevronDown size={20} />
@@ -312,15 +312,15 @@ export default function BrandsPage() {
                     </button>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-900">{brand.name}</span>
-                        <span className="text-xs text-slate-500">
+                        <span className="font-semibold text-slate-900 dark:text-white">{brand.name}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
                           ({brand.productTypes.join(', ') || 'No types'})
                         </span>
                         {!brand.isActive && (
-                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Inactive</span>
+                          <span className="text-xs bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 px-2 py-0.5 rounded">Inactive</span>
                         )}
                       </div>
-                      <div className="text-sm text-slate-500 mt-1">
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                         {brand.subBrands.length} sub-brand{brand.subBrands.length !== 1 ? 's' : ''}
                       </div>
                     </div>
@@ -352,16 +352,16 @@ export default function BrandsPage() {
                 </div>
 
                 {expandedBrands.has(brand.id) && brand.subBrands.length > 0 && (
-                  <div className="border-t border-slate-200 bg-slate-50">
+                  <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/30">
                     {brand.subBrands.map((subBrand) => (
                       <div
                         key={subBrand.id}
-                        className="flex items-center justify-between p-3 pl-12 hover:bg-slate-100"
+                        className="flex items-center justify-between p-3 pl-12 hover:bg-slate-100 dark:hover:bg-slate-700/50"
                       >
-                        <span className="text-slate-700">{subBrand.name}</span>
+                        <span className="text-slate-700 dark:text-slate-300">{subBrand.name}</span>
                         <div className="flex items-center gap-2">
                           {!subBrand.isActive && (
-                            <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Inactive</span>
+                            <span className="text-xs bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 px-2 py-0.5 rounded">Inactive</span>
                           )}
                           <Button
                             variant="outline"
@@ -396,7 +396,7 @@ export default function BrandsPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               Brand Name *
             </label>
             <Input
@@ -407,7 +407,7 @@ export default function BrandsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               Product Types *
             </label>
             <div className="space-y-2">
@@ -417,7 +417,7 @@ export default function BrandsPage() {
                     checked={brandFormData.productTypes.includes(type)}
                     onChange={() => toggleProductType(type)}
                   />
-                  <span className="text-sm text-slate-700">{type.replace('_', ' ')}</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{type.replace('_', ' ')}</span>
                 </label>
               ))}
             </div>
@@ -446,7 +446,7 @@ export default function BrandsPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               Sub-Brand Name *
             </label>
             <Input

@@ -94,15 +94,15 @@ export default function SystemSyncCheckPage() {
   };
 
   return (
-    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 flex items-center gap-2 sm:gap-3">
-              <Database size={24} className="sm:w-8 sm:h-8 text-blue-600" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2 sm:gap-3">
+              <Database size={24} className="sm:w-8 sm:h-8 text-blue-600 dark:text-blue-400" />
               System Sync Check
             </h1>
-            <p className="text-sm sm:text-base text-slate-600">Validate system consistency across all modules</p>
+            <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">Validate system consistency across all modules</p>
           </div>
           <Button
             onClick={() => handleCheck()}
@@ -119,14 +119,14 @@ export default function SystemSyncCheckPage() {
             {/* Summary Card */}
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-slate-900">Summary</h2>
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Summary</h2>
                 <Badge
                   className={
                     result.summary.status === 'ok'
-                      ? 'bg-green-100 text-green-700'
+                      ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300'
                       : result.summary.status === 'warning'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-red-100 text-red-700'
+                      ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300'
+                      : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300'
                   }
                 >
                   {result.summary.status.toUpperCase()}
@@ -134,21 +134,21 @@ export default function SystemSyncCheckPage() {
               </div>
               
               <div className="grid md:grid-cols-4 gap-4">
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <p className="text-sm text-slate-600 mb-1">Total Issues</p>
-                  <p className="text-2xl font-bold text-slate-900">{result.summary.totalIssues}</p>
+                <div className="p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Issues</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{result.summary.totalIssues}</p>
                 </div>
-                <div className="p-4 bg-red-50 rounded-lg">
-                  <p className="text-sm text-red-600 mb-1">Errors</p>
-                  <p className="text-2xl font-bold text-red-700">{result.summary.errors}</p>
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                  <p className="text-sm text-red-600 dark:text-red-400 mb-1">Errors</p>
+                  <p className="text-2xl font-bold text-red-700 dark:text-red-300">{result.summary.errors}</p>
                 </div>
-                <div className="p-4 bg-yellow-50 rounded-lg">
-                  <p className="text-sm text-yellow-600 mb-1">Warnings</p>
-                  <p className="text-2xl font-bold text-yellow-700">{result.summary.warnings}</p>
+                <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                  <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-1">Warnings</p>
+                  <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{result.summary.warnings}</p>
                 </div>
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <p className="text-sm text-slate-600 mb-1">Checked At</p>
-                  <p className="text-sm font-semibold text-slate-900">
+                <div className="p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Checked At</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
                     {new Date(result.checkedAt).toLocaleString()}
                   </p>
                 </div>
@@ -158,20 +158,20 @@ export default function SystemSyncCheckPage() {
             {/* Issues List */}
             {result.issues.length > 0 ? (
               <Card className="p-6">
-                <h2 className="text-xl font-semibold text-slate-900 mb-4">Issues Found</h2>
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">Issues Found</h2>
                 <div className="space-y-3">
                   {result.issues.map((issue, idx) => (
                     <div
                       key={idx}
                       className={`p-4 rounded-lg border-2 ${
                         issue.severity === 'error'
-                          ? 'bg-red-50 border-red-200'
-                          : 'bg-yellow-50 border-yellow-200'
+                          ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                          : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
                       }`}
                     >
                       <div className="flex items-start gap-3">
                         <div className={`mt-1 ${
-                          issue.severity === 'error' ? 'text-red-600' : 'text-yellow-600'
+                          issue.severity === 'error' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
                         }`}>
                           {issue.severity === 'error' ? (
                             <XCircle size={20} />
@@ -181,15 +181,15 @@ export default function SystemSyncCheckPage() {
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <div className="text-slate-600">
+                            <div className="text-slate-600 dark:text-slate-400">
                               {getModuleIcon(issue.module)}
                             </div>
-                            <span className="font-semibold text-slate-900">{issue.module}</span>
+                            <span className="font-semibold text-slate-900 dark:text-white">{issue.module}</span>
                             <Badge
                               className={
                                 issue.severity === 'error'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-yellow-100 text-yellow-700'
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                  : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
                               }
                             >
                               {issue.severity.toUpperCase()}
@@ -198,7 +198,7 @@ export default function SystemSyncCheckPage() {
                               <Badge variant="outline">{issue.count} items</Badge>
                             )}
                           </div>
-                          <p className="text-slate-700">{issue.message}</p>
+                          <p className="text-slate-700 dark:text-slate-300">{issue.message}</p>
                           {(issue.module === 'Offer Rule Consistency' || 
                             issue.module === 'Rx Range Validation' || 
                             issue.module === 'Lens-Benefit Mapping' ||
@@ -241,16 +241,16 @@ export default function SystemSyncCheckPage() {
               </Card>
             ) : (
               <Card className="p-12 text-center">
-                <CheckCircle size={48} className="mx-auto text-green-600 mb-4" />
-                <h3 className="text-xl font-semibold text-slate-900 mb-2">All Checks Passed!</h3>
-                <p className="text-slate-600">No issues found in system synchronization</p>
+                <CheckCircle size={48} className="mx-auto text-green-600 dark:text-green-400 mb-4" />
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">All Checks Passed!</h3>
+                <p className="text-slate-600 dark:text-slate-400">No issues found in system synchronization</p>
               </Card>
             )}
           </div>
         ) : (
           <Card className="p-12 text-center">
-            <Database size={48} className="mx-auto text-slate-400 mb-4" />
-            <p className="text-slate-600">Click "Run Check" to validate system consistency</p>
+            <Database size={48} className="mx-auto text-slate-400 dark:text-slate-500 mb-4" />
+            <p className="text-slate-600 dark:text-slate-400">Click "Run Check" to validate system consistency</p>
           </Card>
         )}
       </div>

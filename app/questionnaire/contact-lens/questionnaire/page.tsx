@@ -175,21 +175,21 @@ export default function ContactLensQuestionnairePage() {
 
           {/* Progress Bar */}
           <div className="mb-6">
-            <div className="flex justify-between text-sm text-slate-400 mb-2">
+            <div className="flex justify-between text-sm text-slate-400 dark:text-slate-500 mb-2">
               <span>Question {currentQuestion + 1} of {questions.length}</span>
               <span>{Math.round(progress)}%</span>
             </div>
-            <div className="w-full bg-slate-700 rounded-full h-2">
+            <div className="w-full bg-slate-700 dark:bg-slate-600 rounded-full h-2">
               <div
-                className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-300"
+                className="bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-500 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
           </div>
 
           {/* Question Card */}
-          <div className="bg-white rounded-xl p-4 sm:p-6 lg:p-8 mb-6">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6">{currentQ.question}</h2>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 sm:p-6 lg:p-8 mb-6 border border-slate-200 dark:border-slate-700">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">{currentQ.question}</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {currentQ.options.map((option) => {
@@ -201,13 +201,13 @@ export default function ContactLensQuestionnairePage() {
                     onClick={() => handleAnswer(currentQ.id, option.value)}
                     className={`p-6 rounded-lg border-2 transition-all text-left ${
                       isSelected
-                        ? 'border-blue-500 bg-blue-50 shadow-lg scale-105'
-                        : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700 shadow-lg scale-105'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md'
                     }`}
                   >
                     <div className="flex items-center gap-4">
                       <span className="text-3xl">{option.icon}</span>
-                      <span className={`font-semibold ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
+                      <span className={`font-semibold ${isSelected ? 'text-blue-700 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>
                         {option.label}
                       </span>
                     </div>
@@ -218,22 +218,24 @@ export default function ContactLensQuestionnairePage() {
           </div>
 
           {/* Navigation */}
-          <div className="flex justify-between">
+          <div className="flex flex-col sm:flex-row justify-between gap-3">
             <Button
               variant="outline"
               onClick={handleBack}
-              className="flex items-center gap-2"
+              className="w-full sm:w-auto flex items-center justify-center gap-2"
             >
-              <ArrowLeft size={18} />
-              {currentQuestion === 0 ? 'Back' : 'Previous'}
+              <ArrowLeft size={18} className="flex-shrink-0" />
+              <span className="truncate">{currentQuestion === 0 ? 'Back' : 'Previous'}</span>
             </Button>
             <Button
               onClick={handleNext}
               disabled={!isAnswered}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 disabled:opacity-50"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 disabled:opacity-50"
             >
-              {currentQuestion === questions.length - 1 ? 'Finish' : 'Next'}
-              {currentQuestion < questions.length - 1 && <ArrowRight size={18} />}
+              <span className="truncate text-xs sm:text-sm">
+                {currentQuestion === questions.length - 1 ? 'Finish' : 'Next'}
+              </span>
+              {currentQuestion < questions.length - 1 && <ArrowRight size={18} className="flex-shrink-0" />}
             </Button>
           </div>
         </div>

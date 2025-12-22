@@ -109,8 +109,12 @@ export default function ContactLensPage() {
       const data = await response.json();
       
       if (data.success && data.data?.recommendations) {
-        setRecommendations(data.data.recommendations);
-        if (data.data.recommendations.length === 0) {
+        // Remove duplicates by product ID (safety check)
+        const uniqueRecommendations = data.data.recommendations.filter((rec: any, index: number, self: any[]) => 
+          index === self.findIndex((r: any) => r.product?.id === rec.product?.id)
+        );
+        setRecommendations(uniqueRecommendations);
+        if (uniqueRecommendations.length === 0) {
           showToast('error', 'No compatible contact lenses found for your prescription');
         }
       } else {
@@ -257,15 +261,15 @@ Comfort Score: ${product.comfortScore}/5
           <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-2xl">
             <h1 className="text-3xl font-bold text-white mb-6">Select Pack & Quantity</h1>
             
-            <div className="bg-white rounded-xl p-6 space-y-6">
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-6 space-y-6 border border-slate-200 dark:border-slate-700">
               <div>
-                <h2 className="text-xl font-bold text-slate-900 mb-2">{selectedProductData.name}</h2>
-                <p className="text-slate-600">{selectedProductData.brand}</p>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{selectedProductData.name}</h2>
+                <p className="text-slate-600 dark:text-slate-400">{selectedProductData.brand}</p>
               </div>
 
               {/* Pack Selection with Pricing */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-4">Pack Options</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">Pack Options</label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {['DAILY', 'MONTHLY', 'YEARLY'].map((pack) => {
                     const packType = pack as PackType;
@@ -291,36 +295,36 @@ Comfort Score: ${product.comfortScore}/5
                         onClick={() => setSelectedPack(packType)}
                         className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
                           selectedPack === packType
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-slate-200 hover:border-slate-300'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700'
+                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                         }`}
                       >
-                        <div className="font-semibold text-slate-900 mb-2">{pack}</div>
-                        <div className="text-sm text-slate-600 mb-2">
+                        <div className="font-semibold text-slate-900 dark:text-white mb-2">{pack}</div>
+                        <div className="text-sm text-slate-600 dark:text-slate-400 mb-2">
                           {selectedProductData.packSize * quantity} lenses, {months} months
                         </div>
                         {discount > 0 ? (
                           <>
-                            <div className="text-sm text-slate-500 line-through mb-1">
+                            <div className="text-sm text-slate-500 dark:text-slate-500 line-through mb-1">
                               ₹{totalPrice.toLocaleString()}
                             </div>
-                            <div className="text-xl font-bold text-slate-900 mb-1">
+                            <div className="text-xl font-bold text-slate-900 dark:text-white mb-1">
                               ₹{finalPrice.toLocaleString()}
                             </div>
-                            <div className="text-sm text-green-600 font-semibold mb-2">
+                            <div className="text-sm text-green-600 dark:text-green-400 font-semibold mb-2">
                               ₹{discount.toLocaleString()} OFF
                             </div>
                           </>
                         ) : (
-                          <div className="text-xl font-bold text-slate-900 mb-2">
+                          <div className="text-xl font-bold text-slate-900 dark:text-white mb-2">
                             ₹{totalPrice.toLocaleString()}
                           </div>
                         )}
-                        <div className="text-sm text-slate-600">
+                        <div className="text-sm text-slate-600 dark:text-slate-400">
                           ₹{Math.round(perMonth).toLocaleString()}/month
                         </div>
                         {quantity >= 2 && (
-                          <div className="mt-2 text-xs text-green-600 font-semibold">
+                          <div className="mt-2 text-xs text-green-600 dark:text-green-400 font-semibold">
                             ✓ Best Value
                           </div>
                         )}
@@ -332,18 +336,18 @@ Comfort Score: ${product.comfortScore}/5
 
               {/* Quantity */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Quantity</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Quantity</label>
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+                    className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-white"
                   >
                     -
                   </button>
-                  <span className="text-lg font-semibold">{quantity}</span>
+                  <span className="text-lg font-semibold dark:text-white">{quantity}</span>
                   <button
                     onClick={() => setQuantity(quantity + 1)}
-                    className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+                    className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-white"
                   >
                     +
                   </button>
@@ -353,18 +357,18 @@ Comfort Score: ${product.comfortScore}/5
               {/* Color Selection */}
               {selectedProductData.isColorLens && selectedProductData.colorOptions && selectedProductData.colorOptions.length > 0 && (
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Color <span className="text-red-500">*</span>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    Color <span className="text-red-500 dark:text-red-400">*</span>
                   </label>
                   <div className="grid grid-cols-4 gap-3">
                     {selectedProductData.colorOptions.map((color: string) => (
                       <button
                         key={color}
                         onClick={() => setSelectedColor(color)}
-                        className={`p-3 rounded-lg border-2 ${
+                        className={`p-3 rounded-lg border-2 dark:text-white ${
                           selectedColor === color
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-slate-200 hover:border-slate-300'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700'
+                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                         }`}
                       >
                         {color}
@@ -374,20 +378,23 @@ Comfort Score: ${product.comfortScore}/5
                 </div>
               )}
 
-              <div className="flex justify-between pt-4 border-t">
+              <div className="flex flex-col sm:flex-row justify-between gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <Button
                   variant="outline"
                   onClick={() => setShowPackSelection(false)}
+                  className="w-full sm:w-auto flex items-center justify-center"
                 >
-                  <ArrowLeft size={18} className="mr-2" />
-                  Back
+                  <ArrowLeft size={18} className="mr-2 flex-shrink-0" />
+                  <span className="truncate">Back</span>
                 </Button>
                 <Button
                   onClick={handleNext}
                   disabled={loading || (selectedProductData.isColorLens && !selectedColor)}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600"
+                  className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center"
                 >
-                  {loading ? 'Processing...' : 'Next: Add-ons →'}
+                  <span className="truncate text-xs sm:text-sm">
+                    {loading ? 'Processing...' : 'Next: Add-ons →'}
+                  </span>
                 </Button>
               </div>
             </div>
@@ -433,21 +440,21 @@ Comfort Score: ${product.comfortScore}/5
 
           {loading ? (
             <div className="text-center py-12">
-              <div className="w-12 h-12 mx-auto mb-4 border-4 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
-              <p className="text-slate-300">Loading recommendations...</p>
+              <div className="w-12 h-12 mx-auto mb-4 border-4 border-slate-600 dark:border-slate-700 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin" />
+              <p className="text-slate-300 dark:text-slate-400">Loading recommendations...</p>
             </div>
           ) : recommendations.length === 0 ? (
-            <div className="bg-red-50 rounded-lg p-6 border-2 border-red-200">
-              <p className="text-red-700 font-semibold">No compatible contact lenses found</p>
-              <p className="text-red-600 text-sm mt-2">
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-6 border-2 border-red-200 dark:border-red-800">
+              <p className="text-red-700 dark:text-red-300 font-semibold">No compatible contact lenses found</p>
+              <p className="text-red-600 dark:text-red-400 text-sm mt-2">
                 Please check with store staff for alternative options or verify your power entry.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {recommendations.map((recommendation) => (
+              {recommendations.map((recommendation, index) => (
                 <ContactLensRecommendationCard
-                  key={recommendation.product.id}
+                  key={`${recommendation.type}-${recommendation.product.id}-${index}`}
                   product={recommendation.product}
                   type={recommendation.type}
                   onSelect={() => handleSelectProduct(recommendation.product.id)}
@@ -462,10 +469,10 @@ Comfort Score: ${product.comfortScore}/5
             <Button
               variant="outline"
               onClick={() => router.push('/questionnaire/contact-lens/questionnaire')}
-              className="flex items-center gap-2 text-white border-slate-600 hover:bg-slate-700"
+              className="flex items-center justify-center gap-2 text-white border-slate-600 hover:bg-slate-700 w-full sm:w-auto"
             >
-              <ArrowLeft size={18} />
-              Back
+              <ArrowLeft size={18} className="flex-shrink-0" />
+              <span className="truncate">Back</span>
             </Button>
           </div>
         </div>

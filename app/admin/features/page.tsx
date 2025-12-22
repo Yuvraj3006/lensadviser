@@ -289,7 +289,7 @@ export default function FeaturesPage() {
       key: 'code',
       header: 'Code',
       render: (feature) => (
-        <span className="font-mono font-semibold text-slate-700">{feature.code}</span>
+        <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{feature.code}</span>
       ),
     },
     {
@@ -297,9 +297,9 @@ export default function FeaturesPage() {
       header: 'Feature Name',
       render: (feature) => (
         <div>
-          <p className="font-medium">{feature.name}</p>
+          <p className="font-medium text-slate-900 dark:text-slate-200">{feature.name}</p>
           {feature.description && (
-            <p className="text-xs text-slate-500 mt-1">{feature.description}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{feature.description}</p>
           )}
         </div>
       ),
@@ -308,7 +308,7 @@ export default function FeaturesPage() {
       key: 'description',
       header: 'Description',
       render: (feature) => (
-        <span className="text-sm">{feature.description || '-'}</span>
+        <span className="text-sm text-slate-900 dark:text-slate-200">{feature.description || '-'}</span>
       ),
     },
     {
@@ -324,14 +324,14 @@ export default function FeaturesPage() {
       key: 'displayOrder',
       header: 'Order',
       render: (feature) => (
-        <span className="text-sm font-medium">{feature.displayOrder}</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{feature.displayOrder}</span>
       ),
     },
     {
       key: 'productCount',
       header: 'Products',
       render: (feature) => (
-        <span className="text-sm font-medium">{feature.productCount}</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{feature.productCount}</span>
       ),
     },
     {
@@ -359,8 +359,8 @@ export default function FeaturesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate">Features</h1>
-          <p className="text-xs sm:text-sm lg:text-base text-slate-600 mt-1">Manage product features and attributes</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white truncate">Features</h1>
+          <p className="text-xs sm:text-sm lg:text-base text-slate-600 dark:text-slate-400 mt-1">Manage product features and attributes</p>
         </div>
         <Button icon={<Plus size={18} />} onClick={handleCreate} className="w-full sm:w-auto flex-shrink-0">
           <span className="hidden sm:inline">Add Feature</span>
@@ -379,7 +379,7 @@ export default function FeaturesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto w-full">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-x-auto w-full">
         {features.length === 0 && !loading ? (
           <EmptyState
             icon={<Sparkles size={48} />}
@@ -519,8 +519,8 @@ export default function FeaturesPage() {
           </>
         }
       >
-        <p className="text-slate-600">
-          Are you sure you want to deactivate <strong>{deleteConfirm?.name}</strong>?
+        <p className="text-slate-600 dark:text-slate-400">
+          Are you sure you want to deactivate <strong className="text-slate-900 dark:text-white">{deleteConfirm?.name}</strong>?
           This will not affect existing product associations.
         </p>
       </Modal>
@@ -552,14 +552,14 @@ export default function FeaturesPage() {
         }
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600 mb-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
             Map benefits to this feature. Weight (0.0-1.0) indicates connection strength.
             Higher weight = stronger relationship between feature and benefit.
           </p>
           
           {loadingBenefits ? (
             <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 dark:border-blue-400"></div>
             </div>
           ) : (
             <div className="space-y-3 max-h-[60vh] overflow-y-auto">
@@ -570,21 +570,21 @@ export default function FeaturesPage() {
                 return (
                   <div
                     key={benefit.id}
-                    className="p-4 border border-slate-200 rounded-lg hover:bg-slate-50"
+                    className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <div className="flex items-center gap-2">
                           <Badge color="blue" size="sm">{benefit.code}</Badge>
-                          <span className="font-medium text-slate-900">{benefit.name || benefit.code}</span>
+                          <span className="font-medium text-slate-900 dark:text-white">{benefit.name || benefit.code}</span>
                         </div>
                         {benefit.description && (
-                          <p className="text-sm text-slate-600 mt-1">{benefit.description}</p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{benefit.description}</p>
                         )}
                       </div>
                       <div className="text-right">
-                        <span className="text-lg font-bold text-blue-600">{weight.toFixed(1)}</span>
-                        <span className="text-xs text-slate-500 block">/ 1.0</span>
+                        <span className="text-lg font-bold text-blue-600 dark:text-blue-400">{weight.toFixed(1)}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 block">/ 1.0</span>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -595,9 +595,9 @@ export default function FeaturesPage() {
                         step="0.1"
                         value={weight}
                         onChange={(e) => updateBenefitWeight(benefit.code, parseFloat(e.target.value))}
-                        className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-slate-200"
+                        className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-slate-200 dark:bg-slate-600 accent-blue-600 dark:accent-blue-400"
                       />
-                      <div className="flex justify-between text-xs text-slate-500">
+                      <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
                         <span>0.0 (No connection)</span>
                         <span>0.5 (Moderate)</span>
                         <span>1.0 (Strong)</span>

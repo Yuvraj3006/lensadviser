@@ -260,8 +260,8 @@ export default function UsersPage() {
       header: 'Name',
       render: (user) => (
         <div>
-          <p className="font-medium">{user.name}</p>
-          <p className="text-xs text-slate-500">{user.email}</p>
+          <p className="font-medium text-slate-900 dark:text-slate-200">{user.name}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{user.email}</p>
         </div>
       ),
     },
@@ -278,21 +278,21 @@ export default function UsersPage() {
       key: 'storeName',
       header: 'Store',
       render: (user) => (
-        <span className="text-sm">{user.storeName || '-'}</span>
+        <span className="text-sm text-slate-900 dark:text-slate-200">{user.storeName || '-'}</span>
       ),
     },
     {
       key: 'employeeId',
       header: 'Employee ID',
       render: (user) => (
-        <span className="text-sm font-mono">{user.employeeId || '-'}</span>
+        <span className="text-sm font-mono text-slate-900 dark:text-slate-200">{user.employeeId || '-'}</span>
       ),
     },
     {
       key: 'phone',
       header: 'Phone',
       render: (user) => (
-        <span className="text-sm">{user.phone || '-'}</span>
+        <span className="text-sm text-slate-900 dark:text-slate-200">{user.phone || '-'}</span>
       ),
     },
     {
@@ -321,8 +321,8 @@ export default function UsersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Users</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage staff members and access</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Users</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage staff members and access</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <Button
@@ -362,7 +362,7 @@ export default function UsersPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
         {users.length === 0 && !loading ? (
           <EmptyState
             icon={<UsersIcon size={48} />}
@@ -516,8 +516,8 @@ export default function UsersPage() {
           </>
         }
       >
-        <p className="text-slate-600">
-          Are you sure you want to deactivate <strong>{deleteConfirm?.name}</strong>?
+        <p className="text-slate-600 dark:text-slate-400">
+          Are you sure you want to deactivate <strong className="text-slate-900 dark:text-white">{deleteConfirm?.name}</strong>?
           This will not delete the user but will prevent them from logging in.
         </p>
       </Modal>

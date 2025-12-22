@@ -18,8 +18,8 @@ export function Checkbox({ checked, onChange, disabled, className }: CheckboxPro
       className={clsx(
         'w-4 h-4 rounded border-2 flex items-center justify-center transition-colors',
         checked
-          ? 'bg-blue-600 border-blue-600'
-          : 'bg-white border-slate-300 hover:border-slate-400',
+          ? 'bg-blue-600 border-blue-600 dark:bg-blue-500 dark:border-blue-500'
+          : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500',
         disabled && 'opacity-50 cursor-not-allowed',
         !disabled && 'cursor-pointer',
         className

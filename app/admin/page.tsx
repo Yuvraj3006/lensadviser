@@ -109,7 +109,7 @@ export default function DashboardPage() {
       header: 'Customer',
       render: (session) => (
         <div>
-          <p className="font-medium">{session.customerName}</p>
+          <p className="font-medium text-slate-900 dark:text-slate-200">{session.customerName}</p>
         </div>
       ),
     },
@@ -153,8 +153,8 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Overview of your store performance</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Overview of your store performance</p>
         </div>
         <Button
           variant="outline"
@@ -199,9 +199,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Sessions */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200">
-          <h2 className="text-base sm:text-lg font-bold text-slate-900">Recent Sessions</h2>
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-slate-700">
+          <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Recent Sessions</h2>
         </div>
         <DataTable
           columns={columns}

@@ -141,13 +141,13 @@ export default function CLPowerPage() {
           </h1>
           <p className="text-slate-300 mb-6">Enter your contact lens prescription directly</p>
 
-          <div className="bg-white rounded-xl p-6 space-y-6 mb-6">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 space-y-6 mb-6 border border-slate-200 dark:border-slate-700">
             {/* Right Eye */}
             <div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Right Eye (OD)</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Right Eye (OD)</h3>
               <div className="grid grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">SPH</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">SPH</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -157,7 +157,7 @@ export default function CLPowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">CYL</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">CYL</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -167,7 +167,7 @@ export default function CLPowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">AXIS</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">AXIS</label>
                   <Input
                     type="number"
                     step="1"
@@ -179,7 +179,7 @@ export default function CLPowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">ADD (if MF)</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">ADD (if MF)</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -193,10 +193,10 @@ export default function CLPowerPage() {
 
             {/* Left Eye */}
             <div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Left Eye (OS)</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Left Eye (OS)</h3>
               <div className="grid grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">SPH</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">SPH</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -206,7 +206,7 @@ export default function CLPowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">CYL</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">CYL</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -216,7 +216,7 @@ export default function CLPowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">AXIS</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">AXIS</label>
                   <Input
                     type="number"
                     step="1"
@@ -228,7 +228,7 @@ export default function CLPowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">ADD (if MF)</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">ADD (if MF)</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -242,11 +242,11 @@ export default function CLPowerPage() {
 
             {/* Validation Errors */}
             {validationErrors.length > 0 && (
-              <div className="bg-red-50 rounded-lg p-4 border-2 border-red-200">
-                <h4 className="font-semibold text-red-900 mb-2">⚠️ Validation Errors:</h4>
+              <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border-2 border-red-200 dark:border-red-800">
+                <h4 className="font-semibold text-red-900 dark:text-red-300 mb-2">⚠️ Validation Errors:</h4>
                 <ul className="list-disc list-inside space-y-1">
                   {validationErrors.map((error, idx) => (
-                    <li key={idx} className="text-sm text-red-700">
+                    <li key={idx} className="text-sm text-red-700 dark:text-red-300">
                       {typeof error === 'string' ? error : typeof error === 'object' && error !== null
                         ? (error as any).message || JSON.stringify(error)
                         : String(error)}
@@ -258,22 +258,22 @@ export default function CLPowerPage() {
           </div>
 
           {/* Navigation */}
-          <div className="flex justify-between">
+          <div className="flex flex-col sm:flex-row justify-between gap-3">
             <Button
               variant="outline"
               onClick={() => router.push('/questionnaire/contact-lens/power-input-method')}
-              className="flex items-center gap-2"
+              className="w-full sm:w-auto flex items-center justify-center gap-2"
             >
-              <ArrowLeft size={18} />
-              Back
+              <ArrowLeft size={18} className="flex-shrink-0" />
+              <span className="truncate">Back</span>
             </Button>
             <Button
               onClick={handleConfirm}
               disabled={(!rx.odSphere && !rx.osSphere) || validationErrors.length > 0}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 disabled:opacity-50"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 disabled:opacity-50"
             >
-              <CheckCircle size={20} />
-              Confirm Power
+              <CheckCircle size={20} className="flex-shrink-0" />
+              <span className="truncate text-xs sm:text-sm">Confirm Power</span>
             </Button>
           </div>
         </div>

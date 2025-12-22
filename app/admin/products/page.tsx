@@ -682,22 +682,22 @@ export default function ProductsPage() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">Products</h1>
-        <p className="text-sm sm:text-base text-slate-600">Manage products, brands, and sub-brands</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-1">Products</h1>
+        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">Manage products, brands, and sub-brands</p>
       </div>
 
       {/* Product Type Tabs */}
       {/* NOTE: FRAME and SUNGLASS tabs removed - only manual entry in customer flow per specification */}
       <div className="mb-6">
-        <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1 inline-flex">
+        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 inline-flex">
           {(['ACCESSORY'] as ProductType[]).map((type) => (
             <button
               key={type}
               onClick={() => setActiveTab(type)}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === type
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               {getProductTypeLabel(type)}
@@ -710,9 +710,9 @@ export default function ProductsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Left: Brands & Sub-Brands */}
         <div className="lg:col-span-2 min-w-0">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 min-w-0">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 min-w-0">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">Brands & Sub-Brands</h2>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Brands & Sub-Brands</h2>
               <Button size="sm" icon={<Plus size={14} />} onClick={handleCreateBrand}>
                 Add Brand
               </Button>
@@ -745,14 +745,14 @@ export default function ProductsPage() {
             }}
           />
         ) : (
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-slate-200 dark:divide-slate-700">
             {filteredBrands.map((brand) => (
               <div key={brand.id} className="p-4">
                 <div className="flex items-center justify-between gap-2 min-w-0">
                   <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 overflow-hidden">
                     <button
                       onClick={() => toggleBrand(brand.id)}
-                      className="text-slate-400 hover:text-slate-600 flex-shrink-0"
+                      className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 flex-shrink-0"
                     >
                       {expandedBrands.has(brand.id) ? (
                         <ChevronDown size={20} />
@@ -764,7 +764,7 @@ export default function ProductsPage() {
                       <Badge color="blue" size="md" className="truncate max-w-[120px] sm:max-w-[180px]">
                         {brand.name}
                       </Badge>
-                      <span className="text-sm text-slate-500 whitespace-nowrap flex-shrink-0">
+                      <span className="text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap flex-shrink-0">
                         {brand.subBrands.length} sub-brand{brand.subBrands.length !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -796,12 +796,12 @@ export default function ProductsPage() {
                 {expandedBrands.has(brand.id) && (
                   <div className="mt-4 ml-8 space-y-2">
                     {brand.subBrands.length === 0 ? (
-                      <p className="text-sm text-slate-500">No sub-brands yet. Add one to get started.</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">No sub-brands yet. Add one to get started.</p>
                     ) : (
                       brand.subBrands.map((subBrand) => (
                         <div
                           key={subBrand.id}
-                          className="flex items-center justify-between gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200 min-w-0"
+                          className="flex items-center justify-between gap-2 p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-700 min-w-0"
                         >
                           <div className="flex-1 min-w-0 overflow-hidden">
                             <Badge color="green" size="sm" className="truncate max-w-full">
@@ -845,9 +845,9 @@ export default function ProductsPage() {
 
         {/* Right: Products List */}
         <div className="lg:col-span-3">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
                 {getProductTypeLabel(activeTab)}
               </h2>
               <Button size="sm" icon={<Plus size={14} />} onClick={handleCreateProduct}>
@@ -870,13 +870,13 @@ export default function ProductsPage() {
                 }}
               />
             ) : (
-              <div className="divide-y divide-slate-200">
+              <div className="divide-y divide-slate-200 dark:divide-slate-700">
                 {products.map((product) => (
-                  <div key={product.id} className="p-4 hover:bg-slate-50">
+                  <div key={product.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-slate-900">
+                          <span className="font-medium text-slate-900 dark:text-white">
                             {product.name || 'Unnamed Product'}
                           </span>
                           {product.sku && (
@@ -885,7 +885,7 @@ export default function ProductsPage() {
                             </Badge>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                           {product.brand && <span>{product.brand.name}</span>}
                           {product.subBrand && (
                             <>
@@ -894,7 +894,7 @@ export default function ProductsPage() {
                             </>
                           )}
                           {(product.brand || product.subBrand) && <span>•</span>}
-                          <span className="font-medium text-slate-900">₹{product.mrp.toLocaleString()}</span>
+                          <span className="font-medium text-slate-900 dark:text-white">₹{product.mrp.toLocaleString()}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -940,7 +940,7 @@ export default function ProductsPage() {
             maxLength={100}
           />
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               Product Types *
             </label>
             <div className="space-y-2">
@@ -955,9 +955,9 @@ export default function ProductsPage() {
                         : [...brandFormData.productTypes, type];
                       setBrandFormData({ ...brandFormData, productTypes: types });
                     }}
-                    className="w-4 h-4 rounded border-slate-300"
+                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-800"
                   />
-                  <span className="text-sm text-slate-700">{type.replace('_', ' ')}</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{type.replace('_', ' ')}</span>
                 </label>
               ))}
             </div>
@@ -1036,7 +1036,7 @@ export default function ProductsPage() {
       >
         <form onSubmit={handleSubmitProduct} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
               Brand <span className="text-red-500">*</span>
             </label>
             <Select
@@ -1060,7 +1060,7 @@ export default function ProductsPage() {
 
           {productFormData.brandId && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 Sub-Brand (Optional)
               </label>
               <Select

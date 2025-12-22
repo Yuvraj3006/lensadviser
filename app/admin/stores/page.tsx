@@ -223,7 +223,7 @@ export default function StoresPage() {
       key: 'code',
       header: 'Code',
       render: (store) => (
-        <span className="font-mono font-semibold">{store.code}</span>
+        <span className="font-mono font-semibold text-slate-900 dark:text-slate-200">{store.code}</span>
       ),
     },
     {
@@ -231,8 +231,8 @@ export default function StoresPage() {
       header: 'Store Name',
       render: (store) => (
         <div>
-          <p className="font-medium">{store.name}</p>
-          {store.city && <p className="text-xs text-slate-500">{store.city}, {store.state}</p>}
+          <p className="font-medium text-slate-900 dark:text-slate-200">{store.name}</p>
+          {store.city && <p className="text-xs text-slate-500 dark:text-slate-400">{store.city}, {store.state}</p>}
         </div>
       ),
     },
@@ -241,8 +241,8 @@ export default function StoresPage() {
       header: 'Contact',
       render: (store) => (
         <div className="text-sm">
-          {store.phone && <p>{store.phone}</p>}
-          {store.email && <p className="text-slate-500">{store.email}</p>}
+          {store.phone && <p className="text-slate-900 dark:text-slate-200">{store.phone}</p>}
+          {store.email && <p className="text-slate-500 dark:text-slate-400">{store.email}</p>}
         </div>
       ),
     },
@@ -250,14 +250,14 @@ export default function StoresPage() {
       key: 'staffCount',
       header: 'Staff',
       render: (store) => (
-        <span className="text-sm font-medium">{store.staffCount}</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{store.staffCount}</span>
       ),
     },
     {
       key: 'sessionCount',
       header: 'Sessions',
       render: (store) => (
-        <span className="text-sm font-medium">{store.sessionCount}</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{store.sessionCount}</span>
       ),
     },
     {
@@ -276,8 +276,8 @@ export default function StoresPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Stores</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage store locations and details</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Stores</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage store locations and details</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <Button
@@ -306,7 +306,7 @@ export default function StoresPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
         {stores.length === 0 && !loading ? (
           <EmptyState
             icon={<StoreIcon size={48} />}
@@ -473,8 +473,8 @@ export default function StoresPage() {
           </>
         }
       >
-        <p className="text-slate-600">
-          Are you sure you want to deactivate <strong>{deleteConfirm?.name}</strong>?
+        <p className="text-slate-600 dark:text-slate-400">
+          Are you sure you want to deactivate <strong className="text-slate-900 dark:text-white">{deleteConfirm?.name}</strong>?
           This will not delete the store but will mark it as inactive.
         </p>
       </Modal>

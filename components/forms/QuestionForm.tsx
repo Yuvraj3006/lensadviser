@@ -360,7 +360,7 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Basic Info */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-slate-900">Basic Information</h3>
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Basic Information</h3>
         
         <div className="grid grid-cols-2 gap-4">
           <Input
@@ -433,7 +433,7 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
       {/* Question Text */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-slate-900">Question Text</h3>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Question Text</h3>
           <Button
             type="button"
             variant="outline"
@@ -473,7 +473,7 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
       {/* Answer Options */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-slate-900">Answer Options</h3>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Answer Options</h3>
           <Button type="button" variant="outline" size="sm" onClick={addOption}>
             <Plus size={16} className="mr-1" />
             Add Option
@@ -482,9 +482,9 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
 
         <div className="space-y-3">
           {options.map((option, index) => (
-            <div key={index} className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+            <div key={index} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-700/30">
               <div className="flex items-start gap-3">
-                <div className="text-slate-400 mt-2">
+                <div className="text-slate-400 dark:text-slate-500 mt-2">
                   <GripVertical size={20} />
                 </div>
                 
@@ -546,31 +546,31 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                   </div>
 
                   {/* Benefit Mapping Accordion */}
-                  <div className="border-t border-slate-200 pt-3 mt-3">
+                  <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-3">
                     <button
                       type="button"
                       onClick={() => toggleBenefitMapping(index)}
-                      className="flex items-center justify-between w-full text-left text-sm font-medium text-slate-700 hover:text-slate-900"
+                      className="flex items-center justify-between w-full text-left text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
                     >
                       <span>Benefit Mapping</span>
                       {expandedBenefitMappings.has(index) ? (
-                        <ChevronDown size={18} />
+                        <ChevronDown size={18} className="text-slate-600 dark:text-slate-400" />
                       ) : (
-                        <ChevronRight size={18} />
+                        <ChevronRight size={18} className="text-slate-600 dark:text-slate-400" />
                       )}
                     </button>
 
                     {expandedBenefitMappings.has(index) && (
-                      <div className="mt-3 pt-3 border-t border-slate-200">
+                      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
                         {loadingBenefits ? (
-                          <p className="text-sm text-slate-500">Loading benefits...</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">Loading benefits...</p>
                         ) : benefits.length === 0 ? (
-                          <p className="text-sm text-slate-500">No benefits available. Create benefits first.</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">No benefits available. Create benefits first.</p>
                         ) : (
                           <div className="space-y-4">
                             {/* Category Weight (applies to all benefits for this answer) */}
-                            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                              <label className="block text-xs font-semibold text-blue-900 mb-1">
+                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                              <label className="block text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1">
                                 Category Weight (Multiplier for all benefits)
                               </label>
                               <input
@@ -587,10 +587,10 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                                   };
                                   setOptions(updated);
                                 }}
-                                className="w-full rounded-lg border border-blue-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                                 placeholder="1.0"
                               />
-                              <p className="text-xs text-blue-700 mt-1">
+                              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
                                 Screen-heavy answers should have higher weight (e.g., 1.5) to amplify screen-related benefits
                               </p>
                             </div>
@@ -598,16 +598,16 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                             {/* Benefit Points */}
                             <div className="space-y-3">
                               <div className="flex items-center justify-between mb-2">
-                                <h4 className="text-sm font-semibold text-slate-700">
+                                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                   Benefit Points (0-3 scale)
                                 </h4>
-                                <span className="text-xs text-slate-500">
+                                <span className="text-xs text-slate-500 dark:text-slate-400">
                                   {benefits.length} benefits available
                                 </span>
                               </div>
                               
                               {/* Scrollable grid for benefits */}
-                              <div className="max-h-96 overflow-y-auto border border-slate-200 rounded-lg p-3 bg-slate-50">
+                              <div className="max-h-96 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg p-3 bg-slate-50 dark:bg-slate-700/30">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                   {benefits.map((benefit) => {
                                     const currentValue = option.benefitMapping[benefit.code] || 0;
@@ -618,16 +618,16 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                                         key={benefit.code} 
                                         className={`space-y-1.5 p-2 rounded-lg border transition-colors ${
                                           hasValue 
-                                            ? 'bg-blue-50 border-blue-300' 
-                                            : 'bg-white border-slate-200'
+                                            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700' 
+                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                                         }`}
                                       >
-                                        <label className="block text-xs font-semibold text-slate-700">
-                                          <span className="font-mono text-blue-600">{benefit.code}</span>
-                                          <span className="ml-1 text-slate-600">— {benefit.name}</span>
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                          <span className="font-mono text-blue-600 dark:text-blue-400">{benefit.code}</span>
+                                          <span className="ml-1 text-slate-600 dark:text-slate-400">— {benefit.name}</span>
                                         </label>
                                         {benefit.description && (
-                                          <p className="text-xs text-slate-500 mb-1 line-clamp-1">
+                                          <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 line-clamp-1">
                                             {benefit.description}
                                           </p>
                                         )}
@@ -646,13 +646,13 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                                                   parseFloat(e.target.value) || 0
                                                 )
                                               }
-                                              className="flex-1 h-2 rounded-lg appearance-none cursor-pointer bg-slate-200 accent-blue-600"
+                                              className="flex-1 h-2 rounded-lg appearance-none cursor-pointer bg-slate-200 dark:bg-slate-600 accent-blue-600 dark:accent-blue-400"
                                             />
-                                            <span className="text-sm font-semibold text-blue-600 min-w-[3rem] text-right">
+                                            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 min-w-[3rem] text-right">
                                               {currentValue.toFixed(1)}
                                             </span>
                                           </div>
-                                          <div className="flex justify-between text-xs text-slate-500 px-1">
+                                          <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
                                             <span>0</span>
                                             <span>1</span>
                                             <span>2</span>
@@ -666,7 +666,7 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                               </div>
                               
                               {benefits.length === 0 && (
-                                <div className="text-center py-4 text-sm text-slate-500">
+                                <div className="text-center py-4 text-sm text-slate-500 dark:text-slate-400">
                                   No benefits found. Please create benefits in the Benefits Management page first.
                                 </div>
                               )}
@@ -678,22 +678,22 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                   </div>
 
                   {/* Sub-Question Toggle and Dropdown */}
-                  <div className="border-t border-slate-200 pt-3 mt-3">
+                  <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-3">
                     <div className="flex items-center gap-3 mb-3">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={option.triggersSubQuestion || false}
                           onChange={(e) => updateOption(index, 'triggersSubQuestion', e.target.checked)}
-                          className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                          className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
                         />
-                        <span className="text-sm font-medium text-slate-700">Triggers Sub-question?</span>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Triggers Sub-question?</span>
                       </label>
                     </div>
 
                     {option.triggersSubQuestion && (
                       <div className="mt-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           Select follow-up question
                         </label>
                         <Select
@@ -718,14 +718,14 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                           ]}
                         />
                         {loadingQuestions && (
-                          <p className="text-xs text-slate-500 mt-1">Loading questions...</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Loading questions...</p>
                         )}
                         {/* Multiple sub-questions (new feature) */}
                         <div className="mt-3">
-                          <label className="block text-xs text-slate-600 mb-1">
+                          <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
                             Or select multiple questions (unlimited nesting):
                           </label>
-                          <div className="space-y-2 max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-2">
+                          <div className="space-y-2 max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-white dark:bg-slate-800">
                             {allQuestions
                               .filter((q) => q.id !== question?.id)
                               .sort((a, b) => (a.displayOrder || a.order || 0) - (b.displayOrder || b.order || 0))
@@ -734,7 +734,7 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                                 return (
                                   <label
                                     key={q.id}
-                                    className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer"
+                                    className="flex items-center gap-2 p-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded cursor-pointer"
                                   >
                                     <input
                                       type="checkbox"
@@ -752,9 +752,9 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                                           updateOption(index, 'subQuestionId', null);
                                         }
                                       }}
-                                      className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                      className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
                                     />
-                                    <span className="text-sm text-slate-700">
+                                    <span className="text-sm text-slate-700 dark:text-slate-300">
                                       {q.textEn || q.text || q.key} (Order: {q.displayOrder || q.order || 0})
                                     </span>
                                   </label>
@@ -762,7 +762,7 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                               })}
                           </div>
                           {(option.nextQuestionIds || []).length > 0 && (
-                            <p className="text-xs text-blue-600 mt-1">
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                               {(option.nextQuestionIds || []).length} question(s) selected
                             </p>
                           )}
@@ -776,7 +776,7 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
                   <button
                     type="button"
                     onClick={() => removeOption(index)}
-                    className="text-red-600 hover:text-red-700 mt-2"
+                    className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 mt-2"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -789,7 +789,7 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
 
       {/* Settings */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-slate-900">Settings</h3>
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Settings</h3>
         
         <div className="flex gap-6">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -797,9 +797,9 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
               type="checkbox"
               checked={formData.isRequired}
               onChange={(e) => handleChange('isRequired', e.target.checked)}
-              className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
             />
-            <span className="text-sm font-medium text-slate-700">Required Question</span>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Required Question</span>
           </label>
           
           <label className="flex items-center gap-2 cursor-pointer">
@@ -807,9 +807,9 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
               type="checkbox"
               checked={formData.allowMultiple}
               onChange={(e) => handleChange('allowMultiple', e.target.checked)}
-              className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
             />
-            <span className="text-sm font-medium text-slate-700">Allow Multiple Answers</span>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Allow Multiple Answers</span>
           </label>
           
           <label className="flex items-center gap-2 cursor-pointer">
@@ -817,15 +817,15 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
               type="checkbox"
               checked={formData.isActive}
               onChange={(e) => handleChange('isActive', e.target.checked)}
-              className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
             />
-            <span className="text-sm font-medium text-slate-700">Active</span>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Active</span>
           </label>
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3 pt-4 border-t border-slate-200">
+      <div className="flex gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
         <Button type="submit" loading={loading} fullWidth>
           {question ? 'Update Question' : 'Create Question'}
         </Button>

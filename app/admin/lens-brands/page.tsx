@@ -153,9 +153,9 @@ export default function LensBrandsPage() {
       header: 'Brand Name',
       render: (brand) => (
         <div>
-          <div className="font-medium text-slate-900">{brand.name}</div>
+          <div className="font-medium text-slate-900 dark:text-slate-200">{brand.name}</div>
           {brand.description && (
-            <div className="text-sm text-slate-500 mt-1">{brand.description}</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">{brand.description}</div>
           )}
         </div>
       ),
@@ -164,7 +164,7 @@ export default function LensBrandsPage() {
       key: 'productCount',
       header: 'Products',
       render: (brand) => (
-        <span className="text-slate-600">{brand.productCount}</span>
+        <span className="text-slate-600 dark:text-slate-300">{brand.productCount}</span>
       ),
     },
     {
@@ -174,8 +174,8 @@ export default function LensBrandsPage() {
         <span
           className={`px-2 py-1 rounded-full text-xs font-medium ${
             brand.isActive
-              ? 'bg-green-100 text-green-700'
-              : 'bg-red-100 text-red-700'
+              ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+              : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300'
           }`}
         >
           {brand.isActive ? 'Active' : 'Inactive'}
@@ -218,8 +218,8 @@ export default function LensBrandsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Lens Brands</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage lens brand lines (e.g., DIGI360, DriveXpert)</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Lens Brands</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage lens brand lines (e.g., DIGI360, DriveXpert)</p>
         </div>
         <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus size={20} className="mr-2" />
@@ -227,10 +227,10 @@ export default function LensBrandsPage() {
         </Button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
         <div className="mb-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500" size={20} />
             <Input
               placeholder="Search lens brands..."
               value={search}
@@ -262,7 +262,7 @@ export default function LensBrandsPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               Brand Name *
             </label>
             <Input
@@ -273,14 +273,14 @@ export default function LensBrandsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               Description
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Optional description"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 placeholder-slate-400 dark:placeholder-slate-500"
               rows={3}
             />
           </div>

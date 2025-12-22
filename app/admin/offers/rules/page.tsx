@@ -396,15 +396,15 @@ export default function OfferRulesPage() {
   ];
 
   if (loading) {
-    return <div className="text-center py-12">Loading...</div>;
+    return <div className="text-center py-12 text-slate-900 dark:text-white">Loading...</div>;
   }
 
   return (
     <div className="w-full min-w-0 max-w-full">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate">Offer Rules</h1>
-          <p className="text-xs sm:text-sm lg:text-base text-slate-600 mt-1">Manage offer rules and discounts</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white truncate">Offer Rules</h1>
+          <p className="text-xs sm:text-sm lg:text-base text-slate-600 dark:text-slate-400 mt-1">Manage offer rules and discounts</p>
         </div>
         <Button onClick={handleCreate} className="w-full sm:w-auto flex-shrink-0">
           <Plus size={20} className="mr-2" />
@@ -424,7 +424,7 @@ export default function OfferRulesPage() {
           }}
         />
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto w-full">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-x-auto w-full">
           <DataTable data={rules} columns={columns} />
         </div>
       )}
@@ -597,8 +597,9 @@ export default function OfferRulesPage() {
                       bonusFreeAllowed: e.target.checked
                     }
                   } as any)}
+                  className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
                 />
-                <span>Allow Bonus Free Product</span>
+                <span className="text-slate-900 dark:text-white">Allow Bonus Free Product</span>
               </label>
             </div>
           )}
@@ -778,9 +779,9 @@ export default function OfferRulesPage() {
 
           {(formData.offerType === 'BOG50' || formData.offerType === 'BOGO') && (
             <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-800 mb-2">
-                  <strong>Second Pair Offer:</strong> {formData.offerType === 'BOGO' 
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <p className="text-sm text-blue-800 dark:text-blue-300 mb-2">
+                  <strong className="text-blue-900 dark:text-blue-200">Second Pair Offer:</strong> {formData.offerType === 'BOGO' 
                     ? 'Buy One Get One Free - Second pair will be completely free (100% off on lower value)'
                     : 'Buy One Get 50% Off - Second pair will get discount based on percentage below'}
                 </p>
@@ -800,20 +801,20 @@ export default function OfferRulesPage() {
                 />
               )}
               {formData.offerType === 'BOGO' && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                  <p className="text-sm text-green-800">
-                    <strong>Note:</strong> BOGO automatically applies 100% discount on the lower value of first and second pair.
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                  <p className="text-sm text-green-800 dark:text-green-300">
+                    <strong className="text-green-900 dark:text-green-200">Note:</strong> BOGO automatically applies 100% discount on the lower value of first and second pair.
                   </p>
                 </div>
               )}
               <div className="space-y-3">
-                <label className="block text-sm font-medium text-slate-700">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Eligible Frames (Select Brands & Sub-Brands)
                 </label>
-                <div className="border border-slate-300 rounded-lg p-2 sm:p-4 max-h-48 sm:max-h-64 lg:max-h-96 overflow-y-auto bg-slate-50">
+                <div className="border border-slate-300 dark:border-slate-700 rounded-lg p-2 sm:p-4 max-h-48 sm:max-h-64 lg:max-h-96 overflow-y-auto bg-slate-50 dark:bg-slate-700/30">
                   {/* Universal option */}
-                  <div className="mb-4 pb-4 border-b border-slate-300">
-                    <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-2 rounded">
+                  <div className="mb-4 pb-4 border-b border-slate-300 dark:border-slate-700">
+                    <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 p-2 rounded">
                       <input
                         type="checkbox"
                         checked={selectedEligibleBrands.includes('*')}
@@ -839,9 +840,9 @@ export default function OfferRulesPage() {
                             });
                           }
                         }}
-                        className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                        className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
                       />
-                      <span className="font-semibold text-slate-900">* (All Brands & Sub-Brands)</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">* (All Brands & Sub-Brands)</span>
                     </label>
                   </div>
 
@@ -855,7 +856,7 @@ export default function OfferRulesPage() {
                     return (
                       <div key={brand} className="mb-3">
                         {/* Brand checkbox */}
-                        <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-2 rounded">
+                        <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 p-2 rounded">
                           <input
                             type="checkbox"
                             checked={isBrandSelected && !selectedEligibleBrands.includes('*')}
@@ -885,11 +886,11 @@ export default function OfferRulesPage() {
                               });
                             }}
                             disabled={selectedEligibleBrands.includes('*')}
-                            className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                            className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
                           />
-                          <span className="font-medium text-slate-800">{brand}</span>
+                          <span className="font-medium text-slate-800 dark:text-slate-200">{brand}</span>
                           {brandSubBrands.length > 0 && (
-                            <span className="text-xs text-slate-500">
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
                               ({selectedSubBrands.length}/{brandSubBrands.length} sub-brands)
                             </span>
                           )}
@@ -901,7 +902,7 @@ export default function OfferRulesPage() {
                             {brandSubBrands.map((subBrand) => (
                               <label
                                 key={subBrand}
-                                className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1.5 rounded text-sm"
+                                className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 p-1.5 rounded text-sm"
                               >
                                 <input
                                   type="checkbox"
@@ -933,9 +934,9 @@ export default function OfferRulesPage() {
                                     });
                                   }}
                                   disabled={selectedEligibleBrands.includes('*')}
-                                  className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                  className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
                                 />
-                                <span className="text-slate-700">{subBrand}</span>
+                                <span className="text-slate-700 dark:text-slate-300">{subBrand}</span>
                               </label>
                             ))}
                           </div>
@@ -944,7 +945,7 @@ export default function OfferRulesPage() {
                     );
                   })}
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   💡 Select specific brands/sub-brands or choose "*" for all frames. Selected: {selectedEligibleBrands.length} item(s)
                 </p>
               </div>
@@ -1027,12 +1028,13 @@ export default function OfferRulesPage() {
                   // Clear upsell fields if disabled
                   ...(e.target.checked ? {} : { upsellThreshold: null, upsellRewardText: null })
                 })}
+                className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
               />
-              <span className="text-sm sm:text-base font-medium">Enable Upsell</span>
+              <span className="text-sm sm:text-base font-medium text-slate-900 dark:text-white">Enable Upsell</span>
             </label>
             
             {(formData as any).upsellEnabled && (
-              <div className="space-y-4 pl-6 border-l-2 border-blue-200 dark:border-blue-700">
+              <div className="space-y-4 pl-6 border-l-2 border-blue-200 dark:border-blue-800">
               <Input
                 label="Upsell Threshold (₹)"
                 type="number"
@@ -1067,16 +1069,18 @@ export default function OfferRulesPage() {
                 type="checkbox"
                 checked={formData.isSecondPairRule || false}
                 onChange={(e) => setFormData({ ...formData, isSecondPairRule: e.target.checked })}
+                className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
               />
-              <span className="text-sm sm:text-base">Second Pair Rule</span>
+              <span className="text-sm sm:text-base text-slate-900 dark:text-white">Second Pair Rule</span>
             </label>
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={formData.isActive ?? true}
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
               />
-              <span className="text-sm sm:text-base">Active</span>
+              <span className="text-sm sm:text-base text-slate-900 dark:text-white">Active</span>
             </label>
           </div>
 
@@ -1089,7 +1093,7 @@ export default function OfferRulesPage() {
         onClose={() => setDeleteConfirm(null)}
         title="Delete Offer Rule"
       >
-        <p className="mb-4">Are you sure you want to delete "{deleteConfirm?.name}"?</p>
+        <p className="mb-4 text-slate-900 dark:text-white">Are you sure you want to delete <strong className="text-slate-900 dark:text-white">"{deleteConfirm?.name}"</strong>?</p>
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>
             Cancel

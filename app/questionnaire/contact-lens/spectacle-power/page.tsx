@@ -186,13 +186,13 @@ export default function SpectaclePowerPage() {
             Contact lenses sit directly on the eye, so their power is adjusted slightly from spectacle numbers for safe and accurate vision.
           </p>
 
-          <div className="bg-white rounded-xl p-6 space-y-6 mb-6">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 space-y-6 mb-6 border border-slate-200 dark:border-slate-700">
             {/* Right Eye */}
             <div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Right Eye (OD)</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Right Eye (OD)</h3>
               <div className="grid grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">SPH</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">SPH</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -202,7 +202,7 @@ export default function SpectaclePowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">CYL</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">CYL</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -212,7 +212,7 @@ export default function SpectaclePowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">AXIS</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">AXIS</label>
                   <Input
                     type="number"
                     step="1"
@@ -224,7 +224,7 @@ export default function SpectaclePowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">ADD</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">ADD</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -238,10 +238,10 @@ export default function SpectaclePowerPage() {
 
             {/* Left Eye */}
             <div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Left Eye (OS)</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Left Eye (OS)</h3>
               <div className="grid grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">SPH</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">SPH</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -251,7 +251,7 @@ export default function SpectaclePowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">CYL</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">CYL</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -261,7 +261,7 @@ export default function SpectaclePowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">AXIS</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">AXIS</label>
                   <Input
                     type="number"
                     step="1"
@@ -273,7 +273,7 @@ export default function SpectaclePowerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">ADD</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">ADD</label>
                   <Input
                     type="number"
                     step="0.25"
@@ -287,11 +287,11 @@ export default function SpectaclePowerPage() {
 
             {/* Validation Errors */}
             {validationErrors.length > 0 && (
-              <div className="bg-red-50 rounded-lg p-4 border-2 border-red-200">
-                <h4 className="font-semibold text-red-900 mb-2">⚠️ Validation Errors:</h4>
+              <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border-2 border-red-200 dark:border-red-800">
+                <h4 className="font-semibold text-red-900 dark:text-red-300 mb-2">⚠️ Validation Errors:</h4>
                 <ul className="list-disc list-inside space-y-1">
                   {validationErrors.map((error, idx) => (
-                    <li key={idx} className="text-sm text-red-700">
+                    <li key={idx} className="text-sm text-red-700 dark:text-red-300">
                       {typeof error === 'string' ? error : typeof error === 'object' && error !== null
                         ? (error as any).message || JSON.stringify(error)
                         : String(error)}
@@ -312,16 +312,16 @@ export default function SpectaclePowerPage() {
             {/* Converted Power Display */}
             {convertedPower && (
               <div className="space-y-4">
-                <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-                  <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                    <CheckCircle size={20} className="text-blue-600" />
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border-2 border-blue-200 dark:border-blue-800">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-300 mb-3 flex items-center gap-2">
+                    <CheckCircle size={20} className="text-blue-600 dark:text-blue-400" />
                     Your Contact Lens Power:
                   </h4>
                   <div className="space-y-3">
-                    <div className="bg-white rounded p-3">
-                      <div className="font-medium text-slate-700 mb-1">Right Eye (OD):</div>
-                      <div className="text-lg font-semibold text-blue-700">{convertedPower.formatted.od}</div>
-                      <div className="text-xs text-slate-500 mt-2 space-y-1">
+                    <div className="bg-white dark:bg-slate-800 rounded p-3 border border-slate-200 dark:border-slate-700">
+                      <div className="font-medium text-slate-700 dark:text-slate-300 mb-1">Right Eye (OD):</div>
+                      <div className="text-lg font-semibold text-blue-700 dark:text-blue-400">{convertedPower.formatted.od}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 space-y-1">
                         {convertedPower.conversionDetails?.conversionInfo.od.isToric && (
                           <div>✓ Toric lens (|CYL| ≥ 0.75) - Both principal meridians converted</div>
                         )}
@@ -336,10 +336,10 @@ export default function SpectaclePowerPage() {
                         )}
                       </div>
                     </div>
-                    <div className="bg-white rounded p-3">
-                      <div className="font-medium text-slate-700 mb-1">Left Eye (OS):</div>
-                      <div className="text-lg font-semibold text-blue-700">{convertedPower.formatted.os}</div>
-                      <div className="text-xs text-slate-500 mt-2 space-y-1">
+                    <div className="bg-white dark:bg-slate-800 rounded p-3 border border-slate-200 dark:border-slate-700">
+                      <div className="font-medium text-slate-700 dark:text-slate-300 mb-1">Left Eye (OS):</div>
+                      <div className="text-lg font-semibold text-blue-700 dark:text-blue-400">{convertedPower.formatted.os}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 space-y-1">
                         {convertedPower.conversionDetails?.conversionInfo.os.isToric && (
                           <div>✓ Toric lens (|CYL| ≥ 0.75) - Both principal meridians converted</div>
                         )}
@@ -358,61 +358,61 @@ export default function SpectaclePowerPage() {
                 </div>
 
                 {/* Compatibility Summary */}
-                <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
-                  <h4 className="font-semibold text-green-900 mb-3">Compatibility Summary</h4>
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border-2 border-green-200 dark:border-green-800">
+                  <h4 className="font-semibold text-green-900 dark:text-green-300 mb-3">Compatibility Summary</h4>
                   <div className="space-y-2 text-sm">
                     {/* Right Eye Summary */}
                     {convertedPower.contactLensPower.od.sphere !== null && (
-                      <div className="bg-white rounded p-3">
-                        <div className="font-medium text-slate-700 mb-2">Right Eye (OD):</div>
+                      <div className="bg-white dark:bg-slate-800 rounded p-3 border border-slate-200 dark:border-slate-700">
+                        <div className="font-medium text-slate-700 dark:text-slate-300 mb-2">Right Eye (OD):</div>
                         <div className="space-y-1 text-xs">
                           {convertedPower.conversionDetails?.conversionInfo.od.isToric && (
                             <>
-                              <div className="text-green-700">✓ Toric lenses required (CYL {convertedPower.contactLensPower.od.cylinder !== null ? convertedPower.contactLensPower.od.cylinder.toFixed(2) : 'N/A'})</div>
+                              <div className="text-green-700 dark:text-green-400">✓ Toric lenses required (CYL {convertedPower.contactLensPower.od.cylinder !== null ? convertedPower.contactLensPower.od.cylinder.toFixed(2) : 'N/A'})</div>
                               {convertedPower.contactLensPower.od.axis !== null && (
-                                <div className="text-green-700">✓ Axis {convertedPower.contactLensPower.od.axis}° → Supported</div>
+                                <div className="text-green-700 dark:text-green-400">✓ Axis {convertedPower.contactLensPower.od.axis}° → Supported</div>
                               )}
                             </>
                           )}
                           {convertedPower.conversionDetails?.conversionInfo.od.usedSphericalEquivalent && (
-                            <div className="text-green-700">✓ Spherical lenses (SE applied)</div>
+                            <div className="text-green-700 dark:text-green-400">✓ Spherical lenses (SE applied)</div>
                           )}
                           {!convertedPower.conversionDetails?.conversionInfo.od.isToric && !convertedPower.conversionDetails?.conversionInfo.od.usedSphericalEquivalent && (
-                            <div className="text-green-700">✓ Spherical lenses</div>
+                            <div className="text-green-700 dark:text-green-400">✓ Spherical lenses</div>
                           )}
-                          <div className="text-green-700">✓ Recommended CL Sphere: {convertedPower.contactLensPower.od.sphere >= 0 ? '+' : ''}{convertedPower.contactLensPower.od.sphere.toFixed(2)}</div>
+                          <div className="text-green-700 dark:text-green-400">✓ Recommended CL Sphere: {convertedPower.contactLensPower.od.sphere >= 0 ? '+' : ''}{convertedPower.contactLensPower.od.sphere.toFixed(2)}</div>
                           {convertedPower.contactLensPower.od.add !== null && convertedPower.contactLensPower.od.add > 0 ? (
-                            <div className="text-green-700">✓ ADD Category: {convertedPower.conversionDetails?.conversionInfo.od.addCategory || 'N/A'}</div>
+                            <div className="text-green-700 dark:text-green-400">✓ ADD Category: {convertedPower.conversionDetails?.conversionInfo.od.addCategory || 'N/A'}</div>
                           ) : (
-                            <div className="text-slate-600">✓ ADD: Not required</div>
+                            <div className="text-slate-600 dark:text-slate-400">✓ ADD: Not required</div>
                           )}
                         </div>
                       </div>
                     )}
                     {/* Left Eye Summary */}
                     {convertedPower.contactLensPower.os.sphere !== null && (
-                      <div className="bg-white rounded p-3">
-                        <div className="font-medium text-slate-700 mb-2">Left Eye (OS):</div>
+                      <div className="bg-white dark:bg-slate-800 rounded p-3 border border-slate-200 dark:border-slate-700">
+                        <div className="font-medium text-slate-700 dark:text-slate-300 mb-2">Left Eye (OS):</div>
                         <div className="space-y-1 text-xs">
                           {convertedPower.conversionDetails?.conversionInfo.os.isToric && (
                             <>
-                              <div className="text-green-700">✓ Toric lenses required (CYL {convertedPower.contactLensPower.os.cylinder !== null ? convertedPower.contactLensPower.os.cylinder.toFixed(2) : 'N/A'})</div>
+                              <div className="text-green-700 dark:text-green-400">✓ Toric lenses required (CYL {convertedPower.contactLensPower.os.cylinder !== null ? convertedPower.contactLensPower.os.cylinder.toFixed(2) : 'N/A'})</div>
                               {convertedPower.contactLensPower.os.axis !== null && (
-                                <div className="text-green-700">✓ Axis {convertedPower.contactLensPower.os.axis}° → Supported</div>
+                                <div className="text-green-700 dark:text-green-400">✓ Axis {convertedPower.contactLensPower.os.axis}° → Supported</div>
                               )}
                             </>
                           )}
                           {convertedPower.conversionDetails?.conversionInfo.os.usedSphericalEquivalent && (
-                            <div className="text-green-700">✓ Spherical lenses (SE applied)</div>
+                            <div className="text-green-700 dark:text-green-400">✓ Spherical lenses (SE applied)</div>
                           )}
                           {!convertedPower.conversionDetails?.conversionInfo.os.isToric && !convertedPower.conversionDetails?.conversionInfo.os.usedSphericalEquivalent && (
-                            <div className="text-green-700">✓ Spherical lenses</div>
+                            <div className="text-green-700 dark:text-green-400">✓ Spherical lenses</div>
                           )}
-                          <div className="text-green-700">✓ Recommended CL Sphere: {convertedPower.contactLensPower.os.sphere >= 0 ? '+' : ''}{convertedPower.contactLensPower.os.sphere.toFixed(2)}</div>
+                          <div className="text-green-700 dark:text-green-400">✓ Recommended CL Sphere: {convertedPower.contactLensPower.os.sphere >= 0 ? '+' : ''}{convertedPower.contactLensPower.os.sphere.toFixed(2)}</div>
                           {convertedPower.contactLensPower.os.add !== null && convertedPower.contactLensPower.os.add > 0 ? (
-                            <div className="text-green-700">✓ ADD Category: {convertedPower.conversionDetails?.conversionInfo.os.addCategory || 'N/A'}</div>
+                            <div className="text-green-700 dark:text-green-400">✓ ADD Category: {convertedPower.conversionDetails?.conversionInfo.os.addCategory || 'N/A'}</div>
                           ) : (
-                            <div className="text-slate-600">✓ ADD: Not required</div>
+                            <div className="text-slate-600 dark:text-slate-400">✓ ADD: Not required</div>
                           )}
                         </div>
                       </div>
@@ -424,22 +424,22 @@ export default function SpectaclePowerPage() {
           </div>
 
           {/* Navigation */}
-          <div className="flex justify-between">
+          <div className="flex flex-col sm:flex-row justify-between gap-3">
             <Button
               variant="outline"
               onClick={() => router.push('/questionnaire/contact-lens/power-input-method')}
-              className="flex items-center gap-2"
+              className="w-full sm:w-auto flex items-center justify-center gap-2"
             >
-              <ArrowLeft size={18} />
-              Back
+              <ArrowLeft size={18} className="flex-shrink-0" />
+              <span className="truncate">Back</span>
             </Button>
             <Button
               onClick={handleConfirm}
               disabled={!convertedPower}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 disabled:opacity-50"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 disabled:opacity-50"
             >
-              <CheckCircle size={20} />
-              Confirm Contact Lens Power
+              <CheckCircle size={20} className="flex-shrink-0" />
+              <span className="truncate text-xs sm:text-sm">Confirm Contact Lens Power</span>
             </Button>
           </div>
         </div>

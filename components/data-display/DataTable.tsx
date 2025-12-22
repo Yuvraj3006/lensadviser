@@ -42,7 +42,7 @@ export function DataTable<T extends Record<string, any>>({
   if (data.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-slate-500">{emptyMessage}</p>
+        <p className="text-slate-500 dark:text-slate-400">{emptyMessage}</p>
       </div>
     );
   }
@@ -52,11 +52,11 @@ export function DataTable<T extends Record<string, any>>({
       <div className="inline-block min-w-full align-middle">
         <table className="w-full border-collapse min-w-[640px]">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
+            <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
               {columns.map((column) => (
                 <th
                   key={String(column.key)}
-                  className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider whitespace-nowrap"
+                  className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider whitespace-nowrap"
                   style={{ width: column.width }}
                 >
                   <span className="hidden sm:inline">{column.header}</span>
@@ -64,19 +64,19 @@ export function DataTable<T extends Record<string, any>>({
                 </th>
               ))}
               {rowActions && (
-                <th className="px-2 sm:px-4 py-2 sm:py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-right text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider whitespace-nowrap">
                   <span className="hidden sm:inline">Actions</span>
                   <span className="sm:hidden">Act</span>
                 </th>
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 bg-white">
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-800/50">
             {data.map((item) => (
               <tr
                 key={keyExtractor(item)}
                 className={clsx(
-                  'hover:bg-slate-50 transition-colors',
+                  'hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors',
                   onRowClick && 'cursor-pointer'
                 )}
                 onClick={() => onRowClick?.(item)}
@@ -84,7 +84,7 @@ export function DataTable<T extends Record<string, any>>({
                 {columns.map((column) => (
                   <td
                     key={String(column.key)}
-                    className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-900 max-w-[200px] sm:max-w-none"
+                    className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-900 dark:text-slate-200 max-w-[200px] sm:max-w-none"
                   >
                     {column.render
                       ? <div className="break-words">{column.render(item)}</div>

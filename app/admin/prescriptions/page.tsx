@@ -118,9 +118,9 @@ export default function PrescriptionsPage() {
       header: 'Customer',
       render: (prescription) => (
         <div>
-          <div className="font-medium">{prescription.customerName || 'N/A'}</div>
+          <div className="font-medium text-slate-900 dark:text-slate-200">{prescription.customerName || 'N/A'}</div>
           {prescription.customerPhone && (
-            <div className="text-sm text-slate-500">{prescription.customerPhone}</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">{prescription.customerPhone}</div>
           )}
         </div>
       ),
@@ -129,7 +129,7 @@ export default function PrescriptionsPage() {
       key: 'odSphere',
       header: 'Right Eye (OD)',
       render: (prescription) => (
-        <div className="text-sm">
+        <div className="text-sm text-slate-900 dark:text-slate-200">
           {prescription.odSphere !== null && prescription.odSphere !== undefined ? (
             <>
               S: {prescription.odSphere}
@@ -138,7 +138,7 @@ export default function PrescriptionsPage() {
               {prescription.odAdd && ` Add: ${prescription.odAdd}`}
             </>
           ) : (
-            <span className="text-slate-400">Not specified</span>
+            <span className="text-slate-400 dark:text-slate-500">Not specified</span>
           )}
         </div>
       ),
@@ -147,7 +147,7 @@ export default function PrescriptionsPage() {
       key: 'osSphere',
       header: 'Left Eye (OS)',
       render: (prescription) => (
-        <div className="text-sm">
+        <div className="text-sm text-slate-900 dark:text-slate-200">
           {prescription.osSphere !== null && prescription.osSphere !== undefined ? (
             <>
               S: {prescription.osSphere}
@@ -156,7 +156,7 @@ export default function PrescriptionsPage() {
               {prescription.osAdd && ` Add: ${prescription.osAdd}`}
             </>
           ) : (
-            <span className="text-slate-400">Not specified</span>
+            <span className="text-slate-400 dark:text-slate-500">Not specified</span>
           )}
         </div>
       ),
@@ -165,7 +165,7 @@ export default function PrescriptionsPage() {
       key: 'pdDistance',
       header: 'PD',
       render: (prescription) => (
-        <div className="text-sm">
+        <div className="text-sm text-slate-900 dark:text-slate-200">
           {prescription.pdDistance ? `Distance: ${prescription.pdDistance}mm` : 'N/A'}
           {prescription.pdNear && ` | Near: ${prescription.pdNear}mm`}
         </div>
@@ -175,7 +175,7 @@ export default function PrescriptionsPage() {
       key: 'createdAt',
       header: 'Date',
       render: (prescription) => (
-        <div className="text-sm text-slate-600">
+        <div className="text-sm text-slate-600 dark:text-slate-400">
           {new Date(prescription.createdAt).toLocaleDateString()}
         </div>
       ),
@@ -200,8 +200,8 @@ export default function PrescriptionsPage() {
     <div>
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Prescriptions (RX)</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage customer prescriptions</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Prescriptions (RX)</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage customer prescriptions</p>
         </div>
         <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto">
           <Plus size={20} className="mr-2" />
@@ -211,7 +211,7 @@ export default function PrescriptionsPage() {
 
       {loading ? (
         <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400"></div>
         </div>
       ) : prescriptions.length === 0 ? (
         <EmptyState
@@ -247,7 +247,7 @@ export default function PrescriptionsPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Customer Info */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Customer Information</h3>
+            <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">Customer Information</h3>
             <div className="grid grid-cols-2 gap-4">
               <Input
                 label="Customer Name"
@@ -265,7 +265,7 @@ export default function PrescriptionsPage() {
 
           {/* Right Eye (OD) */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Right Eye (OD - Oculus Dexter)</h3>
+            <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">Right Eye (OD - Oculus Dexter)</h3>
             <div className="grid grid-cols-4 gap-4">
               <Input
                 label="Sphere (S)"
@@ -305,7 +305,7 @@ export default function PrescriptionsPage() {
 
           {/* Left Eye (OS) */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Left Eye (OS - Oculus Sinister)</h3>
+            <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">Left Eye (OS - Oculus Sinister)</h3>
             <div className="grid grid-cols-4 gap-4">
               <Input
                 label="Sphere (S)"
@@ -345,7 +345,7 @@ export default function PrescriptionsPage() {
 
           {/* PD */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Pupillary Distance (PD)</h3>
+            <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">Pupillary Distance (PD)</h3>
             <div className="grid grid-cols-3 gap-4">
               <Input
                 label="Distance PD (mm)"
@@ -376,7 +376,7 @@ export default function PrescriptionsPage() {
 
           {/* Additional Info */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Additional Information</h3>
+            <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">Additional Information</h3>
             <div className="grid grid-cols-2 gap-4">
               <Input
                 label="Prescription Type"
@@ -417,17 +417,17 @@ export default function PrescriptionsPage() {
         {viewingPrescription && (
           <div className="space-y-6">
             <div>
-              <h3 className="font-semibold mb-2">Customer</h3>
-              <p>{viewingPrescription.customerName || 'N/A'}</p>
+              <h3 className="font-semibold mb-2 text-slate-900 dark:text-white">Customer</h3>
+              <p className="text-slate-900 dark:text-slate-200">{viewingPrescription.customerName || 'N/A'}</p>
               {viewingPrescription.customerPhone && (
-                <p className="text-slate-600">{viewingPrescription.customerPhone}</p>
+                <p className="text-slate-600 dark:text-slate-400">{viewingPrescription.customerPhone}</p>
               )}
             </div>
 
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <h3 className="font-semibold mb-2">Right Eye (OD)</h3>
-                <div className="space-y-1 text-sm">
+                <h3 className="font-semibold mb-2 text-slate-900 dark:text-white">Right Eye (OD)</h3>
+                <div className="space-y-1 text-sm text-slate-900 dark:text-slate-200">
                   <p>Sphere: {viewingPrescription.odSphere ?? 'N/A'}</p>
                   <p>Cylinder: {viewingPrescription.odCylinder ?? 'N/A'}</p>
                   <p>Axis: {viewingPrescription.odAxis ? `${viewingPrescription.odAxis}°` : 'N/A'}</p>
@@ -435,8 +435,8 @@ export default function PrescriptionsPage() {
                 </div>
               </div>
               <div>
-                <h3 className="font-semibold mb-2">Left Eye (OS)</h3>
-                <div className="space-y-1 text-sm">
+                <h3 className="font-semibold mb-2 text-slate-900 dark:text-white">Left Eye (OS)</h3>
+                <div className="space-y-1 text-sm text-slate-900 dark:text-slate-200">
                   <p>Sphere: {viewingPrescription.osSphere ?? 'N/A'}</p>
                   <p>Cylinder: {viewingPrescription.osCylinder ?? 'N/A'}</p>
                   <p>Axis: {viewingPrescription.osAxis ? `${viewingPrescription.osAxis}°` : 'N/A'}</p>
@@ -446,8 +446,8 @@ export default function PrescriptionsPage() {
             </div>
 
             <div>
-              <h3 className="font-semibold mb-2">Pupillary Distance</h3>
-              <div className="text-sm space-y-1">
+              <h3 className="font-semibold mb-2 text-slate-900 dark:text-white">Pupillary Distance</h3>
+              <div className="text-sm space-y-1 text-slate-900 dark:text-slate-200">
                 <p>Distance: {viewingPrescription.pdDistance ? `${viewingPrescription.pdDistance}mm` : 'N/A'}</p>
                 <p>Near: {viewingPrescription.pdNear ? `${viewingPrescription.pdNear}mm` : 'N/A'}</p>
               </div>

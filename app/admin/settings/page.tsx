@@ -107,8 +107,8 @@ export default function SettingsPage() {
       header: 'Setting Key',
       render: (config: ConfigItem) => (
         <div className="flex items-center gap-2">
-          {config.key === 'combo_offer_status' && <Power size={16} className="text-purple-500" />}
-          <span className="font-medium">{config.key}</span>
+          {config.key === 'combo_offer_status' && <Power size={16} className="text-purple-500 dark:text-purple-400" />}
+          <span className="font-medium text-slate-900 dark:text-slate-200">{config.key}</span>
         </div>
       ),
     },
@@ -124,8 +124,8 @@ export default function SettingsPage() {
                 onClick={() => toggleComboStatus()}
                 className={`flex items-center gap-2 px-3 py-1 rounded-lg transition-colors ${
                   isOn
-                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/30'
+                    : 'bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                 }`}
               >
                 {isOn ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
@@ -134,14 +134,14 @@ export default function SettingsPage() {
             </div>
           );
         }
-        return <span className="text-slate-600">{config.value}</span>;
+        return <span className="text-slate-600 dark:text-slate-300">{config.value}</span>;
       },
     },
     {
       key: 'updatedAt',
       header: 'Last Updated',
       render: (config: ConfigItem) => (
-        <span className="text-sm text-slate-500">
+        <span className="text-sm text-slate-500 dark:text-slate-400">
           {new Date(config.updatedAt).toLocaleString()}
         </span>
       ),
@@ -153,20 +153,20 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Settings</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage system configuration and feature flags</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Settings</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage system configuration and feature flags</p>
         </div>
       </div>
 
       {/* Master Switch Section */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-              <Power className="text-purple-500" size={24} />
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <Power className="text-purple-500 dark:text-purple-400" size={24} />
               Combo Offer Master Switch
             </h2>
-            <p className="text-slate-600 mt-1">
+            <p className="text-slate-600 dark:text-slate-400 mt-1">
               Turn combo offers ON/OFF globally. When OFF, combo option is hidden from customers.
             </p>
           </div>
@@ -190,15 +190,15 @@ export default function SettingsPage() {
             </Button>
           )}
         </div>
-        <div className="bg-slate-50 rounded-lg p-4">
+        <div className="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4">
           <div className="flex items-center gap-3">
             <div className="flex-1">
-              <div className="font-medium text-slate-900">Current Status</div>
-              <div className="text-sm text-slate-600 mt-1">
+              <div className="font-medium text-slate-900 dark:text-white">Current Status</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                 {configs.find(c => c.key === 'combo_offer_status')?.value === 'ON' ? (
-                  <span className="text-green-700 font-semibold">✅ Combo Offers are ENABLED</span>
+                  <span className="text-green-700 dark:text-green-300 font-semibold">✅ Combo Offers are ENABLED</span>
                 ) : (
-                  <span className="text-gray-700 font-semibold">❌ Combo Offers are DISABLED</span>
+                  <span className="text-gray-700 dark:text-slate-300 font-semibold">❌ Combo Offers are DISABLED</span>
                 )}
               </div>
             </div>
@@ -207,9 +207,9 @@ export default function SettingsPage() {
       </div>
 
       {/* All Settings Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="p-6 border-b border-slate-200">
-          <h2 className="text-xl font-semibold text-slate-900">All Settings</h2>
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">All Settings</h2>
         </div>
         <DataTable
           columns={columns}
@@ -237,7 +237,7 @@ export default function SettingsPage() {
         {editingConfig && (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Value
               </label>
               {editingConfig.key === 'combo_offer_status' ? (

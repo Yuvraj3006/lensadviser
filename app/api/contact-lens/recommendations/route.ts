@@ -171,15 +171,23 @@ export async function POST(request: NextRequest) {
     // Sort by match score
     scoredProducts.sort((a: any, b: any) => b.matchScore - a.matchScore);
 
-    // Categorize into 4 recommendation types
+    // Categorize into 4 recommendation types (ensuring unique products)
+    const usedProductIds = new Set<string>();
+    
     const bestMatch = scoredProducts[0] || null;
+    if (bestMatch) usedProductIds.add(bestMatch.id);
+    
     const premiumComfort = scoredProducts.find((p: any) => 
-      p.material?.toLowerCase().includes('silicone') && p.matchScore > 70
-    ) || scoredProducts[1] || null;
+      !usedProductIds.has(p.id) && p.material?.toLowerCase().includes('silicone') && p.matchScore > 70
+    ) || scoredProducts.find((p: any) => !usedProductIds.has(p.id)) || null;
+    if (premiumComfort) usedProductIds.add(premiumComfort.id);
+    
     const valuePick = scoredProducts.find((p: any) => 
-      p.offerPrice < p.mrp * 0.85 && p.matchScore > 60
-    ) || scoredProducts[2] || null;
-    const budgetPick = scoredProducts[scoredProducts.length - 1] || null;
+      !usedProductIds.has(p.id) && p.offerPrice < p.mrp * 0.85 && p.matchScore > 60
+    ) || scoredProducts.find((p: any) => !usedProductIds.has(p.id)) || null;
+    if (valuePick) usedProductIds.add(valuePick.id);
+    
+    const budgetPick = scoredProducts.find((p: any) => !usedProductIds.has(p.id)) || null;
 
     const recommendations = [
       { type: 'BEST_MATCH', product: bestMatch },

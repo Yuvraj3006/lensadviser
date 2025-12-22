@@ -80,24 +80,24 @@ export default function OfferSimulatorPage() {
   };
 
   return (
-    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 flex items-center gap-2 sm:gap-3">
-            <Calculator size={24} className="sm:w-8 sm:h-8 text-blue-600" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2 sm:gap-3">
+            <Calculator size={24} className="sm:w-8 sm:h-8 text-blue-600 dark:text-blue-400" />
             Offer Simulator
           </h1>
-          <p className="text-sm sm:text-base text-slate-600">Test offer calculations for different frame and lens combinations</p>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">Test offer calculations for different frame and lens combinations</p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           {/* Left: Input Form */}
           <Card className="p-6">
-            <h2 className="text-xl font-semibold text-slate-900 mb-6">Input Parameters</h2>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-6">Input Parameters</h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Frame Brand</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Frame Brand</label>
                 <Input
                   value={formData.frameBrand}
                   onChange={(e) => setFormData({ ...formData, frameBrand: e.target.value })}
@@ -106,7 +106,7 @@ export default function OfferSimulatorPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Frame MRP (₹)</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Frame MRP (₹)</label>
                 <Input
                   type="number"
                   value={formData.frameMRP}
@@ -116,7 +116,7 @@ export default function OfferSimulatorPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Frame Sub-Category</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Frame Sub-Category</label>
                 <Input
                   value={formData.frameSubCategory}
                   onChange={(e) => setFormData({ ...formData, frameSubCategory: e.target.value })}
@@ -125,7 +125,7 @@ export default function OfferSimulatorPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Lens SKU</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Lens SKU</label>
                 <Input
                   value={formData.lensSKU}
                   onChange={(e) => setFormData({ ...formData, lensSKU: e.target.value })}
@@ -134,7 +134,7 @@ export default function OfferSimulatorPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Lens Brand Line</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Lens Brand Line</label>
                 <Input
                   value={formData.lensBrandLine}
                   onChange={(e) => setFormData({ ...formData, lensBrandLine: e.target.value })}
@@ -143,7 +143,7 @@ export default function OfferSimulatorPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Lens Price (₹)</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Lens Price (₹)</label>
                 <Input
                   type="number"
                   value={formData.lensPrice}
@@ -153,7 +153,7 @@ export default function OfferSimulatorPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Customer Category</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Customer Category</label>
                 <Select
                   value={formData.customerCategory}
                   onChange={(e) => setFormData({ ...formData, customerCategory: e.target.value })}
@@ -169,7 +169,7 @@ export default function OfferSimulatorPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Coupon Code</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Coupon Code</label>
                 <Input
                   value={formData.couponCode}
                   onChange={(e) => setFormData({ ...formData, couponCode: e.target.value })}
@@ -193,21 +193,21 @@ export default function OfferSimulatorPage() {
               <>
                 {/* Price Breakdown */}
                 <Card className="p-6">
-                  <h2 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <DollarSign size={24} className="text-green-600" />
+                  <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <DollarSign size={24} className="text-green-600 dark:text-green-400" />
                     Price Breakdown
                   </h2>
                   
                   <div className="space-y-3">
                     <div className="flex justify-between">
-                      <span className="text-slate-600">Base Total:</span>
-                      <span className="font-semibold">₹{result.result.baseTotal.toLocaleString()}</span>
+                      <span className="text-slate-600 dark:text-slate-400">Base Total:</span>
+                      <span className="font-semibold text-slate-900 dark:text-slate-200">₹{result.result.baseTotal.toLocaleString()}</span>
                     </div>
                     
                     {result.result.offersApplied && result.result.offersApplied.length > 0 && (
                       <>
                         {result.result.offersApplied.map((offer: any, idx: number) => (
-                          <div key={idx} className="flex justify-between text-green-600">
+                          <div key={idx} className="flex justify-between text-green-600 dark:text-green-400">
                             <span>{offer.description}:</span>
                             <span className="font-semibold">-₹{offer.savings.toLocaleString()}</span>
                           </div>
@@ -216,29 +216,29 @@ export default function OfferSimulatorPage() {
                     )}
 
                     {result.result.categoryDiscount && (
-                      <div className="flex justify-between text-blue-600">
+                      <div className="flex justify-between text-blue-600 dark:text-blue-400">
                         <span>Category Discount:</span>
                         <span className="font-semibold">-₹{result.result.categoryDiscount.discountAmount?.toLocaleString() || 0}</span>
                       </div>
                     )}
 
                     {result.result.couponDiscount && (
-                      <div className="flex justify-between text-purple-600">
+                      <div className="flex justify-between text-purple-600 dark:text-purple-400">
                         <span>Coupon Discount:</span>
                         <span className="font-semibold">-₹{result.result.couponDiscount.discountAmount?.toLocaleString() || 0}</span>
                       </div>
                     )}
 
-                    <div className="pt-3 border-t border-slate-300 flex justify-between">
-                      <span className="text-lg font-bold text-slate-900">Final Payable:</span>
-                      <span className="text-xl font-bold text-green-600">
+                    <div className="pt-3 border-t border-slate-300 dark:border-slate-700 flex justify-between">
+                      <span className="text-lg font-bold text-slate-900 dark:text-white">Final Payable:</span>
+                      <span className="text-xl font-bold text-green-600 dark:text-green-400">
                         ₹{result.result.finalPayable.toLocaleString()}
                       </span>
                     </div>
 
-                    <div className="pt-2 flex justify-between text-slate-600">
+                    <div className="pt-2 flex justify-between text-slate-600 dark:text-slate-400">
                       <span>Total Savings:</span>
-                      <span className="font-semibold text-green-600">
+                      <span className="font-semibold text-green-600 dark:text-green-400">
                         ₹{result.result.savings.toLocaleString()}
                       </span>
                     </div>
@@ -248,21 +248,21 @@ export default function OfferSimulatorPage() {
                 {/* Applicable Offers */}
                 {result.applicableOffers && result.applicableOffers.length > 0 && (
                   <Card className="p-6">
-                    <h2 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                      <Tag size={24} className="text-blue-600" />
+                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                      <Tag size={24} className="text-blue-600 dark:text-blue-400" />
                       Applicable Offers
                     </h2>
                     
                     <div className="space-y-2">
                       {result.applicableOffers.map((offer: any, idx: number) => (
-                        <div key={idx} className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <div key={idx} className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="font-semibold text-slate-900">{offer.title}</p>
-                              <p className="text-sm text-slate-600">{offer.description}</p>
+                              <p className="font-semibold text-slate-900 dark:text-white">{offer.title}</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">{offer.description}</p>
                               <Badge className="mt-1">{offer.type}</Badge>
                             </div>
-                            <span className="text-xs text-slate-500">Priority: {offer.priority}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">Priority: {offer.priority}</span>
                           </div>
                         </div>
                       ))}
@@ -273,14 +273,14 @@ export default function OfferSimulatorPage() {
                 {/* Price Components */}
                 {result.result.priceComponents && result.result.priceComponents.length > 0 && (
                   <Card className="p-6">
-                    <h2 className="text-xl font-semibold text-slate-900 mb-4">Price Components</h2>
+                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">Price Components</h2>
                     <div className="space-y-2">
                       {result.result.priceComponents.map((component: any, idx: number) => (
                         <div key={idx} className="flex justify-between text-sm">
-                          <span className={component.amount < 0 ? 'text-green-600' : 'text-slate-600'}>
+                          <span className={component.amount < 0 ? 'text-green-600 dark:text-green-400' : 'text-slate-600 dark:text-slate-400'}>
                             {component.label}:
                           </span>
-                          <span className={component.amount < 0 ? 'text-green-600 font-semibold' : 'font-semibold'}>
+                          <span className={component.amount < 0 ? 'text-green-600 dark:text-green-400 font-semibold' : 'font-semibold text-slate-900 dark:text-slate-200'}>
                             {component.amount < 0 ? '-' : ''}₹{Math.abs(component.amount).toLocaleString()}
                           </span>
                         </div>
@@ -291,8 +291,8 @@ export default function OfferSimulatorPage() {
               </>
             ) : (
               <Card className="p-12 text-center">
-                <Calculator size={48} className="mx-auto text-slate-400 mb-4" />
-                <p className="text-slate-600">Enter parameters and click "Simulate Offers" to see results</p>
+                <Calculator size={48} className="mx-auto text-slate-400 dark:text-slate-500 mb-4" />
+                <p className="text-slate-600 dark:text-slate-400">Enter parameters and click "Simulate Offers" to see results</p>
               </Card>
             )}
           </div>

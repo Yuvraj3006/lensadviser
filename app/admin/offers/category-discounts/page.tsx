@@ -185,15 +185,15 @@ export default function CategoryDiscountsPage() {
   ];
 
   if (loading) {
-    return <div className="text-center py-12">Loading...</div>;
+    return <div className="text-center py-12 text-slate-900 dark:text-white">Loading...</div>;
   }
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Category Discounts</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage customer category discounts</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Category Discounts</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage customer category discounts</p>
         </div>
         <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus size={20} className="mr-2" />
@@ -273,8 +273,9 @@ export default function CategoryDiscountsPage() {
               type="checkbox"
               checked={formData.isActive ?? true}
               onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+              className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded focus:ring-blue-500"
             />
-            <span>Active</span>
+            <span className="text-slate-900 dark:text-white">Active</span>
           </label>
 
           <div className="flex justify-end gap-3 pt-4">
@@ -294,7 +295,7 @@ export default function CategoryDiscountsPage() {
         onClose={() => setDeleteConfirm(null)}
         title="Delete Category Discount"
       >
-        <p className="mb-4">Are you sure you want to delete this discount?</p>
+        <p className="mb-4 text-slate-900 dark:text-white">Are you sure you want to delete this discount?</p>
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>
             Cancel

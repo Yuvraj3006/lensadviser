@@ -448,7 +448,7 @@ export default function LensProductsPage() {
       key: 'itCode',
       header: 'IT Code',
       render: (product) => (
-        <span className="font-mono text-sm text-slate-600">{product.itCode}</span>
+        <span className="font-mono text-sm text-slate-600 dark:text-slate-300">{product.itCode}</span>
       ),
     },
     {
@@ -456,8 +456,8 @@ export default function LensProductsPage() {
       header: 'Product Name',
       render: (product) => (
         <div>
-          <div className="font-medium text-slate-900">{product.name}</div>
-          <div className="text-sm text-slate-500">{product.lensBrand?.name || product.brandLine || 'N/A'}</div>
+          <div className="font-medium text-slate-900 dark:text-slate-200">{product.name}</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">{product.lensBrand?.name || product.brandLine || 'N/A'}</div>
         </div>
       ),
     },
@@ -465,7 +465,7 @@ export default function LensProductsPage() {
       key: 'type',
       header: 'Type',
       render: (product) => (
-        <span className="text-slate-600">{product.type.replace('_', ' ')}</span>
+        <span className="text-slate-600 dark:text-slate-300">{product.type.replace('_', ' ')}</span>
       ),
     },
     {
@@ -483,7 +483,7 @@ export default function LensProductsPage() {
           }
           return index;
         };
-        return <span className="text-slate-600">{formatIndex(product.index)}</span>;
+        return <span className="text-slate-600 dark:text-slate-300">{formatIndex(product.index)}</span>;
       },
     },
     {
@@ -492,11 +492,11 @@ export default function LensProductsPage() {
       render: (product) => (
         <div className="text-sm">
           {product.mrp && product.mrp > 0 && (
-            <div className="text-slate-500 line-through">MRP: ₹{product.mrp.toLocaleString()}</div>
+            <div className="text-slate-500 dark:text-slate-400 line-through">MRP: ₹{product.mrp.toLocaleString()}</div>
           )}
-          <div>Offer Price: ₹{(product.baseOfferPrice || (product as any).offerPrice || 0).toLocaleString()}</div>
+          <div className="text-slate-900 dark:text-slate-200">Offer Price: ₹{(product.baseOfferPrice || (product as any).offerPrice || 0).toLocaleString()}</div>
           {product.addOnPrice && product.addOnPrice > 0 && (
-            <div className="text-slate-500">Add-On: ₹{product.addOnPrice.toLocaleString()}</div>
+            <div className="text-slate-500 dark:text-slate-400">Add-On: ₹{product.addOnPrice.toLocaleString()}</div>
           )}
         </div>
       ),
@@ -508,8 +508,8 @@ export default function LensProductsPage() {
         <span
           className={`px-2 py-1 rounded-full text-xs font-medium ${
             product.yopoEligible
-              ? 'bg-green-100 text-green-700'
-              : 'bg-gray-100 text-gray-700'
+              ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+              : 'bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-slate-300'
           }`}
         >
           {product.yopoEligible ? 'Yes' : 'No'}
@@ -554,8 +554,8 @@ export default function LensProductsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Lens Products</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage lens products with type, index, and Rx ranges</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Lens Products</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage lens products with type, index, and Rx ranges</p>
         </div>
         <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus size={20} className="mr-2" />
@@ -563,10 +563,10 @@ export default function LensProductsPage() {
         </Button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
         <div className="mb-4 space-y-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500" size={20} />
             <Input
               placeholder="Search by name or IT code..."
               value={search}
@@ -667,7 +667,7 @@ export default function LensProductsPage() {
         <div className="space-y-4 max-h-[70vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 IT Code *
               </label>
               <Input
@@ -677,7 +677,7 @@ export default function LensProductsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Product Name *
               </label>
               <Input
@@ -690,7 +690,7 @@ export default function LensProductsPage() {
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Lens Brand *
               </label>
               <Select
@@ -703,7 +703,7 @@ export default function LensProductsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Lens Type *
               </label>
               <Select
@@ -718,7 +718,7 @@ export default function LensProductsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Index *
               </label>
               <Select
@@ -738,7 +738,7 @@ export default function LensProductsPage() {
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Tint Option *
               </label>
               <Select
@@ -753,7 +753,7 @@ export default function LensProductsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Category *
               </label>
               <Select
@@ -768,7 +768,7 @@ export default function LensProductsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Delivery Days *
               </label>
               <Input
@@ -782,15 +782,15 @@ export default function LensProductsPage() {
           </div>
 
           <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Features</h3>
-            <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-200 rounded-lg p-3">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Features</h3>
+            <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
               {features.length === 0 ? (
-                <p className="text-sm text-slate-500">Loading features...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading features...</p>
               ) : (
                 features.map((feature) => (
                   <label
                     key={feature.id}
-                    className="flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer"
+                    className="flex items-center gap-3 p-2 rounded hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer"
                   >
                     <input
                       type="checkbox"
@@ -808,14 +808,14 @@ export default function LensProductsPage() {
                           });
                         }
                       }}
-                      className="w-4 h-4 rounded border-slate-300"
+                      className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-800"
                     />
                     <div className="flex-1">
-                      <span className="font-medium text-slate-900 text-sm">
+                      <span className="font-medium text-slate-900 dark:text-slate-200 text-sm">
                         {feature.code} - {feature.name}
                       </span>
                       {feature.description && (
-                        <p className="text-xs text-slate-500 mt-0.5">{feature.description}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{feature.description}</p>
                       )}
                     </div>
                   </label>
@@ -825,24 +825,24 @@ export default function LensProductsPage() {
           </div>
 
           {/* Benefits Section - Required for Recommendation Scoring */}
-          <div className="border-t pt-4">
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-700">Benefits (Required for Scoring)</h3>
-              <span className="text-xs text-slate-500">Score: 0 = No benefit, 1 = Weak, 2 = Medium, 3 = Strong</span>
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Benefits (Required for Scoring)</h3>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Score: 0 = No benefit, 1 = Weak, 2 = Medium, 3 = Strong</span>
             </div>
-            <div className="max-h-64 overflow-y-auto space-y-3 border border-slate-200 rounded-lg p-4">
+            <div className="max-h-64 overflow-y-auto space-y-3 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
               {benefits.length === 0 ? (
-                <p className="text-sm text-slate-500">Loading benefits...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading benefits...</p>
               ) : (
                 benefits.map((benefit) => (
-                  <div key={benefit.id} className="flex items-center gap-4 p-2 rounded hover:bg-slate-50">
+                  <div key={benefit.id} className="flex items-center gap-4 p-2 rounded hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-semibold text-slate-700 text-sm">{benefit.code}</span>
-                        <span className="font-medium text-slate-900 text-sm">{benefit.name}</span>
+                        <span className="font-mono font-semibold text-slate-700 dark:text-slate-300 text-sm">{benefit.code}</span>
+                        <span className="font-medium text-slate-900 dark:text-slate-200 text-sm">{benefit.name}</span>
                       </div>
                       {benefit.description && (
-                        <p className="text-xs text-slate-500 mt-0.5">{benefit.description}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{benefit.description}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -865,20 +865,20 @@ export default function LensProductsPage() {
                         className="w-20 text-center"
                         placeholder="0"
                       />
-                      <span className="text-xs text-slate-500 w-8">/ 3</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 w-8">/ 3</span>
                     </div>
                   </div>
                 ))
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-2">
-              💡 <strong>Important:</strong> Benefits are used for recommendation scoring. At least one benefit with score &gt; 0 is recommended.
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+              💡 <strong className="text-slate-700 dark:text-slate-300">Important:</strong> Benefits are used for recommendation scoring. At least one benefit with score &gt; 0 is recommended.
             </p>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 MRP *
               </label>
               <Input
@@ -888,10 +888,10 @@ export default function LensProductsPage() {
                 placeholder="0"
                 required
               />
-              <p className="text-xs text-slate-500 mt-1">Maximum Retail Price (shown to customers)</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Maximum Retail Price (shown to customers)</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Base Offer Price *
               </label>
               <Input
@@ -901,10 +901,10 @@ export default function LensProductsPage() {
                 placeholder="0"
                 required
               />
-              <p className="text-xs text-slate-500 mt-1">Actual selling price (offer price)</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Actual selling price (offer price)</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Add-On Price
               </label>
               <Input
@@ -913,13 +913,13 @@ export default function LensProductsPage() {
                 onChange={(e) => setFormData({ ...formData, addOnPrice: parseFloat(e.target.value) || 0 })}
                 placeholder="0"
               />
-              <p className="text-xs text-slate-500 mt-1">Additional price for add-on features</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Additional price for add-on features</p>
             </div>
           </div>
 
-          <div className="border-t pt-4">
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-700">Rx Ranges with Add-on Prices</h3>
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Rx Ranges with Add-on Prices</h3>
               <Button
                 type="button"
                 variant="outline"
@@ -949,9 +949,9 @@ export default function LensProductsPage() {
             
             <div className="space-y-4">
               {formData.rxRanges.map((rxRange, index) => (
-                <div key={index} className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                <div key={index} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-700/30">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-slate-700">RX Range #{index + 1}</span>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">RX Range #{index + 1}</span>
                     {formData.rxRanges.length > 1 && (
                       <Button
                         type="button"
@@ -971,7 +971,7 @@ export default function LensProductsPage() {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         SPH Min *
                       </label>
                       <Input
@@ -986,7 +986,7 @@ export default function LensProductsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         SPH Max *
                       </label>
                       <Input
@@ -1001,7 +1001,7 @@ export default function LensProductsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         CYL Min *
                       </label>
                       <Input
@@ -1014,10 +1014,10 @@ export default function LensProductsPage() {
                           setFormData({ ...formData, rxRanges: newRanges });
                         }}
                       />
-                      <p className="text-xs text-slate-500 mt-1">Usually negative (e.g., -4)</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Usually negative (e.g., -4)</p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         CYL Max *
                       </label>
                       <Input
@@ -1030,12 +1030,12 @@ export default function LensProductsPage() {
                           setFormData({ ...formData, rxRanges: newRanges });
                         }}
                       />
-                      <p className="text-xs text-slate-500 mt-1">Usually positive (e.g., 4)</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Usually positive (e.g., 4)</p>
                     </div>
                     {(formData.type === 'PROGRESSIVE' || formData.type === 'BIFOCAL') && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             ADD Min (Optional)
                           </label>
                           <Input
@@ -1051,7 +1051,7 @@ export default function LensProductsPage() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             ADD Max (Optional)
                           </label>
                           <Input
@@ -1069,7 +1069,7 @@ export default function LensProductsPage() {
                       </>
                     )}
                     <div className="col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         Add-on Price (₹) *
                       </label>
                       <Input
@@ -1084,7 +1084,7 @@ export default function LensProductsPage() {
                         }}
                         placeholder="0"
                       />
-                      <p className="text-xs text-slate-500 mt-1">Extra charge for this RX range</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Extra charge for this RX range</p>
                     </div>
                   </div>
                 </div>
@@ -1098,9 +1098,9 @@ export default function LensProductsPage() {
               id="yopoEligible"
               checked={formData.yopoEligible}
               onChange={(e) => setFormData({ ...formData, yopoEligible: e.target.checked })}
-              className="w-4 h-4 rounded border-slate-300"
+              className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-800"
             />
-            <label htmlFor="yopoEligible" className="text-sm font-medium text-slate-700">
+            <label htmlFor="yopoEligible" className="text-sm font-medium text-slate-700 dark:text-slate-300">
               YOPO Eligible
             </label>
           </div>
@@ -1111,14 +1111,14 @@ export default function LensProductsPage() {
               id="comboAllowed"
               checked={formData.comboAllowed}
               onChange={(e) => setFormData({ ...formData, comboAllowed: e.target.checked })}
-              className="w-4 h-4 rounded border-slate-300"
+              className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-800"
             />
-            <label htmlFor="comboAllowed" className="text-sm font-medium text-slate-700">
+            <label htmlFor="comboAllowed" className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Combo Lens
             </label>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t">
+          <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">
             <Button
               variant="outline"
               onClick={() => setIsModalOpen(false)}

@@ -43,20 +43,20 @@ export function Badge({
       cyan: 'border border-cyan-600 text-cyan-600',
     },
     soft: {
-      blue: 'bg-blue-100 text-blue-800',
-      green: 'bg-green-100 text-green-800',
-      red: 'bg-red-100 text-red-800',
-      yellow: 'bg-yellow-100 text-yellow-800',
-      gray: 'bg-slate-100 text-slate-800',
-      purple: 'bg-purple-100 text-purple-800',
-      cyan: 'bg-cyan-100 text-cyan-800',
+      blue: 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300',
+      green: 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300',
+      red: 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300',
+      yellow: 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300',
+      gray: 'bg-slate-100 dark:bg-slate-700/50 text-slate-800 dark:text-slate-300',
+      purple: 'bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300',
+      cyan: 'bg-cyan-100 dark:bg-cyan-900/20 text-cyan-800 dark:text-cyan-300',
     },
     // Convenience variants
-    success: 'bg-green-100 text-green-800',
-    secondary: 'bg-slate-100 text-slate-800',
-    warning: 'bg-yellow-100 text-yellow-800',
-    danger: 'bg-red-100 text-red-800',
-    info: 'bg-blue-100 text-blue-800',
+    success: 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300',
+    secondary: 'bg-slate-100 dark:bg-slate-700/50 text-slate-800 dark:text-slate-300',
+    warning: 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300',
+    danger: 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300',
+    info: 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300',
   };
 
   // Handle convenience variants (success, secondary, etc.)

@@ -149,9 +149,9 @@ export default function SessionsPage() {
       header: 'Customer',
       render: (session) => (
         <div>
-          <p className="font-medium">{session.customerName || 'Anonymous'}</p>
+          <p className="font-medium text-slate-900 dark:text-slate-200">{session.customerName || 'Anonymous'}</p>
           {session.customerPhone && (
-            <p className="text-xs text-slate-500">{session.customerPhone}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{session.customerPhone}</p>
           )}
         </div>
       ),
@@ -169,28 +169,28 @@ export default function SessionsPage() {
       key: 'storeName',
       header: 'Store',
       render: (session) => (
-        <span className="text-sm">{session.storeName}</span>
+        <span className="text-sm text-slate-900 dark:text-slate-200">{session.storeName}</span>
       ),
     },
     {
       key: 'userName',
       header: 'Staff',
       render: (session) => (
-        <span className="text-sm">{session.userName}</span>
+        <span className="text-sm text-slate-900 dark:text-slate-200">{session.userName}</span>
       ),
     },
     {
       key: 'answerCount',
       header: 'Answers',
       render: (session) => (
-        <span className="text-sm font-medium">{session.answerCount}</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{session.answerCount}</span>
       ),
     },
     {
       key: 'recommendationCount',
       header: 'Recommendations',
       render: (session) => (
-        <span className="text-sm font-medium">{session.recommendationCount}</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{session.recommendationCount}</span>
       ),
     },
     {
@@ -206,7 +206,7 @@ export default function SessionsPage() {
       key: 'startedAt',
       header: 'Started',
       render: (session) => (
-        <span className="text-sm text-slate-600">
+        <span className="text-sm text-slate-600 dark:text-slate-400">
           {format(new Date(session.startedAt), 'MMM d, h:mm a')}
         </span>
       ),
@@ -218,8 +218,8 @@ export default function SessionsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate">Sessions</h1>
-          <p className="text-xs sm:text-sm lg:text-base text-slate-600 mt-1">View customer questionnaire sessions</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white truncate">Sessions</h1>
+          <p className="text-xs sm:text-sm lg:text-base text-slate-600 dark:text-slate-400 mt-1">View customer questionnaire sessions</p>
         </div>
       </div>
 
@@ -251,7 +251,7 @@ export default function SessionsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto w-full">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-x-auto w-full">
         {sessions.length === 0 && !loading ? (
           <EmptyState
             icon={<History size={48} />}
@@ -287,51 +287,53 @@ export default function SessionsPage() {
         size="lg"
       >
         {detailLoading ? (
-          <div className="text-center py-8">Loading...</div>
+          <div className="text-center py-8 text-slate-900 dark:text-white">Loading...</div>
         ) : selectedSession ? (
           <div className="space-y-4 sm:space-y-6 overflow-y-auto max-h-[85vh] pr-2">
             {/* Customer Info */}
             <div>
-              <h3 className="font-semibold text-slate-900 mb-2 text-sm sm:text-base">Customer Information</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-2 text-sm sm:text-base">Customer Information</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 lg:gap-4 text-xs sm:text-sm">
                 <div>
-                  <span className="text-slate-600">Name:</span>
-                  <span className="ml-2 font-medium block sm:inline">
+                  <span className="text-slate-600 dark:text-slate-400">Name:</span>
+                  <span className="ml-2 font-medium block sm:inline text-slate-900 dark:text-white">
                     {selectedSession.customerName || 'Anonymous'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-600">Phone:</span>
-                  <span className="ml-2 font-medium block sm:inline">
+                  <span className="text-slate-600 dark:text-slate-400">Phone:</span>
+                  <span className="ml-2 font-medium block sm:inline text-slate-900 dark:text-white">
                     {selectedSession.customerPhone || '-'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-600">Store:</span>
-                  <span className="ml-2 font-medium block sm:inline">{selectedSession.store.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400">Store:</span>
+                  <span className="ml-2 font-medium block sm:inline text-slate-900 dark:text-white">{selectedSession.store.name}</span>
                 </div>
                 <div>
-                  <span className="text-slate-600">Staff:</span>
-                  <span className="ml-2 font-medium block sm:inline">{selectedSession.user.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400">Staff:</span>
+                  <span className="ml-2 font-medium block sm:inline text-slate-900 dark:text-white">{selectedSession.user.name}</span>
                 </div>
               </div>
             </div>
 
             {/* Answers */}
             <div>
-              <h3 className="font-semibold text-slate-900 mb-2 text-sm sm:text-base">
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-2 text-sm sm:text-base">
                 Questionnaire Answers ({selectedSession.answers.length})
               </h3>
               <div className="space-y-2">
                 {selectedSession.answers.map((answer, index) => (
                   <div
                     key={index}
-                    className="p-2 sm:p-3 bg-slate-50 rounded-lg text-xs sm:text-sm"
+                    className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-xs sm:text-sm"
                   >
-                    <p className="font-medium text-slate-700 break-words">
-                      {answer.question.textEn}
+                    <p className="font-medium text-slate-700 dark:text-slate-300 break-words">
+                      {answer.question?.textEn || 'Question not available'}
                     </p>
-                    <p className="text-slate-600 mt-1 break-words">→ {answer.option.textEn}</p>
+                    {answer.option && (
+                      <p className="text-slate-600 dark:text-slate-400 mt-1 break-words">→ {answer.option.textEn}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -339,7 +341,7 @@ export default function SessionsPage() {
 
             {/* Recommendations */}
             <div>
-              <h3 className="font-semibold text-slate-900 mb-2 text-sm sm:text-base">
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-2 text-sm sm:text-base">
                 Product Recommendations ({(selectedSession.recommendations || []).length})
               </h3>
               <div className="space-y-2">
@@ -349,32 +351,32 @@ export default function SessionsPage() {
                     key={rec.rank}
                     className={`p-2 sm:p-3 rounded-lg border-2 ${
                       rec.isSelected
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-slate-200 bg-white'
+                        ? 'border-green-500 dark:border-green-700 bg-green-50 dark:bg-green-900/20'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
                     }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                          <span className="font-semibold text-slate-900 text-xs sm:text-sm">
+                          <span className="font-semibold text-slate-900 dark:text-white text-xs sm:text-sm">
                             #{rec.rank}
                           </span>
-                          <span className="font-medium break-words text-xs sm:text-sm">{rec.product.name}</span>
+                          <span className="font-medium break-words text-xs sm:text-sm text-slate-900 dark:text-white">{rec.product.name}</span>
                           {rec.isSelected && (
                             <Badge color="green" size="sm" className="text-xs">
                               SELECTED
                             </Badge>
                           )}
                         </div>
-                        <p className="text-xs text-slate-500 mt-1 break-words">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 break-words">
                           {rec.product.brand} • SKU: {rec.product.sku}
                         </p>
                       </div>
                       <div className="text-left sm:text-right flex-shrink-0">
-                        <div className="font-bold text-blue-600 text-xs sm:text-sm">
+                        <div className="font-bold text-blue-600 dark:text-blue-400 text-xs sm:text-sm">
                           {rec.matchScore.toFixed(1)}% Match
                         </div>
-                        <div className="text-xs sm:text-sm text-slate-600">
+                        <div className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
                           ₹{rec.product.basePrice}
                         </div>
                       </div>
@@ -382,7 +384,7 @@ export default function SessionsPage() {
                   </div>
                   ))
                 ) : (
-                  <div className="text-center py-4 text-slate-500 text-sm">
+                  <div className="text-center py-4 text-slate-500 dark:text-slate-400 text-sm">
                     No recommendations found for this session
                   </div>
                 )}

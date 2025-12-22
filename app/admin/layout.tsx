@@ -53,7 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex min-h-safe-screen bg-slate-50">
+    <div className="flex min-h-safe-screen bg-slate-50 dark:bg-slate-900">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isMobile={isMobile} />
       
       {/* Mobile Menu Button */}
@@ -72,7 +72,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               return !prev;
             });
           }}
-          className="lg:hidden fixed top-4 left-4 z-[60] p-3 bg-slate-900 text-white rounded-lg shadow-lg hover:bg-slate-800 active:bg-slate-700 transition-colors touch-manipulation cursor-pointer"
+          className="lg:hidden fixed top-4 left-4 z-[60] p-3 bg-slate-900 dark:bg-slate-800 text-white rounded-lg shadow-lg hover:bg-slate-800 dark:hover:bg-slate-700 active:bg-slate-700 dark:active:bg-slate-600 transition-colors touch-manipulation cursor-pointer"
           aria-label="Toggle menu"
           type="button"
           style={{ WebkitTapHighlightColor: 'transparent' }}

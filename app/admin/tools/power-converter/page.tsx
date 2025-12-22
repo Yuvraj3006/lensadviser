@@ -181,29 +181,29 @@ export default function PowerConverterPage() {
   };
 
   return (
-    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 lg:p-8">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4 sm:p-6 lg:p-8 border border-slate-200 dark:border-slate-700">
           <div className="mb-6 sm:mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 flex items-center gap-2 sm:gap-3">
-              <Glasses size={24} className="sm:w-8 sm:h-8 text-blue-600" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2 sm:gap-3">
+              <Glasses size={24} className="sm:w-8 sm:h-8 text-blue-600 dark:text-blue-400" />
               Contact Lens Power Converter
             </h1>
-            <p className="text-sm sm:text-base text-slate-600">Convert spectacle power to contact lens power and find compatible products</p>
+            <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">Convert spectacle power to contact lens power and find compatible products</p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8">
             {/* Left: Power Input */}
             <div className="space-y-6">
-              <div className="bg-slate-50 rounded-lg p-6">
-                <h2 className="text-xl font-semibold text-slate-900 mb-4">Enter Spectacle Power</h2>
+              <div className="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">Enter Spectacle Power</h2>
                 
                 {/* Right Eye (OD) */}
                 <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-3">Right Eye (OD)</h3>
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Right Eye (OD)</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-slate-600 mb-1">SPH</label>
+                      <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">SPH</label>
                       <Input
                         type="number"
                         step="0.25"
@@ -213,7 +213,7 @@ export default function PowerConverterPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-600 mb-1">CYL</label>
+                      <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">CYL</label>
                       <Input
                         type="number"
                         step="0.25"
@@ -223,7 +223,7 @@ export default function PowerConverterPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-600 mb-1">AXIS</label>
+                      <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">AXIS</label>
                       <Input
                         type="number"
                         step="1"
@@ -233,7 +233,7 @@ export default function PowerConverterPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-600 mb-1">ADD</label>
+                      <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">ADD</label>
                       <Input
                         type="number"
                         step="0.25"
@@ -247,10 +247,10 @@ export default function PowerConverterPage() {
 
                 {/* Left Eye (OS) */}
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-700 mb-3">Left Eye (OS)</h3>
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Left Eye (OS)</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-slate-600 mb-1">SPH</label>
+                      <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">SPH</label>
                       <Input
                         type="number"
                         step="0.25"
@@ -260,7 +260,7 @@ export default function PowerConverterPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-600 mb-1">CYL</label>
+                      <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">CYL</label>
                       <Input
                         type="number"
                         step="0.25"
@@ -270,7 +270,7 @@ export default function PowerConverterPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-600 mb-1">AXIS</label>
+                      <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">AXIS</label>
                       <Input
                         type="number"
                         step="1"
@@ -280,7 +280,7 @@ export default function PowerConverterPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-600 mb-1">ADD</label>
+                      <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">ADD</label>
                       <Input
                         type="number"
                         step="0.25"
@@ -303,17 +303,17 @@ export default function PowerConverterPage() {
 
               {/* Converted Power Display */}
               {convertedPower && (
-                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6">
-                  <h2 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <CheckCircle size={24} className="text-green-600" />
+                <div className="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 rounded-lg p-6">
+                  <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <CheckCircle size={24} className="text-green-600 dark:text-green-400" />
                     Converted Contact Lens Power
                   </h2>
                   <div className="space-y-4">
                     <div>
-                      <span className="text-sm font-semibold text-slate-700">Right Eye (OD):</span>
-                      <div className="mt-1 text-lg font-bold text-green-700">{formatPower(convertedPower.od)}</div>
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Right Eye (OD):</span>
+                      <div className="mt-1 text-lg font-bold text-green-700 dark:text-green-400">{formatPower(convertedPower.od)}</div>
                       {rx.odSphere && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           Original: {parseFloat(rx.odSphere) >= 0 ? '+' : ''}{parseFloat(rx.odSphere).toFixed(2)}D
                           {convertedPower.od.sphere !== null && (
                             <span className="ml-2">
@@ -323,31 +323,31 @@ export default function PowerConverterPage() {
                         </div>
                       )}
                       {conversionDetails?.conversionInfo?.od?.isToric && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           ✓ Toric lens (|CYL| ≥ 0.75)
                         </div>
                       )}
                       {conversionDetails?.conversionInfo?.od?.usedSphericalEquivalent && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           ✓ Spherical equivalent used (|CYL| ≤ 0.50)
                         </div>
                       )}
                       {conversionDetails?.vertexConversionApplied?.od && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           ✓ Vertex conversion applied (|SPH| ≥ 4.00D)
                         </div>
                       )}
                       {conversionDetails?.addMappingApplied?.od && conversionDetails?.conversionInfo?.od?.addCategory && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           ✓ ADD mapped: {conversionDetails.conversionInfo.od.addCategory}
                         </div>
                       )}
                     </div>
                     <div>
-                      <span className="text-sm font-semibold text-slate-700">Left Eye (OS):</span>
-                      <div className="mt-1 text-lg font-bold text-green-700">{formatPower(convertedPower.os)}</div>
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Left Eye (OS):</span>
+                      <div className="mt-1 text-lg font-bold text-green-700 dark:text-green-400">{formatPower(convertedPower.os)}</div>
                       {rx.osSphere && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           Original: {parseFloat(rx.osSphere) >= 0 ? '+' : ''}{parseFloat(rx.osSphere).toFixed(2)}D
                           {convertedPower.os.sphere !== null && (
                             <span className="ml-2">
@@ -357,22 +357,22 @@ export default function PowerConverterPage() {
                         </div>
                       )}
                       {conversionDetails?.conversionInfo?.os?.isToric && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           ✓ Toric lens (|CYL| ≥ 0.75)
                         </div>
                       )}
                       {conversionDetails?.conversionInfo?.os?.usedSphericalEquivalent && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           ✓ Spherical equivalent used (|CYL| ≤ 0.50)
                         </div>
                       )}
                       {conversionDetails?.vertexConversionApplied?.os && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           ✓ Vertex conversion applied (|SPH| ≥ 4.00D)
                         </div>
                       )}
                       {conversionDetails?.addMappingApplied?.os && conversionDetails?.conversionInfo?.os?.addCategory && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           ✓ ADD mapped: {conversionDetails.conversionInfo.os.addCategory}
                         </div>
                       )}
@@ -384,16 +384,16 @@ export default function PowerConverterPage() {
 
             {/* Right: Compatible Products */}
             <div>
-              <div className="bg-slate-50 rounded-lg p-6">
-                <h2 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                  <Contact size={24} className="text-blue-600" />
+              <div className="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                  <Contact size={24} className="text-blue-600 dark:text-blue-400" />
                   Compatible Products
                 </h2>
 
                 {loadingProducts ? (
                   <div className="text-center py-8">
-                    <div className="w-8 h-8 mx-auto mb-2 border-4 border-slate-300 border-t-blue-600 rounded-full animate-spin" />
-                    <p className="text-slate-600">Loading products...</p>
+                    <div className="w-8 h-8 mx-auto mb-2 border-4 border-slate-300 dark:border-slate-600 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin" />
+                    <p className="text-slate-600 dark:text-slate-400">Loading products...</p>
                   </div>
                 ) : compatibleProducts.length > 0 ? (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
@@ -402,22 +402,22 @@ export default function PowerConverterPage() {
                         key={product.id}
                         className={`p-4 rounded-lg border-2 ${
                           product.isAvailable
-                            ? 'border-green-200 bg-green-50'
-                            : 'border-red-200 bg-red-50'
+                            ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
+                            : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
                         }`}
                       >
                         <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="font-semibold text-slate-900">{product.name}</h3>
-                            <p className="text-sm text-slate-600">{product.brand} {product.line}</p>
-                            <p className="text-lg font-bold text-slate-900 mt-1">₹{product.mrp}</p>
+                            <h3 className="font-semibold text-slate-900 dark:text-white">{product.name}</h3>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">{product.brand} {product.line}</p>
+                            <p className="text-lg font-bold text-slate-900 dark:text-white mt-1">₹{product.mrp}</p>
                           </div>
                           {product.isAvailable ? (
-                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded">
+                            <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-semibold rounded">
                               Available
                             </span>
                           ) : (
-                            <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded">
+                            <span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs font-semibold rounded">
                               Not Available
                             </span>
                           )}
@@ -426,11 +426,11 @@ export default function PowerConverterPage() {
                     ))}
                   </div>
                 ) : convertedPower ? (
-                  <div className="text-center py-8 text-slate-600">
+                  <div className="text-center py-8 text-slate-600 dark:text-slate-400">
                     <p>No compatible products found for this power.</p>
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-slate-500">
+                  <div className="text-center py-8 text-slate-500 dark:text-slate-400">
                     <p>Convert power to see compatible products</p>
                   </div>
                 )}

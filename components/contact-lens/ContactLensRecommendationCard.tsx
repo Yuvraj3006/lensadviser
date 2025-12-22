@@ -66,7 +66,7 @@ export function ContactLensRecommendationCard({
         <Star
           key={i}
           size={16}
-          className={i <= score ? 'fill-yellow-400 text-yellow-400' : 'text-slate-300'}
+          className={i <= score ? 'fill-yellow-400 text-yellow-400 dark:fill-yellow-500 dark:text-yellow-500' : 'text-slate-300 dark:text-slate-600'}
         />
       );
     }
@@ -78,7 +78,7 @@ export function ContactLensRecommendationCard({
     : 0;
 
   return (
-    <div className="bg-white rounded-xl border-2 border-slate-200 hover:border-blue-300 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
       {/* Header Badge */}
       <div className={`bg-gradient-to-r ${typeColors[type]} text-white px-4 py-2 text-sm font-semibold`}>
         {typeLabels[type]}
@@ -87,18 +87,18 @@ export function ContactLensRecommendationCard({
       <div className="p-6">
         {/* Product Name & Brand */}
         <div className="mb-4">
-          <h3 className="text-xl font-bold text-slate-900 mb-1">{product.name}</h3>
-          <p className="text-sm text-slate-600">{product.brand}</p>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">{product.name}</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400">{product.brand}</p>
         </div>
 
         {/* Match Score & Comfort Score */}
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
+        <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200 dark:border-slate-700">
           <div>
-            <div className="text-xs text-slate-500 mb-1">Match Score</div>
-            <div className="text-2xl font-bold text-blue-600">{product.matchScore}%</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Match Score</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{product.matchScore}%</div>
           </div>
           <div>
-            <div className="text-xs text-slate-500 mb-1">Comfort</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Comfort</div>
             <div className="flex items-center gap-1">
               {renderStars(product.comfortScore)}
             </div>
@@ -108,15 +108,15 @@ export function ContactLensRecommendationCard({
         {/* Price */}
         <div className="mb-4">
           {discount > 0 && (
-            <div className="text-sm text-slate-500 line-through mb-1">
+            <div className="text-sm text-slate-500 dark:text-slate-500 line-through mb-1">
               ₹{product.mrp.toLocaleString()}
             </div>
           )}
-          <div className="text-2xl font-bold text-slate-900">
+          <div className="text-2xl font-bold text-slate-900 dark:text-white">
             ₹{product.offerPrice.toLocaleString()}
           </div>
           {discount > 0 && (
-            <div className="text-sm text-green-600 font-semibold mt-1">
+            <div className="text-sm text-green-600 dark:text-green-400 font-semibold mt-1">
               {discount}% OFF
             </div>
           )}
@@ -125,29 +125,29 @@ export function ContactLensRecommendationCard({
         {/* Specs Table */}
         <div className="mb-4 space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-slate-600">Material:</span>
-            <span className="font-semibold text-slate-900">{product.material}</span>
+            <span className="text-slate-600 dark:text-slate-400">Material:</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{product.material}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-600">Water Content:</span>
-            <span className="font-semibold text-slate-900">{product.waterContent}%</span>
+            <span className="text-slate-600 dark:text-slate-400">Water Content:</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{product.waterContent}%</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-600">Usage:</span>
-            <span className="font-semibold text-slate-900">{product.modality}</span>
+            <span className="text-slate-600 dark:text-slate-400">Usage:</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{product.modality}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-600">Vision Type:</span>
-            <span className="font-semibold text-slate-900">{product.lensType}</span>
+            <span className="text-slate-600 dark:text-slate-400">Vision Type:</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{product.lensType}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-600">Pack Size:</span>
-            <span className="font-semibold text-slate-900">{product.packSize} lenses</span>
+            <span className="text-slate-600 dark:text-slate-400">Pack Size:</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{product.packSize} lenses</span>
           </div>
           {product.isColorLens && product.colorOptions && product.colorOptions.length > 0 && (
             <div className="flex justify-between">
-              <span className="text-slate-600">Colors:</span>
-              <span className="font-semibold text-slate-900">
+              <span className="text-slate-600 dark:text-slate-400">Colors:</span>
+              <span className="font-semibold text-slate-900 dark:text-white">
                 {product.colorOptions.length} options
               </span>
             </div>

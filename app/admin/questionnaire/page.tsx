@@ -873,11 +873,11 @@ export default function QuestionnaireBuilderPage() {
             }}
             onClick={() => handleQuestionSelect(question)}
             className={`flex items-center gap-2 p-2 rounded transition-colors group cursor-move ${
-              isSelected ? 'bg-blue-100 border border-blue-300' : 'hover:bg-slate-50'
+              isSelected ? 'bg-blue-100 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
             } ${
               isDragging ? 'opacity-50' : ''
             } ${
-              dragOverOption?.questionId === question.id ? 'border-2 border-blue-500 bg-blue-50' : ''
+              dragOverOption?.questionId === question.id ? 'border-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : ''
             }`}
             style={{ paddingLeft: `${level * 20 + 8}px` }}
           >
@@ -887,19 +887,19 @@ export default function QuestionnaireBuilderPage() {
                   e.stopPropagation();
                   toggleExpand(question.id);
                 }}
-                className="p-1 hover:bg-slate-200 rounded"
+                className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
               >
                 {isExpanded ? (
-                  <ChevronDown size={16} className="text-slate-600" />
+                  <ChevronDown size={16} className="text-slate-600 dark:text-slate-400" />
                 ) : (
-                  <ChevronRight size={16} className="text-slate-600" />
+                  <ChevronRight size={16} className="text-slate-600 dark:text-slate-400" />
                 )}
               </button>
             ) : (
               <div className="w-6" />
             )}
-            <HelpCircle size={16} className="text-slate-400" />
-            <span className="flex-1 text-sm font-medium text-slate-900">
+            <HelpCircle size={16} className="text-slate-400 dark:text-slate-500" />
+            <span className="flex-1 text-sm font-medium text-slate-900 dark:text-white">
               {question.textEn}
             </span>
             {question.parentAnswerId && (
@@ -907,14 +907,14 @@ export default function QuestionnaireBuilderPage() {
                 Sub-Q
               </Badge>
             )}
-            <span className="text-xs text-slate-500">Q{question.order}</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Q{question.order}</span>
             {question.parentAnswerId && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleRemoveParent(question);
                 }}
-                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-purple-100 rounded text-purple-600 transition-opacity"
+                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-purple-100 dark:hover:bg-purple-900/20 rounded text-purple-600 dark:text-purple-400 transition-opacity"
                 title="Remove from parent"
               >
                 <X size={14} />
@@ -925,7 +925,7 @@ export default function QuestionnaireBuilderPage() {
                 e.stopPropagation();
                 handleDelete(question.id);
               }}
-              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded text-red-600 transition-opacity"
+              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-red-600 dark:text-red-400 transition-opacity"
               title="Delete question"
             >
               <Trash2 size={14} />
@@ -980,10 +980,10 @@ export default function QuestionnaireBuilderPage() {
                       }}
                       className={`p-2 rounded border transition-colors min-h-[32px] ${
                         isDragOver 
-                          ? 'border-blue-500 bg-blue-50 border-2' 
+                          ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 border-2' 
                           : draggedQuestion
-                          ? 'border-slate-300 bg-slate-100 hover:border-blue-400'
-                          : 'border-slate-200 bg-slate-50'
+                          ? 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700/50 hover:border-blue-400 dark:hover:border-blue-500'
+                          : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/30'
                       } ${draggedQuestion ? 'cursor-pointer' : ''}`}
                       style={{ pointerEvents: 'auto' }}
                     >
@@ -991,9 +991,9 @@ export default function QuestionnaireBuilderPage() {
                         className="flex items-center gap-2"
                         style={{ pointerEvents: 'none' }} // Prevent child elements from interfering with drop
                       >
-                        <ChevronRight size={12} className="text-slate-400" />
-                        <span className="text-xs font-medium text-slate-700">{option.textEn}</span>
-                        <span className="text-xs text-slate-400 font-mono">({option.key})</span>
+                        <ChevronRight size={12} className="text-slate-400 dark:text-slate-500" />
+                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{option.textEn}</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">({option.key})</span>
                         {hasSubQuestion && (
                           <Badge color="green" size="sm" className="text-xs">
                             → Sub-Q
@@ -1072,21 +1072,21 @@ export default function QuestionnaireBuilderPage() {
     <div>
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Questions Management</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Questions Management</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">
             {viewMode === 'tree' 
               ? 'Build questions with subquestions (Tree View)' 
               : 'Manage all questions (Table View)'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
             <button
               onClick={() => setViewMode('tree')}
               className={`px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-2 ${
                 viewMode === 'tree'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               <Network size={16} />
@@ -1096,8 +1096,8 @@ export default function QuestionnaireBuilderPage() {
               onClick={() => setViewMode('table')}
               className={`px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-2 ${
                 viewMode === 'table'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               <List size={16} />
@@ -1146,9 +1146,9 @@ export default function QuestionnaireBuilderPage() {
           {/* Left: Tree View */}
           <div className="lg:col-span-1">
             <Card>
-              <div className="p-4 border-b">
+              <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">Questions Tree</h3>
+                  <h3 className="font-semibold text-slate-900 dark:text-white">Questions Tree</h3>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -1165,17 +1165,17 @@ export default function QuestionnaireBuilderPage() {
                     {expandedQuestions.size === questions.length ? 'Collapse All' : 'Expand All'}
                   </Button>
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   💡 Drag main questions to reorder them. Drag any question onto an answer option to create a sub-question, or use the answer option settings (toggle + dropdown).
                 </p>
               </div>
               <div className="p-2 max-h-[600px] overflow-y-auto">
                 {loading ? (
                   <div className="text-center py-8">
-                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 dark:border-blue-400"></div>
                   </div>
                 ) : questions.length === 0 ? (
-                  <div className="text-center py-8 text-slate-500 text-sm">
+                  <div className="text-center py-8 text-slate-500 dark:text-slate-400 text-sm">
                     No questions found for {categoryFilter}
                   </div>
                 ) : (
@@ -1191,7 +1191,7 @@ export default function QuestionnaireBuilderPage() {
               {selectedQuestion ? (
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold">Edit Question</h3>
+                    <h3 className="font-semibold text-slate-900 dark:text-white">Edit Question</h3>
                   </div>
                   <QuestionForm
                     question={selectedQuestion}
@@ -1227,7 +1227,7 @@ export default function QuestionnaireBuilderPage() {
                 </div>
               ) : (
                 <div>
-                  <h3 className="font-semibold mb-4">Create New Question</h3>
+                  <h3 className="font-semibold text-slate-900 dark:text-white mb-4">Create New Question</h3>
                   <QuestionForm
                     question={null}
                     onSubmit={async (formData) => {
@@ -1294,21 +1294,21 @@ export default function QuestionnaireBuilderPage() {
       ) : (
         <div>
           {/* Table View - Same as Questions Page */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <DataTable
               columns={[
                 {
                   key: 'order',
                   header: 'Order',
-                  render: (q) => <span className="font-mono text-sm">#{q.order}</span>,
+                  render: (q) => <span className="font-mono text-sm text-slate-900 dark:text-slate-200">#{q.order}</span>,
                 },
                 {
                   key: 'textEn',
                   header: 'Question',
                   render: (q) => (
                     <div>
-                      <p className="font-medium">{q.textEn}</p>
-                      <p className="text-xs text-slate-500 font-mono mt-1">{q.key}</p>
+                      <p className="font-medium text-slate-900 dark:text-slate-200">{q.textEn}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-1">{q.key}</p>
                     </div>
                   ),
                 },
@@ -1333,17 +1333,17 @@ export default function QuestionnaireBuilderPage() {
                 {
                   key: 'optionCount',
                   header: 'Options',
-                  render: (q) => <span className="text-sm">{q.optionCount ?? q.options?.length ?? 0}</span>,
+                  render: (q) => <span className="text-sm text-slate-900 dark:text-slate-200">{q.optionCount ?? q.options?.length ?? 0}</span>,
                 },
                 {
                   key: 'mappingCount',
                   header: 'Mappings',
-                  render: (q) => <span className="text-sm">{q.mappingCount ?? 0}</span>,
+                  render: (q) => <span className="text-sm text-slate-900 dark:text-slate-200">{q.mappingCount ?? 0}</span>,
                 },
                 {
                   key: 'answerCount',
                   header: 'Answered',
-                  render: (q) => <span className="text-sm font-medium">{q.answerCount ?? 0}</span>,
+                  render: (q) => <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{q.answerCount ?? 0}</span>,
                 },
                 {
                   key: 'isRequired',
@@ -1379,14 +1379,14 @@ export default function QuestionnaireBuilderPage() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleQuestionSelect(q)}
-                        className="text-blue-600 hover:text-blue-700"
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                         title="Edit"
                       >
                         <Edit2 size={18} />
                       </button>
                       <button
                         onClick={() => handleDelete(q.id)}
-                        className="text-red-600 hover:text-red-700"
+                        className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                         title="Delete"
                       >
                         <Trash2 size={18} />

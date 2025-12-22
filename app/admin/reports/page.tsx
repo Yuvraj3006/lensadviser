@@ -119,8 +119,8 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Reports & Analytics</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Track performance and insights</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Reports & Analytics</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Track performance and insights</p>
         </div>
       </div>
 
@@ -169,19 +169,19 @@ export default function ReportsPage() {
           </div>
 
           {/* Daily Trend */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
               Daily Trend (Last 7 Days)
             </h2>
             <div className="space-y-2">
               {overviewData.dailyTrend.map((day, index) => (
                 <div key={index} className="flex items-center gap-4">
-                  <span className="text-sm text-slate-600 w-32">
+                  <span className="text-sm text-slate-600 dark:text-slate-400 w-32">
                     {new Date(day.date).toLocaleDateString()}
                   </span>
-                  <div className="flex-1 bg-slate-100 rounded-full h-8 overflow-hidden">
+                  <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full h-8 overflow-hidden">
                     <div
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-full flex items-center px-3 text-white text-sm font-medium"
+                      className="bg-gradient-to-r from-blue-500 to-purple-500 dark:from-blue-600 dark:to-purple-600 h-full flex items-center px-3 text-white text-sm font-medium"
                       style={{
                         width: `${Math.min((day.sessions / 20) * 100, 100)}%`,
                       }}
@@ -198,14 +198,14 @@ export default function ReportsPage() {
 
       {/* Store-wise Report */}
       {reportType === 'store' && !loading && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <DataTable columns={storeColumns} data={storeStats} loading={loading} />
         </div>
       )}
 
       {/* Category Report */}
       {reportType === 'category' && !loading && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <DataTable columns={categoryColumns} data={categoryStats} loading={loading} />
         </div>
       )}
@@ -213,8 +213,8 @@ export default function ReportsPage() {
       {/* Loading State */}
       {loading && (
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-slate-600 mt-4">Loading report...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto"></div>
+          <p className="text-slate-600 dark:text-slate-400 mt-4">Loading report...</p>
         </div>
       )}
     </div>

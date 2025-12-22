@@ -184,8 +184,8 @@ export default function ContactLensAddOnsPage() {
     return (
       <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin" />
-          <div className="text-white">Loading add-ons...</div>
+          <div className="w-16 h-16 mx-auto mb-4 border-4 border-slate-700 dark:border-slate-600 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin" />
+          <div className="text-white dark:text-slate-300">Loading add-ons...</div>
         </div>
       </div>
     );
@@ -220,7 +220,7 @@ export default function ContactLensAddOnsPage() {
 
           {/* Combo Offer Banner */}
           {hasCL && (
-            <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4 mb-6">
+            <div className="bg-gradient-to-r from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 text-white rounded-lg p-4 mb-6">
               <div className="flex items-center gap-2">
                 <CheckCircle size={20} />
                 <span className="font-semibold">Special Offer: Contact Lens + Solution → ₹150 OFF</span>
@@ -229,11 +229,11 @@ export default function ContactLensAddOnsPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl p-6 space-y-6 mb-6">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 space-y-6 mb-6 border border-slate-200 dark:border-slate-700">
             {/* Contact Lens Solution */}
             {groupedAddOns.SOLUTION.length > 0 && (
               <div>
-                <h2 className="text-lg font-semibold text-slate-900 mb-3">Contact Lens Solution</h2>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">Contact Lens Solution</h2>
                 <div className="space-y-3">
                   {groupedAddOns.SOLUTION.map((addOn) => {
                     const isSelected = selectedAddOns.has(addOn.id);
@@ -244,8 +244,8 @@ export default function ContactLensAddOnsPage() {
                         onClick={() => toggleAddOn(addOn.id)}
                         className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
                           isSelected
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-slate-200 hover:border-slate-300'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700'
+                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                         }`}
                       >
                         <div className="flex items-center justify-between">
@@ -255,19 +255,19 @@ export default function ContactLensAddOnsPage() {
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleAddOn(addOn.id)}
-                                className="w-5 h-5 text-blue-500"
+                                className="w-5 h-5 text-blue-500 dark:text-blue-400"
                               />
-                              <h3 className="font-semibold text-slate-900">{addOn.name}</h3>
+                              <h3 className="font-semibold text-slate-900 dark:text-white">{addOn.name}</h3>
                               {hasCL && isSelected && (
-                                <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded">
+                                <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-semibold rounded">
                                   Combo Offer Applied
                                 </span>
                               )}
                             </div>
-                            <p className="text-sm text-slate-600 ml-8">{addOn.description}</p>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 ml-8">{addOn.description}</p>
                           </div>
                           <div className="text-right">
-                            <div className="text-lg font-bold text-slate-900">₹{addOn.price}</div>
+                            <div className="text-lg font-bold text-slate-900 dark:text-white">₹{addOn.price}</div>
                           </div>
                         </div>
                       </button>
@@ -280,7 +280,7 @@ export default function ContactLensAddOnsPage() {
             {/* Eye Drops */}
             {groupedAddOns.DROPS.length > 0 && (
               <div>
-                <h2 className="text-lg font-semibold text-slate-900 mb-3">Lubricating Eye Drops</h2>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">Lubricating Eye Drops</h2>
                 <div className="space-y-3">
                   {groupedAddOns.DROPS.map((addOn) => {
                     const isSelected = selectedAddOns.has(addOn.id);
@@ -322,7 +322,7 @@ export default function ContactLensAddOnsPage() {
             {/* Lens Cases */}
             {groupedAddOns.CASE.length > 0 && (
               <div>
-                <h2 className="text-lg font-semibold text-slate-900 mb-3">Lens Cases</h2>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">Lens Cases</h2>
                 <div className="space-y-3">
                   {groupedAddOns.CASE.map((addOn) => {
                     const isSelected = selectedAddOns.has(addOn.id);
@@ -364,7 +364,7 @@ export default function ContactLensAddOnsPage() {
             {/* Travel Kits */}
             {groupedAddOns.KIT.length > 0 && (
               <div>
-                <h2 className="text-lg font-semibold text-slate-900 mb-3">Travel Kits</h2>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">Travel Kits</h2>
                 <div className="space-y-3">
                   {groupedAddOns.KIT.map((addOn) => {
                     const isSelected = selectedAddOns.has(addOn.id);
@@ -406,50 +406,50 @@ export default function ContactLensAddOnsPage() {
 
           {/* Summary */}
           {selectedAddOnsList.length > 0 && (
-            <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200 mb-6">
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border-2 border-blue-200 dark:border-blue-800 mb-6">
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700 font-medium">Add-ons Subtotal:</span>
-                  <span className="text-lg font-semibold text-slate-900">₹{addOnsTotal.toLocaleString()}</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">Add-ons Subtotal:</span>
+                  <span className="text-lg font-semibold text-slate-900 dark:text-white">₹{addOnsTotal.toLocaleString()}</span>
                 </div>
                 {comboDiscount > 0 && (
-                  <div className="flex justify-between items-center text-green-600">
+                  <div className="flex justify-between items-center text-green-600 dark:text-green-400">
                     <span className="font-medium">Combo Discount:</span>
                     <span className="font-semibold">-₹{comboDiscount.toLocaleString()}</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center pt-2 border-t border-blue-200">
-                  <span className="text-slate-700 font-semibold">Add-ons Total:</span>
-                  <span className="text-xl font-bold text-blue-700">₹{finalAddOnsTotal.toLocaleString()}</span>
+                <div className="flex justify-between items-center pt-2 border-t border-blue-200 dark:border-blue-800">
+                  <span className="text-slate-700 dark:text-slate-300 font-semibold">Add-ons Total:</span>
+                  <span className="text-xl font-bold text-blue-700 dark:text-blue-400">₹{finalAddOnsTotal.toLocaleString()}</span>
                 </div>
               </div>
             </div>
           )}
 
           {/* Navigation */}
-          <div className="flex justify-between">
+          <div className="flex flex-col sm:flex-row justify-between gap-3">
             <Button
               variant="outline"
               onClick={() => router.push('/questionnaire/contact-lens')}
-              className="flex items-center gap-2"
+              className="w-full sm:w-auto flex items-center justify-center gap-2"
             >
-              <ArrowLeft size={18} />
-              Back
+              <ArrowLeft size={18} className="flex-shrink-0" />
+              <span className="truncate">Back</span>
             </Button>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <Button
                 variant="outline"
                 onClick={handleSkip}
-                className="flex items-center gap-2"
+                className="w-full sm:w-auto flex items-center justify-center gap-2"
               >
-                Skip Add-ons
+                <span className="truncate text-xs sm:text-sm">Skip Add-ons</span>
               </Button>
               <Button
                 onClick={handleNext}
-                className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600"
               >
-                <CheckCircle size={20} />
-                Continue to Checkout
+                <CheckCircle size={20} className="flex-shrink-0" />
+                <span className="truncate text-xs sm:text-sm">Continue to Checkout</span>
               </Button>
             </div>
           </div>

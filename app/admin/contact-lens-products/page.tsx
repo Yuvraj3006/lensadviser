@@ -462,8 +462,8 @@ export default function ContactLensProductsPage() {
     <div>
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Contact Lens Products</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage contact lens product catalog</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Contact Lens Products</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage contact lens product catalog</p>
         </div>
         <Button onClick={() => {
           setEditingProduct(null);
@@ -539,14 +539,14 @@ export default function ContactLensProductsPage() {
       >
         {/* Tabs */}
         {editingProduct && (
-          <div className="border-b border-slate-200 mb-4">
+          <div className="border-b border-slate-200 dark:border-slate-700 mb-4">
             <div className="flex gap-1">
               <button
                 onClick={() => setActiveTab('general')}
                 className={`px-4 py-2 font-medium transition-colors ${
                   activeTab === 'general'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'border-b-2 border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                 }`}
               >
                 General
@@ -555,8 +555,8 @@ export default function ContactLensProductsPage() {
                 onClick={() => setActiveTab('benefits')}
                 className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
                   activeTab === 'benefits'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'border-b-2 border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                 }`}
               >
                 <TrendingUp size={16} />
@@ -706,8 +706,8 @@ export default function ContactLensProductsPage() {
             placeholder="Best for dry eyes, Extended wear"
           />
 
-          <div className="border-t pt-4">
-            <h3 className="font-semibold text-slate-900 mb-3">Power Range (Optional)</h3>
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+            <h3 className="font-semibold text-slate-900 dark:text-white mb-3">Power Range (Optional)</h3>
             <div className="grid grid-cols-2 gap-4">
               <Input
                 label="SPH Min"
@@ -767,16 +767,16 @@ export default function ContactLensProductsPage() {
             />
           </div>
 
-          <div className="border-t pt-4">
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
             <div className="flex items-center gap-2 mb-4">
               <input
                 type="checkbox"
                 id="isColorLens"
                 checked={formData.isColorLens}
                 onChange={(e) => setFormData({ ...formData, isColorLens: e.target.checked })}
-                className="w-4 h-4"
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-800"
               />
-              <label htmlFor="isColorLens" className="font-medium text-slate-900">
+              <label htmlFor="isColorLens" className="font-medium text-slate-900 dark:text-slate-200">
                 Color Lens
               </label>
             </div>
@@ -790,16 +790,16 @@ export default function ContactLensProductsPage() {
             )}
           </div>
 
-          <div className="border-t pt-4">
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 id="isActive"
                 checked={formData.isActive}
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                className="w-4 h-4"
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-800"
               />
-              <label htmlFor="isActive" className="font-medium text-slate-900">
+              <label htmlFor="isActive" className="font-medium text-slate-900 dark:text-slate-200">
                 Active
               </label>
             </div>
@@ -811,36 +811,36 @@ export default function ContactLensProductsPage() {
         {activeTab === 'benefits' && editingProduct && (
           <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Benefit Mapping</h3>
-              <p className="text-sm text-slate-600 mb-4">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Benefit Mapping</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
                 Map benefits to this contact lens product. Scores range from 0-3 (0 = not applicable, 3 = strongest match).
               </p>
               
               {loadingBenefits ? (
                 <div className="text-center py-8">
-                  <div className="w-8 h-8 mx-auto border-4 border-slate-300 border-t-blue-600 rounded-full animate-spin" />
-                  <p className="text-slate-600 mt-2">Loading benefits...</p>
+                  <div className="w-8 h-8 mx-auto border-4 border-slate-300 dark:border-slate-600 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin" />
+                  <p className="text-slate-600 dark:text-slate-400 mt-2">Loading benefits...</p>
                 </div>
               ) : benefits.length === 0 ? (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <p className="text-yellow-800 text-sm">
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                  <p className="text-yellow-800 dark:text-yellow-300 text-sm">
                     No benefits found. Please create benefits first in Admin → Benefit Features.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {benefits.map((benefit) => (
-                    <div key={benefit.id} className="p-4 border border-slate-200 rounded-lg">
+                    <div key={benefit.id} className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
                       <div className="flex items-center justify-between mb-2">
                         <div>
-                          <span className="font-medium text-slate-900">
+                          <span className="font-medium text-slate-900 dark:text-white">
                             {benefit.code} - {benefit.name}
                           </span>
                           {benefit.description && (
-                            <p className="text-sm text-slate-500 mt-1">{benefit.description}</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{benefit.description}</p>
                           )}
                         </div>
-                        <span className="text-sm font-medium text-slate-600">
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
                           {benefitScores[benefit.code] || 0} / 3
                         </span>
                       </div>
@@ -865,10 +865,10 @@ export default function ContactLensProductsPage() {
                           onChange={(e) =>
                             updateBenefitScore(benefit.code, parseFloat(e.target.value) || 0)
                           }
-                          className="w-20 px-2 py-1 border border-slate-300 rounded text-sm"
+                          className="w-20 px-2 py-1 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded text-sm"
                         />
                       </div>
-                      <div className="text-xs text-slate-500 mt-2">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                         {benefitScores[benefit.code] === 0 && 'Not applicable'}
                         {benefitScores[benefit.code] > 0 && benefitScores[benefit.code] <= 1 && 'Weak match'}
                         {benefitScores[benefit.code] > 1 && benefitScores[benefit.code] <= 2 && 'Moderate match'}

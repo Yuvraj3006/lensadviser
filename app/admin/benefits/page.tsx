@@ -177,7 +177,7 @@ export default function BenefitsPage() {
       key: 'code',
       header: 'Code',
       render: (benefit) => (
-        <span className="font-mono font-semibold text-slate-700">{benefit.code}</span>
+        <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{benefit.code}</span>
       ),
     },
     {
@@ -185,9 +185,9 @@ export default function BenefitsPage() {
       header: 'Benefit Name',
       render: (benefit) => (
         <div>
-          <p className="font-medium">{benefit.name}</p>
+          <p className="font-medium text-slate-900 dark:text-slate-200">{benefit.name}</p>
           {benefit.description && (
-            <p className="text-xs text-slate-500 mt-1">{benefit.description}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{benefit.description}</p>
           )}
         </div>
       ),
@@ -196,21 +196,21 @@ export default function BenefitsPage() {
       key: 'maxScore',
       header: 'Max Score',
       render: (benefit) => (
-        <span className="text-sm font-medium">{benefit.maxScore}</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{benefit.maxScore}</span>
       ),
     },
     {
       key: 'questionMappingCount',
       header: 'Question Mappings',
       render: (benefit) => (
-        <span className="text-sm font-medium">{benefit.questionMappingCount}</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{benefit.questionMappingCount}</span>
       ),
     },
     {
       key: 'productMappingCount',
       header: 'Product Mappings',
       render: (benefit) => (
-        <span className="text-sm font-medium">{benefit.productMappingCount}</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{benefit.productMappingCount}</span>
       ),
     },
     {
@@ -229,8 +229,8 @@ export default function BenefitsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Benefits</h1>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Manage benefits used in questionnaire and lens scoring</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Benefits</h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage benefits used in questionnaire and lens scoring</p>
         </div>
         <Button icon={<Plus size={18} />} onClick={handleCreate} className="w-full sm:w-auto">
           Add Benefit
@@ -238,7 +238,7 @@ export default function BenefitsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
         {benefits.length === 0 && !loading ? (
           <EmptyState
             icon={<TrendingUp size={48} />}
@@ -370,8 +370,8 @@ export default function BenefitsPage() {
           </>
         }
       >
-        <p className="text-slate-600">
-          Are you sure you want to deactivate <strong>{deleteConfirm?.name}</strong> ({deleteConfirm?.code})?
+        <p className="text-slate-600 dark:text-slate-400">
+          Are you sure you want to deactivate <strong className="text-slate-900 dark:text-white">{deleteConfirm?.name}</strong> ({deleteConfirm?.code})?
           This will not affect existing mappings.
         </p>
       </Modal>

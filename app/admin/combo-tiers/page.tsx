@@ -164,21 +164,21 @@ export default function ComboTiersPage() {
 
   if (loading) {
     return (
-      <div className="min-h-safe-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
         <Spinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-safe-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-safe-screen bg-slate-50 dark:bg-slate-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Combo Tiers</h1>
-              <p className="text-sm sm:text-base text-slate-600 mt-1">Manage combo offer tiers - Simple & Functional</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Combo Tiers</h1>
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage combo offer tiers - Simple & Functional</p>
             </div>
             <Button
               onClick={() => router.push('/admin/combo-tiers/new?edit=true')}
@@ -195,10 +195,10 @@ export default function ComboTiersPage() {
           {tiers.map((tier) => (
             <div
               key={tier.id}
-              className={`bg-white rounded-xl shadow-sm border-2 p-6 transition-all ${
+              className={`bg-white dark:bg-slate-800 rounded-xl shadow-sm border-2 p-6 transition-all ${
                 tier.isActive
-                  ? 'border-green-200 hover:border-green-300'
-                  : 'border-slate-200 hover:border-slate-300 opacity-75'
+                  ? 'border-green-200 dark:border-green-800 hover:border-green-300 dark:hover:border-green-700'
+                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 opacity-75'
               }`}
             >
               {/* Status Badge */}
@@ -206,40 +206,40 @@ export default function ComboTiersPage() {
                 <span
                   className={`px-2 py-1 rounded text-xs font-medium ${
                     tier.isActive
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-gray-100 text-gray-700'
+                      ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+                      : 'bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-slate-300'
                   }`}
                 >
                   {tier.isActive ? 'Active' : 'Inactive'}
                 </span>
-                <span className="text-xs text-slate-500">v{tier.comboVersion}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">v{tier.comboVersion}</span>
               </div>
 
               {/* Tier Info */}
               <div className="text-center mb-4">
-                <h3 className="text-xl font-bold text-slate-900 mb-1">{tier.displayName}</h3>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">{tier.displayName}</h3>
                 {tier.badge && (
-                  <span className="inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full mb-2">
+                  <span className="inline-block px-2 py-0.5 bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 text-xs rounded-full mb-2">
                     {tier.badge}
                   </span>
                 )}
                 <div className="mt-2">
                   {tier.totalComboValue && (
-                    <div className="text-lg text-slate-400 line-through mb-1">
+                    <div className="text-lg text-slate-400 dark:text-slate-500 line-through mb-1">
                       ₹{tier.totalComboValue.toLocaleString()}
                     </div>
                   )}
-                  <div className="text-2xl font-bold text-purple-600">
+                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                     ₹{tier.effectivePrice.toLocaleString()}
                   </div>
                 </div>
-                <div className="text-xs text-slate-500 mt-1">Combo Price</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Combo Price</div>
               </div>
 
               {/* Benefits Count */}
-              <div className="border-t border-slate-200 pt-4 mb-4">
-                <div className="text-sm text-slate-600">
-                  <strong>{tier.benefits.length}</strong> benefits included
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mb-4">
+                <div className="text-sm text-slate-600 dark:text-slate-400">
+                  <strong className="text-slate-900 dark:text-white">{tier.benefits.length}</strong> benefits included
                 </div>
               </div>
 
@@ -289,7 +289,7 @@ export default function ComboTiersPage() {
                   onClick={() => setDeleteConfirm(tier)}
                   disabled={submitting}
                   icon={<Trash2 size={14} />}
-                  className="text-red-600 hover:text-red-700"
+                  className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                   title="Delete"
                 >
                   Delete
@@ -301,9 +301,9 @@ export default function ComboTiersPage() {
 
         {tiers.length === 0 && (
           <div className="text-center py-12">
-            <Package className="mx-auto text-slate-400 mb-4" size={48} />
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">No combo tiers found</h3>
-            <p className="text-slate-600 mb-4">Create your first combo tier to get started</p>
+            <Package className="mx-auto text-slate-400 dark:text-slate-500 mb-4" size={48} />
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">No combo tiers found</h3>
+            <p className="text-slate-600 dark:text-slate-400 mb-4">Create your first combo tier to get started</p>
             <Button onClick={() => router.push('/admin/combo-tiers/new?edit=true')} icon={<Plus size={16} />}>
               Create Combo Tier
             </Button>
@@ -313,10 +313,10 @@ export default function ComboTiersPage() {
         {/* Delete Confirmation Modal */}
         {deleteConfirm && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">Delete Combo Tier</h3>
-              <p className="text-slate-600 mb-4">
-                Are you sure you want to delete <strong>{deleteConfirm.displayName}</strong>? This action cannot be undone.
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Delete Combo Tier</h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-4">
+                Are you sure you want to delete <strong className="text-slate-900 dark:text-white">{deleteConfirm.displayName}</strong>? This action cannot be undone.
               </p>
               <div className="flex gap-3 justify-end">
                 <Button

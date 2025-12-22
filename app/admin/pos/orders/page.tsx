@@ -226,14 +226,14 @@ export default function POSOrdersPage() {
       key: 'orderId',
       header: 'Order ID',
       render: (order) => (
-        <span className="font-mono font-semibold text-slate-900 text-xs sm:text-sm">{order.orderId}</span>
+        <span className="font-mono font-semibold text-slate-900 dark:text-slate-200 text-xs sm:text-sm">{order.orderId}</span>
       ),
     },
     {
       key: 'time',
       header: 'Time',
       render: (order) => (
-        <div className="flex items-center gap-1 sm:gap-2 text-slate-600">
+        <div className="flex items-center gap-1 sm:gap-2 text-slate-600 dark:text-slate-400">
           <Clock size={14} className="hidden sm:block" />
           <span className="text-xs sm:text-sm">
             <span className="sm:hidden">{formatTimeShort(order.time)}</span>
@@ -247,10 +247,10 @@ export default function POSOrdersPage() {
       header: 'Customer',
       render: (order) => (
         <div className="flex items-center gap-1 sm:gap-2">
-          <User size={14} className="text-slate-400 hidden sm:block" />
-          <span className="text-xs sm:text-sm text-slate-900 truncate max-w-[120px] sm:max-w-none">
+          <User size={14} className="text-slate-400 dark:text-slate-500 hidden sm:block" />
+          <span className="text-xs sm:text-sm text-slate-900 dark:text-slate-200 truncate max-w-[120px] sm:max-w-none">
             {order.customerName || (
-              <span className="text-slate-400 italic">Not provided</span>
+              <span className="text-slate-400 dark:text-slate-500 italic">Not provided</span>
             )}
           </span>
         </div>
@@ -261,10 +261,10 @@ export default function POSOrdersPage() {
       header: 'Store',
       render: (order) => (
         <div className="flex items-center gap-1 sm:gap-2">
-          <Store size={14} className="text-slate-400 hidden sm:block" />
+          <Store size={14} className="text-slate-400 dark:text-slate-500 hidden sm:block" />
           <div className="min-w-0">
-            <div className="font-medium text-xs sm:text-sm text-slate-900 truncate">{order.store.name}</div>
-            <div className="text-xs text-slate-500 hidden sm:block">{order.store.code}</div>
+            <div className="font-medium text-xs sm:text-sm text-slate-900 dark:text-slate-200 truncate">{order.store.name}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">{order.store.code}</div>
           </div>
         </div>
       ),
@@ -282,7 +282,7 @@ export default function POSOrdersPage() {
       key: 'finalAmount',
       header: 'Amount',
       render: (order) => (
-        <div className="flex items-center gap-1 sm:gap-2 font-semibold text-slate-900">
+        <div className="flex items-center gap-1 sm:gap-2 font-semibold text-slate-900 dark:text-slate-200">
           <DollarSign size={14} className="hidden sm:block" />
           <span className="text-xs sm:text-sm">{formatCurrency(order.finalAmount)}</span>
         </div>
@@ -336,19 +336,19 @@ export default function POSOrdersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">POS Dashboard</h1>
-          <p className="mt-1 text-sm sm:text-base text-slate-600">Manage online orders</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">POS Dashboard</h1>
+          <p className="mt-1 text-sm sm:text-base text-slate-600 dark:text-slate-400">Manage online orders</p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 rounded-lg bg-white p-4 shadow-sm">
+      <div className="flex flex-col sm:flex-row gap-4 rounded-lg bg-white dark:bg-slate-800 p-4 shadow-sm border border-slate-200 dark:border-slate-700">
         <div className="flex-1 w-full">
-          <label className="mb-1 block text-sm font-medium text-slate-700">Status</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 sm:px-4 py-2 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 sm:px-4 py-2 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           >
             <option value="">All Statuses</option>
             <option value="DRAFT">Draft</option>
@@ -359,11 +359,11 @@ export default function POSOrdersPage() {
           </select>
         </div>
         <div className="flex-1 w-full">
-          <label className="mb-1 block text-sm font-medium text-slate-700">Store</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Store</label>
           <select
             value={storeFilter}
             onChange={(e) => setStoreFilter(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 sm:px-4 py-2 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 sm:px-4 py-2 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           >
             <option value="">All Stores</option>
             {stores.map((store) => (
@@ -377,8 +377,8 @@ export default function POSOrdersPage() {
 
       {/* Orders Table */}
       {loading ? (
-        <div className="flex h-64 items-center justify-center rounded-lg bg-white">
-          <div className="text-slate-500">Loading orders...</div>
+        <div className="flex h-64 items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <div className="text-slate-500 dark:text-slate-400">Loading orders...</div>
         </div>
       ) : orders.length === 0 ? (
         <EmptyState
@@ -386,7 +386,7 @@ export default function POSOrdersPage() {
           description="There are no orders matching your filters."
         />
       ) : (
-        <div className="rounded-lg bg-white shadow-sm overflow-x-auto -mx-4 sm:mx-0">
+        <div className="rounded-lg bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 overflow-x-auto -mx-4 sm:mx-0">
           <div className="min-w-[800px] sm:min-w-0">
             <DataTable data={orders} columns={columns} />
           </div>
@@ -403,18 +403,18 @@ export default function POSOrdersPage() {
         >
           {detailLoading ? (
             <div className="flex h-64 items-center justify-center">
-              <div className="text-slate-500">Loading order details...</div>
+              <div className="text-slate-500 dark:text-slate-400">Loading order details...</div>
             </div>
           ) : (
             <div className="space-y-6 max-h-[calc(90vh-200px)] overflow-y-auto">
               {/* Order Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Order ID</label>
-                  <div className="mt-1 font-mono font-semibold text-slate-900">{selectedOrder.orderId}</div>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Order ID</label>
+                  <div className="mt-1 font-mono font-semibold text-slate-900 dark:text-slate-200">{selectedOrder.orderId}</div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Status</label>
                   <div className="mt-1">
                     <Badge color={getStatusBadgeColor(selectedOrder.status)}>
                       {selectedOrder.status.replace(/_/g, ' ')}
@@ -422,35 +422,35 @@ export default function POSOrdersPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Customer Name</label>
-                  <div className="mt-1 text-slate-900">
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Customer Name</label>
+                  <div className="mt-1 text-slate-900 dark:text-slate-200">
                     {selectedOrder.customerName || (
-                      <span className="text-slate-400 italic">Not provided</span>
+                      <span className="text-slate-400 dark:text-slate-500 italic">Not provided</span>
                     )}
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Customer Phone</label>
-                  <div className="mt-1 text-slate-900">
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Customer Phone</label>
+                  <div className="mt-1 text-slate-900 dark:text-slate-200">
                     {selectedOrder.customerPhone || (
-                      <span className="text-slate-400 italic">Not provided</span>
+                      <span className="text-slate-400 dark:text-slate-500 italic">Not provided</span>
                     )}
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Store</label>
-                  <div className="mt-1 text-slate-900">{selectedOrder.store?.name || 'N/A'}</div>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Store</label>
+                  <div className="mt-1 text-slate-900 dark:text-slate-200">{selectedOrder.store?.name || 'N/A'}</div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Final Amount</label>
-                  <div className="mt-1 font-semibold text-lg text-slate-900">{formatCurrency(selectedOrder.finalAmount)}</div>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Final Amount</label>
+                  <div className="mt-1 font-semibold text-lg text-slate-900 dark:text-slate-200">{formatCurrency(selectedOrder.finalAmount)}</div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Created At</label>
-                  <div className="mt-1 text-slate-900">{formatTime(selectedOrder.createdAt)}</div>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Created At</label>
+                  <div className="mt-1 text-slate-900 dark:text-slate-200">{formatTime(selectedOrder.createdAt)}</div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Sales Mode</label>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Sales Mode</label>
                   <div className="mt-1">
                     <Badge color={selectedOrder.salesMode === 'SELF_SERVICE' ? 'blue' : 'green'}>
                       {selectedOrder.salesMode.replace(/_/g, ' ')}
@@ -461,34 +461,34 @@ export default function POSOrdersPage() {
 
               {/* Frame Data */}
               {selectedOrder.frameData && typeof selectedOrder.frameData === 'object' && Object.keys(selectedOrder.frameData).length > 0 && (
-                <div className="border-t pt-4">
-                  <h3 className="mb-3 text-base font-semibold text-slate-900 flex items-center gap-2">
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                  <h3 className="mb-3 text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                     <Package size={18} />
                     Frame Details
                   </h3>
-                  <div className="rounded-lg bg-slate-50 p-4 space-y-2">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-700/30 p-4 space-y-2">
                     {selectedOrder.frameData.brand && (
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                        <span className="text-sm text-slate-600">Brand:</span>
-                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.frameData.brand)}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Brand:</span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{String(selectedOrder.frameData.brand)}</span>
                       </div>
                     )}
                     {selectedOrder.frameData.subBrand && (
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                        <span className="text-sm text-slate-600">Sub Brand:</span>
-                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.frameData.subBrand)}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Sub Brand:</span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{String(selectedOrder.frameData.subBrand)}</span>
                       </div>
                     )}
                     {selectedOrder.frameData.frameType && (
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                        <span className="text-sm text-slate-600">Frame Type:</span>
-                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.frameData.frameType)}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Frame Type:</span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{String(selectedOrder.frameData.frameType)}</span>
                       </div>
                     )}
                     {(selectedOrder.frameData.mrp || selectedOrder.frameData.mrp === 0) && (
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-2 border-t border-slate-200">
-                        <span className="text-sm font-medium text-slate-700">MRP:</span>
-                        <span className="text-sm font-semibold text-slate-900">{formatCurrency(Number(selectedOrder.frameData.mrp) || 0)}</span>
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">MRP:</span>
+                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-200">{formatCurrency(Number(selectedOrder.frameData.mrp) || 0)}</span>
                       </div>
                     )}
                   </div>
@@ -497,34 +497,34 @@ export default function POSOrdersPage() {
 
               {/* Lens Data */}
               {selectedOrder.lensData && typeof selectedOrder.lensData === 'object' && Object.keys(selectedOrder.lensData).length > 0 && (
-                <div className="border-t pt-4">
-                  <h3 className="mb-3 text-base font-semibold text-slate-900 flex items-center gap-2">
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                  <h3 className="mb-3 text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                     <Package size={18} />
                     Lens Details
                   </h3>
-                  <div className="rounded-lg bg-slate-50 p-4 space-y-2">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-700/30 p-4 space-y-2">
                     {selectedOrder.lensData.name && (
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                        <span className="text-sm text-slate-600">Name:</span>
-                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.lensData.name)}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Name:</span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{String(selectedOrder.lensData.name)}</span>
                       </div>
                     )}
                     {selectedOrder.lensData.brandLine && (
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                        <span className="text-sm text-slate-600">Brand Line:</span>
-                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.lensData.brandLine)}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Brand Line:</span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{String(selectedOrder.lensData.brandLine)}</span>
                       </div>
                     )}
                     {selectedOrder.lensData.index && (
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                        <span className="text-sm text-slate-600">Index:</span>
-                        <span className="text-sm font-medium text-slate-900">{String(selectedOrder.lensData.index).replace('INDEX_', '')}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Index:</span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{String(selectedOrder.lensData.index).replace('INDEX_', '')}</span>
                       </div>
                     )}
                     {(selectedOrder.lensData.price || selectedOrder.lensData.price === 0) && (
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-2 border-t border-slate-200">
-                        <span className="text-sm font-medium text-slate-700">Price:</span>
-                        <span className="text-sm font-semibold text-slate-900">{formatCurrency(Number(selectedOrder.lensData.price) || 0)}</span>
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Price:</span>
+                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-200">{formatCurrency(Number(selectedOrder.lensData.price) || 0)}</span>
                       </div>
                     )}
                   </div>
@@ -533,42 +533,42 @@ export default function POSOrdersPage() {
 
               {/* Offer Data */}
               {selectedOrder.offerData && typeof selectedOrder.offerData === 'object' && Object.keys(selectedOrder.offerData).length > 0 && (
-                <div className="border-t pt-4">
-                  <h3 className="mb-3 text-base font-semibold text-slate-900 flex items-center gap-2">
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                  <h3 className="mb-3 text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                     <DollarSign size={18} />
                     Pricing & Offers
                   </h3>
-                  <div className="rounded-lg bg-slate-50 p-4 space-y-3">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-700/30 p-4 space-y-3">
                     {/* Price Breakdown */}
                     {(selectedOrder.offerData.frameMRP || selectedOrder.offerData.frameMRP === 0) && (
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                        <span className="text-sm text-slate-600">Frame MRP:</span>
-                        <span className="text-sm font-medium text-slate-900">{formatCurrency(Number(selectedOrder.offerData.frameMRP) || 0)}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Frame MRP:</span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{formatCurrency(Number(selectedOrder.offerData.frameMRP) || 0)}</span>
                       </div>
                     )}
                     {(selectedOrder.offerData.lensPrice || selectedOrder.offerData.lensPrice === 0) && (
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                        <span className="text-sm text-slate-600">Lens Price:</span>
-                        <span className="text-sm font-medium text-slate-900">{formatCurrency(Number(selectedOrder.offerData.lensPrice) || 0)}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Lens Price:</span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-200">{formatCurrency(Number(selectedOrder.offerData.lensPrice) || 0)}</span>
                       </div>
                     )}
                     {(selectedOrder.offerData.baseTotal || selectedOrder.offerData.baseTotal === 0) && (
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-2 border-t border-slate-200">
-                        <span className="text-sm font-medium text-slate-700">Base Total:</span>
-                        <span className="text-sm font-semibold text-slate-900">{formatCurrency(Number(selectedOrder.offerData.baseTotal) || 0)}</span>
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Base Total:</span>
+                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-200">{formatCurrency(Number(selectedOrder.offerData.baseTotal) || 0)}</span>
                       </div>
                     )}
 
                     {/* Price Components */}
                     {selectedOrder.offerData.priceComponents && Array.isArray(selectedOrder.offerData.priceComponents) && selectedOrder.offerData.priceComponents.length > 0 && (
-                      <div className="pt-3 border-t border-slate-200 space-y-2">
-                        <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Price Components</div>
+                      <div className="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
+                        <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Price Components</div>
                         {selectedOrder.offerData.priceComponents.map((component: any, idx: number) => (
                           <div key={idx} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                            <span className={`text-sm ${component.amount < 0 ? 'text-green-600' : 'text-slate-600'}`}>
+                            <span className={`text-sm ${component.amount < 0 ? 'text-green-600 dark:text-green-400' : 'text-slate-600 dark:text-slate-400'}`}>
                               {component.label}:
                             </span>
-                            <span className={`text-sm font-medium ${component.amount < 0 ? 'text-green-600' : 'text-slate-900'}`}>
+                            <span className={`text-sm font-medium ${component.amount < 0 ? 'text-green-600 dark:text-green-400' : 'text-slate-900 dark:text-slate-200'}`}>
                               {component.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(Number(component.amount) || 0))}
                             </span>
                           </div>
@@ -578,10 +578,10 @@ export default function POSOrdersPage() {
 
                     {/* Discounts */}
                     {selectedOrder.offerData.categoryDiscount && typeof selectedOrder.offerData.categoryDiscount === 'object' && (
-                      <div className="pt-2 border-t border-slate-200">
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                          <span className="text-sm text-green-600">Category Discount:</span>
-                          <span className="text-sm font-semibold text-green-600">
+                          <span className="text-sm text-green-600 dark:text-green-400">Category Discount:</span>
+                          <span className="text-sm font-semibold text-green-600 dark:text-green-400">
                             -{formatCurrency(Number(selectedOrder.offerData.categoryDiscount.savings) || 0)}
                           </span>
                         </div>
@@ -589,8 +589,8 @@ export default function POSOrdersPage() {
                     )}
                     {selectedOrder.offerData.couponDiscount && typeof selectedOrder.offerData.couponDiscount === 'object' && (
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                        <span className="text-sm text-green-600">Coupon Discount:</span>
-                        <span className="text-sm font-semibold text-green-600">
+                        <span className="text-sm text-green-600 dark:text-green-400">Coupon Discount:</span>
+                        <span className="text-sm font-semibold text-green-600 dark:text-green-400">
                           -{formatCurrency(Number(selectedOrder.offerData.couponDiscount.savings) || 0)}
                         </span>
                       </div>
@@ -598,9 +598,9 @@ export default function POSOrdersPage() {
 
                     {/* Final Payable */}
                     {(selectedOrder.offerData.finalPayable || selectedOrder.offerData.finalPayable === 0) && (
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-3 border-t-2 border-slate-300">
-                        <span className="text-base font-bold text-slate-900">Final Payable:</span>
-                        <span className="text-lg font-bold text-slate-900">{formatCurrency(Number(selectedOrder.offerData.finalPayable) || 0)}</span>
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pt-3 border-t-2 border-slate-300 dark:border-slate-700">
+                        <span className="text-base font-bold text-slate-900 dark:text-white">Final Payable:</span>
+                        <span className="text-lg font-bold text-slate-900 dark:text-white">{formatCurrency(Number(selectedOrder.offerData.finalPayable) || 0)}</span>
                       </div>
                     )}
                   </div>
@@ -608,7 +608,7 @@ export default function POSOrdersPage() {
               )}
 
               {/* Actions */}
-              <div className="flex flex-col sm:flex-row gap-2 border-t pt-4">
+              <div className="flex flex-col sm:flex-row gap-2 border-t border-slate-200 dark:border-slate-700 pt-4">
                 {(selectedOrder.status === 'STORE_ACCEPTED' ||
                   selectedOrder.status === 'CUSTOMER_CONFIRMED') && (
                   <Button

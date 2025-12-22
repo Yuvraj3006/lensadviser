@@ -70,7 +70,7 @@ export function Modal({
     >
       <div
         className={clsx(
-          'bg-white rounded-xl shadow-2xl w-full flex flex-col',
+          'bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full flex flex-col',
           size === 'full' 
             ? 'max-h-[95vh] sm:max-h-[90vh] lg:max-h-[85vh]' 
             : 'max-h-[95vh] sm:max-h-[90vh]',
@@ -78,13 +78,13 @@ export function Modal({
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex-shrink-0">
-          <h2 id="modal-title" className="text-base sm:text-lg font-bold text-slate-900 truncate pr-2">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+          <h2 id="modal-title" className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate pr-2">
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors flex-shrink-0"
+            className="p-1 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -98,7 +98,7 @@ export function Modal({
 
         {/* Footer */}
         {footer && (
-          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 flex items-center justify-end gap-2 sm:gap-3 flex-wrap flex-shrink-0">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-2 sm:gap-3 flex-wrap flex-shrink-0">
             {footer}
           </div>
         )}

@@ -120,17 +120,17 @@ export default function OfferCalculatorPage() {
     <div>
       <div className="mb-6">
         <div className="flex items-center gap-2 sm:gap-3 mb-2">
-          <Calculator className="text-blue-500 sm:w-7 sm:h-7" size={24} />
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Offer Calculator</h1>
+          <Calculator className="text-blue-500 dark:text-blue-400 sm:w-7 sm:h-7" size={24} />
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Offer Calculator</h1>
         </div>
-        <p className="text-sm sm:text-base text-slate-600">Calculate offers for frame + lens combinations</p>
+        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">Calculate offers for frame + lens combinations</p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Input Form */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
-            <h2 className="text-xl font-semibold mb-4">Frame Details</h2>
+            <h2 className="text-xl font-semibold mb-4 text-slate-900 dark:text-white">Frame Details</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <Input
@@ -172,7 +172,7 @@ export default function OfferCalculatorPage() {
           </Card>
 
           <Card>
-            <h2 className="text-xl font-semibold mb-4">Lens Details</h2>
+            <h2 className="text-xl font-semibold mb-4 text-slate-900 dark:text-white">Lens Details</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <Input
@@ -204,16 +204,16 @@ export default function OfferCalculatorPage() {
                     type="checkbox"
                     checked={yopoEligible}
                     onChange={(e) => setYopoEligible(e.target.checked)}
-                    className="w-5 h-5 rounded border-slate-300"
+                    className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-800"
                   />
-                  <span className="text-sm font-medium">YOPO Eligible</span>
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">YOPO Eligible</span>
                 </label>
               </div>
             </div>
           </Card>
 
           <Card>
-            <h2 className="text-xl font-semibold mb-4">Customer & Offers</h2>
+            <h2 className="text-xl font-semibold mb-4 text-slate-900 dark:text-white">Customer & Offers</h2>
             <div className="space-y-4">
               <Select
                 label="Customer Category"
@@ -237,16 +237,16 @@ export default function OfferCalculatorPage() {
           </Card>
 
           <Card>
-            <h2 className="text-xl font-semibold mb-4">Second Pair</h2>
+            <h2 className="text-xl font-semibold mb-4 text-slate-900 dark:text-white">Second Pair</h2>
             <div className="space-y-4">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   checked={secondPairEnabled}
                   onChange={(e) => setSecondPairEnabled(e.target.checked)}
-                  className="w-5 h-5 rounded border-slate-300"
+                  className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-800"
                 />
-                <span className="text-sm font-medium">Enable Second Pair Offer</span>
+                <span className="text-sm font-medium text-slate-900 dark:text-white">Enable Second Pair Offer</span>
               </label>
               {secondPairEnabled && (
                 <div className="grid grid-cols-2 gap-4">
@@ -285,30 +285,30 @@ export default function OfferCalculatorPage() {
         <div className="lg:col-span-1">
           {result && (
             <Card>
-              <h2 className="text-xl font-semibold mb-4">Price Breakdown</h2>
+              <h2 className="text-xl font-semibold mb-4 text-slate-900 dark:text-white">Price Breakdown</h2>
               <div className="space-y-4">
                 {/* Base Prices */}
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Frame MRP</span>
-                    <span className="font-medium">₹{result.frameMRP.toLocaleString()}</span>
+                    <span className="text-slate-600 dark:text-slate-400">Frame MRP</span>
+                    <span className="font-medium text-slate-900 dark:text-slate-200">₹{result.frameMRP.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Lens Price</span>
-                    <span className="font-medium">₹{result.lensPrice.toLocaleString()}</span>
+                    <span className="text-slate-600 dark:text-slate-400">Lens Price</span>
+                    <span className="font-medium text-slate-900 dark:text-slate-200">₹{result.lensPrice.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-sm font-semibold pt-2 border-t">
-                    <span>Base Total</span>
-                    <span>₹{result.baseTotal.toLocaleString()}</span>
+                  <div className="flex justify-between text-sm font-semibold pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <span className="text-slate-900 dark:text-white">Base Total</span>
+                    <span className="text-slate-900 dark:text-white">₹{result.baseTotal.toLocaleString()}</span>
                   </div>
                 </div>
 
                 {/* Offers Applied */}
                 {result.offersApplied.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t">
-                    <h3 className="text-sm font-semibold text-slate-700">Primary Offers</h3>
+                  <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Primary Offers</h3>
                     {result.offersApplied.map((offer, idx) => (
-                      <div key={idx} className="flex justify-between text-sm text-green-600">
+                      <div key={idx} className="flex justify-between text-sm text-green-600 dark:text-green-400">
                         <span className="flex items-center gap-1">
                           <Tag size={12} />
                           {offer.description}
@@ -321,7 +321,7 @@ export default function OfferCalculatorPage() {
 
                 {/* Category Discount */}
                 {result.categoryDiscount && (
-                  <div className="flex justify-between text-sm text-blue-600 pt-2 border-t">
+                  <div className="flex justify-between text-sm text-blue-600 dark:text-blue-400 pt-2 border-t border-slate-200 dark:border-slate-700">
                     <span className="flex items-center gap-1">
                       <Percent size={12} />
                       {result.categoryDiscount.description}
@@ -332,7 +332,7 @@ export default function OfferCalculatorPage() {
 
                 {/* Coupon Discount */}
                 {result.couponDiscount && (
-                  <div className="flex justify-between text-sm text-yellow-600 pt-2 border-t">
+                  <div className="flex justify-between text-sm text-yellow-600 dark:text-yellow-400 pt-2 border-t border-slate-200 dark:border-slate-700">
                     <span className="flex items-center gap-1">
                       <Ticket size={12} />
                       {result.couponDiscount.description}
@@ -343,7 +343,7 @@ export default function OfferCalculatorPage() {
 
                 {/* Second Pair Discount */}
                 {result.secondPairDiscount && (
-                  <div className="flex justify-between text-sm text-purple-600 pt-2 border-t">
+                  <div className="flex justify-between text-sm text-purple-600 dark:text-purple-400 pt-2 border-t border-slate-200 dark:border-slate-700">
                     <span className="flex items-center gap-1">
                       <Package size={12} />
                       {result.secondPairDiscount.description}
@@ -353,30 +353,30 @@ export default function OfferCalculatorPage() {
                 )}
 
                 {/* Final Payable */}
-                <div className="pt-4 border-t-2 border-slate-300">
+                <div className="pt-4 border-t-2 border-slate-300 dark:border-slate-700">
                   <div className="flex justify-between items-center">
-                    <span className="text-lg font-bold text-slate-900">Final Payable</span>
-                    <span className="text-2xl font-bold text-emerald-600">
+                    <span className="text-lg font-bold text-slate-900 dark:text-white">Final Payable</span>
+                    <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                       ₹{result.finalPayable.toLocaleString()}
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm text-slate-500 mt-1">
+                  <div className="flex justify-between text-sm text-slate-500 dark:text-slate-400 mt-1">
                     <span>Total Savings</span>
-                    <span className="text-green-600 font-semibold">
+                    <span className="text-green-600 dark:text-green-400 font-semibold">
                       ₹{(result.baseTotal - result.finalPayable).toLocaleString()}
                     </span>
                   </div>
                 </div>
 
                 {/* Price Components Detail */}
-                <div className="pt-4 border-t">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-2">Detailed Breakdown</h3>
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Detailed Breakdown</h3>
                   <div className="space-y-1 text-xs">
                     {result.priceComponents.map((component, idx) => (
                       <div
                         key={idx}
                         className={`flex justify-between ${
-                          component.amount < 0 ? 'text-green-600' : 'text-slate-600'
+                          component.amount < 0 ? 'text-green-600 dark:text-green-400' : 'text-slate-600 dark:text-slate-400'
                         }`}
                       >
                         <span>{component.label}</span>
@@ -393,10 +393,10 @@ export default function OfferCalculatorPage() {
 
           {!result && (
             <Card>
-              <div className="text-center py-12 text-slate-500">
-                <Calculator size={48} className="mx-auto mb-4 text-slate-400" />
-                <p>Enter frame and lens details</p>
-                <p className="text-sm mt-1">Click "Calculate Offers" to see results</p>
+              <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                <Calculator size={48} className="mx-auto mb-4 text-slate-400 dark:text-slate-500" />
+                <p className="text-slate-900 dark:text-white">Enter frame and lens details</p>
+                <p className="text-sm mt-1 text-slate-600 dark:text-slate-400">Click "Calculate Offers" to see results</p>
               </div>
             </Card>
           )}
