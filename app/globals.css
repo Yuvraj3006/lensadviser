@@ -28,24 +28,28 @@ html {
   /* Prevent pull-to-refresh */
   overscroll-behavior-y: none;
   overscroll-behavior-x: none;
-  /* Use safe viewport height - no fixed height to prevent layout jumps */
+  /* Use small viewport height (svh) - excludes browser UI, stays constant */
+  /* This prevents address bar hide/show from affecting layout */
   height: auto;
-  min-height: 100svh; /* Small viewport height - excludes browser UI */
-  min-height: 100dvh; /* Dynamic viewport height - adjusts with browser UI */
+  min-height: 100svh; /* Small viewport height - excludes browser UI, constant */
+  /* Fallback for browsers that don't support svh */
+  min-height: calc(var(--vh, 1vh) * 100);
   /* Prevent horizontal overflow */
   overflow-x: hidden;
   /* Smooth scrolling */
   scroll-behavior: smooth;
+  /* Lock viewport to prevent address bar from affecting layout */
+  position: relative;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  /* Use safe viewport height - min-height prevents layout jumps */
-  min-height: 100svh;
-  min-height: 100dvh;
-  /* Alternative using CSS variable for maximum compatibility */
+  /* Use small viewport height (svh) - excludes browser UI, stays constant */
+  /* This prevents address bar hide/show from affecting layout on scrollable pages */
+  min-height: 100svh; /* Small viewport height - excludes browser UI, constant */
+  /* Fallback using CSS variable for maximum compatibility */
   min-height: calc(var(--vh, 1vh) * 100);
   /* Prevent unwanted scrolling */
   touch-action: pan-y;
@@ -60,6 +64,8 @@ body {
   overscroll-behavior-x: none;
   /* Position relative for proper stacking */
   position: relative;
+  /* Lock body height to prevent address bar from affecting layout */
+  height: auto;
 }
 
 /* Prevent address bar from showing/hiding on scroll */
@@ -82,18 +88,31 @@ main,
 /* Mobile-specific optimizations */
 @media (max-width: 768px) {
   html {
-    /* Use safe viewport units on mobile */
-    min-height: 100svh;
-    min-height: 100dvh;
+    /* Use small viewport height (svh) on mobile - excludes browser UI */
+    /* This prevents address bar from affecting layout when scrolling */
+    min-height: 100svh; /* Small viewport - constant, excludes browser UI */
     min-height: -webkit-fill-available; /* iOS Safari fallback */
+    min-height: calc(var(--vh, 1vh) * 100); /* Fallback using CSS variable */
+    /* Lock height to prevent address bar show/hide from affecting layout */
+    height: auto;
   }
   
   body {
-    /* Use safe viewport units on mobile */
-    min-height: 100svh;
-    min-height: 100dvh;
+    /* Use small viewport height (svh) on mobile - excludes browser UI */
+    /* This prevents address bar from affecting layout when scrolling */
+    min-height: 100svh; /* Small viewport - constant, excludes browser UI */
     min-height: -webkit-fill-available; /* iOS Safari fallback */
-    min-height: calc(var(--vh, 1vh) * 100);
+    min-height: calc(var(--vh, 1vh) * 100); /* Fallback using CSS variable */
+    /* Lock body to prevent address bar show/hide from affecting layout */
+    height: auto;
+    /* Ensure body can scroll but doesn't jump when address bar hides */
+    position: relative;
+  }
+  
+  /* Prevent address bar from affecting scrollable content */
+  body > * {
+    /* Ensure children use consistent viewport */
+    min-height: 0;
   }
 }
 
@@ -160,9 +179,9 @@ main,
 
 /* Safe viewport height utility classes */
 .min-h-safe-screen {
-  min-height: 100svh; /* Small viewport height - excludes browser UI */
-  min-height: 100dvh; /* Dynamic viewport height - adjusts with browser UI */
+  min-height: 100svh; /* Small viewport height - excludes browser UI, constant */
   min-height: calc(var(--vh, 1vh) * 100); /* Fallback using CSS variable */
+  /* Don't use dvh here as it changes when address bar hides/shows */
 }
 
 .h-safe-screen {

@@ -11,7 +11,6 @@ import {
   ArrowRight,
   UserPlus,
   Home,
-  Download,
   Share2,
   ExternalLink,
   FileText,
@@ -247,105 +246,6 @@ export default function OrderSuccessPage() {
     }, 500);
   };
 
-  const handleDownloadReceipt = async () => {
-    if (!orderData) return;
-    
-    // Check if we're in browser environment
-    if (typeof window === 'undefined') {
-      showToast('error', 'PDF download is only available in browser');
-      return;
-    }
-    
-    try {
-      showToast('info', 'Generating PDF receipt...');
-      
-      // Dynamically import html2pdf only on client side
-      const html2pdf = (await import('html2pdf.js')).default;
-      
-      // Generate full HTML
-      const fullHTML = generateReceiptHTML(orderData);
-      
-      // Create a hidden iframe to render the HTML with all styles
-      const iframe = document.createElement('iframe');
-      iframe.style.position = 'absolute';
-      iframe.style.left = '-9999px';
-      iframe.style.top = '0';
-      iframe.style.width = '210mm';
-      iframe.style.height = '297mm';
-      iframe.style.border = 'none';
-      document.body.appendChild(iframe);
-      
-      // Write HTML to iframe
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!iframeDoc) {
-        document.body.removeChild(iframe);
-        throw new Error('Could not access iframe document');
-      }
-      
-      iframeDoc.open();
-      iframeDoc.write(fullHTML);
-      iframeDoc.close();
-      
-      // Wait for iframe to fully load
-      await new Promise<void>((resolve) => {
-        const checkLoad = () => {
-          if (iframe.contentWindow?.document.readyState === 'complete') {
-            // Additional wait for styles to apply
-            setTimeout(() => resolve(), 500);
-          } else {
-            setTimeout(checkLoad, 100);
-          }
-        };
-        checkLoad();
-        // Fallback timeout
-        setTimeout(() => resolve(), 3000);
-      });
-      
-      // Get the receipt element from iframe
-      const receiptElement = iframeDoc.querySelector('.receipt') as HTMLElement;
-      
-      if (!receiptElement) {
-        document.body.removeChild(iframe);
-        throw new Error('Receipt element not found in iframe');
-      }
-
-      console.log('[OrderSuccess] Receipt element found, generating PDF...');
-
-      // Configure PDF options for A4 size (standard receipt format)
-      const opt = {
-        margin: [15, 15, 15, 15] as [number, number, number, number],
-        filename: `Receipt_${orderData.id}_${new Date().toISOString().split('T')[0]}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { 
-          scale: 2,
-          useCORS: true,
-          letterRendering: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-        },
-        jsPDF: { 
-          unit: 'mm' as const, 
-          format: 'a4' as const, 
-          orientation: 'portrait' as const,
-          compress: true,
-        },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] as any },
-      };
-
-      // Generate and download PDF
-      await html2pdf().set(opt).from(receiptElement).save();
-      
-      // Clean up
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1000);
-      
-      showToast('success', 'PDF receipt downloaded successfully!');
-    } catch (error) {
-      console.error('[OrderSuccess] PDF download error:', error);
-      showToast('error', `Failed to download PDF receipt: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
 
   const getOfferExplanation = (ruleCode: string, description: string): string => {
     const codeUpper = ruleCode.toUpperCase();
@@ -362,12 +262,16 @@ export default function OrderSuccessPage() {
   };
 
   const generateReceiptHTML = (order: OrderData, isPrintMode: boolean = false): string => {
-    const orderDate = new Date(order.createdAt).toLocaleString('en-IN', {
+    const orderDate = new Date(order.createdAt);
+    const formattedDate = orderDate.toLocaleDateString('en-IN', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+    });
+    const formattedTime = orderDate.toLocaleTimeString('en-IN', {
       hour: '2-digit',
       minute: '2-digit',
+      hour12: true,
     });
 
     // Extract offer breakdown if available
@@ -454,7 +358,7 @@ export default function OrderSuccessPage() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Receipt - Order ${order.id}</title>
+  <title>Tax Invoice - Order ${order.id}</title>
   <style>
     * {
       margin: 0;
@@ -462,163 +366,246 @@ export default function OrderSuccessPage() {
       box-sizing: border-box;
     }
     body {
-      font-family: 'Times New Roman', 'DejaVu Serif', serif;
+      font-family: 'Arial', 'Helvetica', sans-serif;
       padding: ${isPrintMode ? '0' : '20px'};
       background: white;
       color: #000;
-      line-height: 1.6;
+      line-height: 1.4;
+      margin: 0;
+      font-size: 12px;
     }
     .receipt {
       max-width: ${isPrintMode ? '210mm' : '600px'};
       width: ${isPrintMode ? '210mm' : '100%'};
       min-height: ${isPrintMode ? '297mm' : 'auto'};
       margin: 0 auto;
-      border: ${isPrintMode ? 'none' : '1px solid #ccc'};
-      padding: ${isPrintMode ? '20mm' : '40px'};
+      border: ${isPrintMode ? 'none' : '1px solid #ddd'};
+      padding: ${isPrintMode ? '15mm' : '30px'};
       background: white;
       box-sizing: border-box;
+      overflow: visible;
     }
     .header {
       text-align: center;
-      border-bottom: 3px double #000;
-      padding-bottom: 20px;
-      margin-bottom: 25px;
+      border-bottom: 2px solid #000;
+      padding-bottom: 12px;
+      margin-bottom: 18px;
     }
     .header h1 {
-      font-size: 32px;
+      font-size: 24px;
       font-weight: bold;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
       color: #000;
-      letter-spacing: 1px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      line-height: 1.2;
     }
     .header .subtitle {
-      font-size: 16px;
+      font-size: 12px;
       color: #333;
-      font-weight: normal;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-    }
-    .order-info {
-      margin-bottom: 25px;
-      padding: 15px;
-      background: #f9f9f9;
-      border: 1px solid #ddd;
-    }
-    .order-info-row {
-      display: flex;
-      justify-content: space-between;
-      margin: 8px 0;
-      font-size: 14px;
-    }
-    .order-info-label {
-      font-weight: bold;
-      color: #333;
-      min-width: 120px;
-    }
-    .order-info-value {
-      color: #000;
-      text-align: right;
-    }
-    .items {
-      margin-bottom: 25px;
-    }
-    .section-title {
-      font-size: 16px;
-      font-weight: bold;
-      margin-bottom: 15px;
-      padding-bottom: 8px;
-      border-bottom: 2px solid #000;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 1px;
+      margin-top: 4px;
+      line-height: 1.3;
+    }
+    .header .store-info {
+      font-size: 10px;
+      color: #666;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+    .order-info {
+      margin-bottom: 18px;
+      padding: 10px 12px;
+      background: #f8f8f8;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+    }
+    .order-info-row {
+      display: table;
+      width: 100%;
+      margin: 5px 0;
+      font-size: 12px;
+      padding: 3px 0;
+      table-layout: fixed;
+      border-collapse: collapse;
+    }
+    .order-info-label {
+      display: table-cell;
+      font-weight: 600;
+      color: #333;
+      width: 45%;
+      padding-right: 15px;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    .order-info-value {
+      display: table-cell;
+      color: #000;
+      text-align: left;
+      font-weight: 500;
+      width: 55%;
+      vertical-align: top;
+      word-break: break-word;
+    }
+    .items {
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 1.5px solid #000;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     .item-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 12px 0;
+      display: table;
+      width: 100%;
+      padding: 6px 0;
       border-bottom: 1px dotted #ccc;
-      font-size: 14px;
+      font-size: 12px;
+      table-layout: fixed;
+      border-collapse: collapse;
     }
     .item-row:last-child {
       border-bottom: none;
     }
     .item-row.discount {
       color: #059669;
-      font-style: italic;
     }
     .item-label {
-      font-weight: normal;
+      display: table-cell;
+      font-weight: 400;
       color: #333;
-      flex: 1;
+      width: 65%;
+      padding-right: 20px;
+      vertical-align: top;
+      word-wrap: break-word;
+      line-height: 1.4;
     }
     .item-value {
-      font-weight: bold;
+      display: table-cell;
+      font-weight: 600;
       color: #000;
       text-align: right;
-      min-width: 100px;
+      width: 35%;
+      white-space: nowrap;
+      vertical-align: top;
+      padding-left: 10px;
     }
     .item-value.discount {
       color: #059669;
     }
     .total-section {
-      margin-top: 25px;
-      padding-top: 20px;
+      margin-top: 20px;
+      padding-top: 15px;
       border-top: 2px solid #000;
     }
     .total-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 10px 0;
-      font-size: 16px;
+      display: table;
+      width: 100%;
+      padding: 6px 0;
+      font-size: 13px;
       border-bottom: 1px solid #ddd;
+      table-layout: fixed;
+      border-collapse: collapse;
     }
     .final-total {
-      font-size: 20px;
+      font-size: 16px;
       font-weight: bold;
       margin-top: 15px;
       padding-top: 15px;
-      border-top: 3px double #000;
+      border-top: 2px solid #000;
+      background: #f0f0f0;
+      padding: 15px 12px;
+      border-radius: 4px;
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
     }
     .final-total .item-label {
-      font-size: 20px;
+      display: table-cell;
+      font-size: 16px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      width: 65%;
+      padding-right: 20px;
+      vertical-align: middle;
     }
     .final-total .item-value {
-      font-size: 22px;
+      display: table-cell;
+      font-size: 18px;
       color: #000;
+      font-weight: bold;
+      text-align: right;
+      width: 35%;
+      vertical-align: middle;
+      padding-left: 10px;
     }
     .footer {
-      margin-top: 40px;
-      padding-top: 20px;
+      margin-top: 30px;
+      padding-top: 15px;
       border-top: 1px solid #ddd;
       text-align: center;
-      font-size: 11px;
+      font-size: 10px;
       color: #666;
-      line-height: 1.8;
+      line-height: 1.6;
     }
     .price-breakdown {
-      margin-top: 25px;
+      margin-top: 20px;
     }
     .offer-details {
-      margin-top: 25px;
-      padding: 15px;
-      background: #f5f5f5;
-      border: 1px solid #ddd;
+      margin-top: 15px;
+      padding: 12px;
+      background: #f9f9f9;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
     }
     .offer-details h4 {
-      font-size: 14px;
+      font-size: 12px;
       font-weight: bold;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       color: #000;
       text-transform: uppercase;
     }
     .offer-detail {
-      margin: 6px 0;
-      font-size: 12px;
-      color: #444;
-      padding-left: 15px;
+      margin: 4px 0;
+      font-size: 11px;
+      color: #555;
+      padding-left: 12px;
+      line-height: 1.4;
     }
     .divider {
-      border-top: 1px solid #ddd;
-      margin: 15px 0;
+      border-top: 1px dashed #ccc;
+      margin: 8px 0;
+      width: 100%;
+      display: block;
+    }
+    .item-row strong {
+      font-weight: 600;
+    }
+    /* Ensure proper spacing and alignment for PDF */
+    .items {
+      width: 100%;
+    }
+    .price-breakdown {
+      width: 100%;
+    }
+    /* Fix for PDF rendering */
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    /* Ensure text doesn't overflow */
+    .item-label, .order-info-value {
+      max-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     @media print {
       body {
@@ -644,6 +631,7 @@ export default function OrderSuccessPage() {
     <div class="header">
       <h1>LENSTRACK</h1>
       <p class="subtitle">TAX INVOICE / RECEIPT</p>
+      ${order.storeName ? `<div class="store-info">${order.storeName}</div>` : ''}
     </div>
     
     <div class="order-info">
@@ -652,8 +640,12 @@ export default function OrderSuccessPage() {
         <span class="order-info-value">${order.id}</span>
       </div>
       <div class="order-info-row">
-        <span class="order-info-label">Date & Time:</span>
-        <span class="order-info-value">${orderDate}</span>
+        <span class="order-info-label">Date:</span>
+        <span class="order-info-value">${formattedDate}</span>
+      </div>
+      <div class="order-info-row">
+        <span class="order-info-label">Time:</span>
+        <span class="order-info-value">${formattedTime}</span>
       </div>
       ${order.storeName ? `
       <div class="order-info-row">
@@ -890,21 +882,21 @@ export default function OrderSuccessPage() {
               
               <div className="space-y-3">
                 {/* Frame MRP */}
-                <div className="flex justify-between items-center py-2 border-b border-slate-200">
-                  <span className="text-slate-700">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b border-slate-200">
+                  <span className="text-slate-700 text-sm sm:text-base flex-1 min-w-0">
                     Frame MRP {orderData.frameData.subBrand && `(${orderData.frameData.brand} - ${orderData.frameData.subBrand})`}
                   </span>
-                  <span className="font-semibold text-slate-900">
+                  <span className="font-semibold text-slate-900 text-sm sm:text-base flex-shrink-0 whitespace-nowrap">
                     ₹{Math.round(orderData.offerData.frameMRP || orderData.frameData.mrp).toLocaleString()}
                   </span>
                 </div>
                 
                 {/* Lens Price */}
-                <div className="flex justify-between items-center py-2 border-b border-slate-200">
-                  <span className="text-slate-700">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b border-slate-200">
+                  <span className="text-slate-700 text-sm sm:text-base flex-1 min-w-0">
                     Lens Price ({orderData.lensData.name}{orderData.lensData.index ? ` - Index ${orderData.lensData.index}` : ''})
                   </span>
-                  <span className="font-semibold text-slate-900">
+                  <span className="font-semibold text-slate-900 text-sm sm:text-base flex-shrink-0 whitespace-nowrap">
                     ₹{Math.round(orderData.offerData.lensPrice || orderData.lensData.price).toLocaleString()}
                   </span>
                 </div>
@@ -913,18 +905,18 @@ export default function OrderSuccessPage() {
                 {(orderData.lensData as any).rxAddOnBreakdown && Array.isArray((orderData.lensData as any).rxAddOnBreakdown) && (orderData.lensData as any).rxAddOnBreakdown.length > 0 && (
                   <>
                     {(orderData.lensData as any).rxAddOnBreakdown.map((addOn: any, idx: number) => (
-                      <div key={idx} className="flex justify-between items-center py-2 border-b border-slate-200">
-                        <span className="text-slate-700 text-sm">{addOn.label || 'High Power Add-On'}</span>
-                        <span className="font-semibold text-slate-900">+₹{Math.round(addOn.charge || 0).toLocaleString()}</span>
+                      <div key={idx} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b border-slate-200">
+                        <span className="text-slate-700 text-sm flex-1 min-w-0">{addOn.label || 'High Power Add-On'}</span>
+                        <span className="font-semibold text-slate-900 text-sm flex-shrink-0 whitespace-nowrap">+₹{Math.round(addOn.charge || 0).toLocaleString()}</span>
                       </div>
                     ))}
                   </>
                 )}
                 
                 {/* Subtotal */}
-                <div className="flex justify-between items-center py-2 border-b-2 border-slate-300">
-                  <span className="font-semibold text-slate-900">Subtotal</span>
-                  <span className="font-bold text-slate-900">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b-2 border-slate-300">
+                  <span className="font-semibold text-slate-900 text-sm sm:text-base flex-1 min-w-0">Subtotal</span>
+                  <span className="font-bold text-slate-900 text-sm sm:text-base flex-shrink-0 whitespace-nowrap">
                     ₹{Math.round(orderData.offerData.baseTotal || ((orderData.offerData.frameMRP || orderData.frameData.mrp) + (orderData.offerData.lensPrice || orderData.lensData.price))).toLocaleString()}
                   </span>
                 </div>
@@ -935,9 +927,9 @@ export default function OrderSuccessPage() {
                     {orderData.offerData.offersApplied
                       .filter((offer: any) => offer.savings > 0)
                       .map((offer: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center py-2 border-b border-slate-200">
-                          <span className="text-green-700 text-sm">{offer.description || offer.ruleCode}</span>
-                          <span className="font-semibold text-green-600">-₹{Math.round(offer.savings).toLocaleString()}</span>
+                        <div key={idx} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b border-slate-200">
+                          <span className="text-green-700 text-sm flex-1 min-w-0">{offer.description || offer.ruleCode}</span>
+                          <span className="font-semibold text-green-600 text-sm flex-shrink-0 whitespace-nowrap">-₹{Math.round(offer.savings).toLocaleString()}</span>
                         </div>
                       ))}
                   </>
@@ -945,33 +937,33 @@ export default function OrderSuccessPage() {
                 
                 {/* Category Discount */}
                 {orderData.offerData.categoryDiscount && orderData.offerData.categoryDiscount.savings > 0 && (
-                  <div className="flex justify-between items-center py-2 border-b border-slate-200">
-                    <span className="text-green-700 text-sm">{orderData.offerData.categoryDiscount.description}</span>
-                    <span className="font-semibold text-green-600">-₹{Math.round(orderData.offerData.categoryDiscount.savings).toLocaleString()}</span>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b border-slate-200">
+                    <span className="text-green-700 text-sm flex-1 min-w-0">{orderData.offerData.categoryDiscount.description}</span>
+                    <span className="font-semibold text-green-600 text-sm flex-shrink-0 whitespace-nowrap">-₹{Math.round(orderData.offerData.categoryDiscount.savings).toLocaleString()}</span>
                   </div>
                 )}
                 
                 {/* Coupon Discount */}
                 {orderData.offerData.couponDiscount && orderData.offerData.couponDiscount.savings > 0 && (
-                  <div className="flex justify-between items-center py-2 border-b border-slate-200">
-                    <span className="text-green-700 text-sm">{orderData.offerData.couponDiscount.description}</span>
-                    <span className="font-semibold text-green-600">-₹{Math.round(orderData.offerData.couponDiscount.savings).toLocaleString()}</span>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b border-slate-200">
+                    <span className="text-green-700 text-sm flex-1 min-w-0">{orderData.offerData.couponDiscount.description}</span>
+                    <span className="font-semibold text-green-600 text-sm flex-shrink-0 whitespace-nowrap">-₹{Math.round(orderData.offerData.couponDiscount.savings).toLocaleString()}</span>
                   </div>
                 )}
                 
                 {/* Second Pair Discount */}
                 {orderData.offerData.secondPairDiscount && orderData.offerData.secondPairDiscount.savings > 0 && (
-                  <div className="flex justify-between items-center py-2 border-b border-slate-200">
-                    <span className="text-green-700 text-sm">{orderData.offerData.secondPairDiscount.description}</span>
-                    <span className="font-semibold text-green-600">-₹{Math.round(orderData.offerData.secondPairDiscount.savings).toLocaleString()}</span>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b border-slate-200">
+                    <span className="text-green-700 text-sm flex-1 min-w-0">{orderData.offerData.secondPairDiscount.description}</span>
+                    <span className="font-semibold text-green-600 text-sm flex-shrink-0 whitespace-nowrap">-₹{Math.round(orderData.offerData.secondPairDiscount.savings).toLocaleString()}</span>
                   </div>
                 )}
                 
                 {/* Total Discount */}
                 {((orderData.offerData.baseTotal || 0) - (orderData.finalPrice || 0)) > 0 && (
-                  <div className="flex justify-between items-center py-2 border-b-2 border-slate-300">
-                    <span className="font-semibold text-green-700">Total Discount</span>
-                    <span className="font-bold text-green-600">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b-2 border-slate-300">
+                    <span className="font-semibold text-green-700 text-sm sm:text-base flex-1 min-w-0">Total Discount</span>
+                    <span className="font-bold text-green-600 text-sm sm:text-base flex-shrink-0 whitespace-nowrap">
                       -₹{Math.round((orderData.offerData.baseTotal || 0) - (orderData.finalPrice || 0)).toLocaleString()}
                     </span>
                   </div>
@@ -979,9 +971,9 @@ export default function OrderSuccessPage() {
               </div>
               
               {/* Final Total */}
-              <div className="flex justify-between items-center py-4 mt-4 pt-4 border-t-2 border-slate-300 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg px-4">
-                <span className="text-xl font-bold text-slate-900">Total Amount</span>
-                <span className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4 py-4 mt-4 pt-4 border-t-2 border-slate-300 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg px-4">
+                <span className="text-lg sm:text-xl font-bold text-slate-900 flex-1 min-w-0">Total Amount</span>
+                <span className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent flex-shrink-0 whitespace-nowrap">
                   ₹{Math.round(orderData.finalPrice).toLocaleString()}
                 </span>
               </div>
@@ -990,9 +982,9 @@ export default function OrderSuccessPage() {
           
           {/* Amount (fallback if no offerData) */}
           {!orderData.offerData && (
-            <div className="flex justify-between items-center py-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl px-4 border-2 border-green-200 mt-6">
-              <span className="text-xl font-bold text-slate-900">Total Amount</span>
-              <span className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4 py-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl px-4 border-2 border-green-200 mt-6">
+              <span className="text-lg sm:text-xl font-bold text-slate-900 flex-1 min-w-0">Total Amount</span>
+              <span className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent flex-shrink-0 whitespace-nowrap">
                 ₹{Math.round(orderData.finalPrice).toLocaleString()}
               </span>
             </div>
@@ -1000,11 +992,11 @@ export default function OrderSuccessPage() {
         </div>
 
         {/* Next Steps */}
-        <div className="bg-white rounded-2xl shadow-lg border-2 border-slate-200 p-6 mb-6">
-          <h3 className="text-lg font-bold text-slate-900 mb-4">Next Steps</h3>
+        <div className="bg-white dark:bg-white rounded-2xl shadow-lg border-2 border-slate-200 dark:border-slate-400 p-6 mb-6">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-900 mb-4">Next Steps</h3>
           {isPOSMode ? (
             <div className="space-y-4">
-              <p className="text-slate-700 mb-4">
+              <p className="text-slate-700 dark:text-slate-900 mb-4">
                 Our staff will now print and process your order.
               </p>
               <Button
@@ -1019,7 +1011,7 @@ export default function OrderSuccessPage() {
               </Button>
             </div>
           ) : (
-            <p className="text-slate-700 text-base leading-relaxed">
+            <p className="text-slate-700 dark:text-slate-900 text-base leading-relaxed">
               Our staff will now print and process your order.
             </p>
           )}
@@ -1067,17 +1059,9 @@ export default function OrderSuccessPage() {
               <ArrowRight size={20} className="ml-2" />
             </Button>
             <Button
-              onClick={handleDownloadReceipt}
-              variant="outline"
-              className="flex-1 border-2 border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold py-4 text-base"
-            >
-              <Download size={20} className="mr-2" />
-              Download Receipt
-            </Button>
-            <Button
               onClick={handlePrintReceipt}
               variant="outline"
-              className="flex-1 border-2 border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold py-4 text-base"
+              className="flex-1 border-2 border-slate-300 dark:border-slate-400 text-slate-700 dark:text-slate-900 hover:bg-slate-50 dark:hover:bg-slate-100 font-semibold py-4 text-base bg-white dark:bg-white"
             >
               <Share2 size={20} className="mr-2" />
               Print Receipt

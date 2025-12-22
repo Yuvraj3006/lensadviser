@@ -1914,17 +1914,17 @@ export default function OfferSummaryPage() {
             })()}
 
             {/* Final Payable */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 rounded-lg p-6 border-2 border-green-400/50 shadow-2xl transform hover:scale-[1.01] transition-transform duration-300">
+            <div className="relative overflow-hidden bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 rounded-lg p-4 sm:p-6 border-2 border-green-400/50 shadow-2xl transform hover:scale-[1.01] transition-transform duration-300">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 via-emerald-400 to-green-300 animate-pulse" />
-              <div className="relative flex justify-between items-center">
-                <div>
-                  <p className="text-green-100 text-sm font-semibold mb-1 uppercase tracking-wide">Final Payable</p>
-                  <p className="text-green-200 text-sm">Including all discounts & offers</p>
+              <div className="relative flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-green-100 text-xs sm:text-sm font-semibold mb-1 uppercase tracking-wide">Final Payable</p>
+                  <p className="text-green-200 text-xs sm:text-sm">Including all discounts & offers</p>
                 </div>
-                <div className="text-right">
-                  <div className="bg-white/20 backdrop-blur rounded-lg px-4 py-2 border border-white/30">
-                    <span className="text-3xl md:text-4xl font-bold text-white">
+                <div className="text-right sm:text-right w-full sm:w-auto flex-shrink-0">
+                  <div className="bg-white/20 backdrop-blur rounded-lg px-3 sm:px-4 py-2 border border-white/30 inline-block sm:block">
+                    <span className="text-2xl sm:text-3xl md:text-4xl font-bold text-white whitespace-nowrap">
                       ₹{Math.round(data.offerResult.finalPayable).toLocaleString()}
                     </span>
                   </div>

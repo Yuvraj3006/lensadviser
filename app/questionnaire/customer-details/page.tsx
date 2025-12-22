@@ -82,10 +82,9 @@ export default function CustomerDetailsPage() {
 
   // Validation functions
   const validatePhone = (phone: string): boolean => {
-    // Indian phone number: 10 digits, optionally with +91 or 0 prefix
-    const phoneRegex = /^(\+91|0)?[6-9]\d{9}$/;
-    const cleaned = phone.replace(/[\s-]/g, '');
-    return phoneRegex.test(cleaned);
+    // Indian phone number: exactly 10 digits, starting with 6-9
+    const phoneRegex = /^[6-9]\d{9}$/;
+    return phoneRegex.test(phone);
   };
 
   const validateEmail = (email: string): boolean => {
@@ -108,8 +107,10 @@ export default function CustomerDetailsPage() {
     // Validate phone (required)
     if (!customerPhone.trim()) {
       newErrors.phone = 'Phone number is required';
+    } else if (customerPhone.length !== 10) {
+      newErrors.phone = 'Phone number must be exactly 10 digits';
     } else if (!validatePhone(customerPhone)) {
-      newErrors.phone = 'Please enter a valid 10-digit phone number';
+      newErrors.phone = 'Please enter a valid 10-digit phone number starting with 6-9';
     }
 
     // Validate email (optional but must be valid if provided)
@@ -145,10 +146,55 @@ export default function CustomerDetailsPage() {
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    // Allow only digits, +, spaces, and hyphens
-    const cleaned = value.replace(/[^\d+\s-]/g, '');
+    // Allow only digits, maximum 10 digits - prevent any non-digit input
+    const cleaned = value.replace(/\D/g, '').slice(0, 10);
     setCustomerPhone(cleaned);
     // Clear error when user starts typing
+    if (errors.phone) {
+      setErrors({ ...errors, phone: undefined });
+    }
+  };
+
+  const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent non-digit keys (except backspace, delete, tab, arrow keys, etc.)
+    const allowedKeys = [
+      'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
+      'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+      'Home', 'End'
+    ];
+    
+    // Allow if it's an allowed key
+    if (allowedKeys.includes(e.key)) {
+      return;
+    }
+    
+    // Allow Ctrl/Cmd + A, C, V, X for copy/paste operations
+    if ((e.ctrlKey || e.metaKey) && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) {
+      return;
+    }
+    
+    // Only allow digits (0-9)
+    if (!/^\d$/.test(e.key)) {
+      e.preventDefault();
+      return;
+    }
+    
+    // Prevent typing if already 10 digits (unless replacing selected text)
+    const input = e.currentTarget;
+    const hasSelection = input.selectionStart !== input.selectionEnd;
+    if (!hasSelection && customerPhone.length >= 10) {
+      e.preventDefault();
+      return;
+    }
+  };
+
+  const handlePhonePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedText = e.clipboardData.getData('text');
+    // Extract only digits and limit to 10
+    const cleaned = pastedText.replace(/\D/g, '').slice(0, 10);
+    setCustomerPhone(cleaned);
+    // Clear error
     if (errors.phone) {
       setErrors({ ...errors, phone: undefined });
     }
@@ -222,10 +268,14 @@ export default function CustomerDetailsPage() {
                 </label>
                 <Input
                   type="tel"
-                  placeholder="9876543210 or +91-9876543210"
+                  placeholder="9876543210"
                   value={customerPhone}
                   onChange={handlePhoneChange}
-                  maxLength={15}
+                  onKeyDown={handlePhoneKeyDown}
+                  onPaste={handlePhonePaste}
+                  maxLength={10}
+                  inputMode="numeric"
+                  pattern="[6-9][0-9]{9}"
                   className={errors.phone ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
                 />
                 {errors.phone && (

@@ -267,7 +267,76 @@ export function DragInput({
 
   // Close dropdown when clicking outside (handle both mouse and touch events)
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+    let touchStartTime = 0;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchMoved = false;
+
+    const handleTouchStart = (event: TouchEvent) => {
+      const target = event.target as Node;
+      const touch = event.touches[0];
+      if (touch) {
+        touchStartTime = Date.now();
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+        touchMoved = false;
+      }
+
+      // If touch is inside dropdown or input, don't close
+      if (
+        dropdownRef.current &&
+        dropdownRef.current.contains(target)
+      ) {
+        return; // Don't close if touching inside dropdown
+      }
+
+      if (
+        inputRef.current &&
+        inputRef.current.contains(target)
+      ) {
+        return; // Don't close if touching input
+      }
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (touch) {
+        const deltaX = Math.abs(touch.clientX - touchStartX);
+        const deltaY = Math.abs(touch.clientY - touchStartY);
+        // If moved more than 5px, consider it a scroll gesture
+        if (deltaX > 5 || deltaY > 5) {
+          touchMoved = true;
+        }
+      }
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      const target = event.target as Node;
+      const touchDuration = Date.now() - touchStartTime;
+      
+      // Only close if:
+      // 1. Touch was outside dropdown and input
+      // 2. Touch didn't move (was a tap, not a scroll)
+      // 3. Touch duration was short (tap, not long press)
+      if (
+        !touchMoved &&
+        touchDuration < 300 && // Less than 300ms = tap
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target) &&
+        inputRef.current &&
+        !inputRef.current.contains(target)
+      ) {
+        setIsDropdownOpen(false);
+        setHighlightedIndex(-1);
+        setDropdownPosition(null);
+      }
+      
+      // Reset
+      touchMoved = false;
+      touchStartTime = 0;
+    };
+
+    const handleMouseDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (
         dropdownRef.current &&
@@ -283,11 +352,15 @@ export function DragInput({
 
     if (isDropdownOpen) {
       // Use capture phase to catch events early
-      document.addEventListener('mousedown', handleClickOutside, true);
-      document.addEventListener('touchstart', handleClickOutside, true);
+      document.addEventListener('mousedown', handleMouseDown, true);
+      document.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
+      document.addEventListener('touchmove', handleTouchMove, { passive: true, capture: true });
+      document.addEventListener('touchend', handleTouchEnd, { passive: true, capture: true });
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside, true);
-        document.removeEventListener('touchstart', handleClickOutside, true);
+        document.removeEventListener('mousedown', handleMouseDown, true);
+        document.removeEventListener('touchstart', handleTouchStart, { capture: true });
+        document.removeEventListener('touchmove', handleTouchMove, { capture: true });
+        document.removeEventListener('touchend', handleTouchEnd, { capture: true });
       };
     }
   }, [isDropdownOpen]);
@@ -545,10 +618,17 @@ export function DragInput({
             key={index}
             data-index={index}
             onClick={() => handleSelectValue(option)}
+            onTouchStart={(e) => {
+              // Prevent dropdown from closing when touching an option
+              e.stopPropagation();
+            }}
             onTouchEnd={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              handleSelectValue(option);
+              // Small delay to ensure touch events are processed
+              setTimeout(() => {
+                handleSelectValue(option);
+              }, 50);
             }}
             className={`
               px-4 py-3 text-center cursor-pointer
