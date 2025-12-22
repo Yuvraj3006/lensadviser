@@ -34,6 +34,8 @@ export function DragInput({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const isUserScrollingRef = useRef<boolean>(false);
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   // Generate all possible values based on min, max, and step
   const options = useMemo(() => {
@@ -271,6 +273,8 @@ export function DragInput({
     let touchStartX = 0;
     let touchStartY = 0;
     let touchMoved = false;
+    let touchStartedInsideDropdown = false;
+    let touchStartedInsideInput = false;
 
     const handleTouchStart = (event: TouchEvent) => {
       const target = event.target as Node;
@@ -280,21 +284,10 @@ export function DragInput({
         touchStartX = touch.clientX;
         touchStartY = touch.clientY;
         touchMoved = false;
-      }
-
-      // If touch is inside dropdown or input, don't close
-      if (
-        dropdownRef.current &&
-        dropdownRef.current.contains(target)
-      ) {
-        return; // Don't close if touching inside dropdown
-      }
-
-      if (
-        inputRef.current &&
-        inputRef.current.contains(target)
-      ) {
-        return; // Don't close if touching input
+        
+        // Check if touch started inside dropdown or input
+        touchStartedInsideDropdown = dropdownRef.current?.contains(target) || false;
+        touchStartedInsideInput = inputRef.current?.contains(target) || false;
       }
     };
 
@@ -314,17 +307,26 @@ export function DragInput({
       const target = event.target as Node;
       const touchDuration = Date.now() - touchStartTime;
       
+      // Check if touch ended inside dropdown or input
+      const touchEndedInsideDropdown = dropdownRef.current?.contains(target) || false;
+      const touchEndedInsideInput = inputRef.current?.contains(target) || false;
+      
+      // Check if user was scrolling (using the ref from dropdown scroll handler)
+      const wasScrolling = isUserScrollingRef.current;
+      
       // Only close if:
-      // 1. Touch was outside dropdown and input
+      // 1. Touch was NOT inside dropdown or input (both start and end)
       // 2. Touch didn't move (was a tap, not a scroll)
       // 3. Touch duration was short (tap, not long press)
+      // 4. User was NOT scrolling
       if (
+        !touchStartedInsideDropdown &&
+        !touchStartedInsideInput &&
+        !touchEndedInsideDropdown &&
+        !touchEndedInsideInput &&
         !touchMoved &&
-        touchDuration < 300 && // Less than 300ms = tap
-        dropdownRef.current &&
-        !dropdownRef.current.contains(target) &&
-        inputRef.current &&
-        !inputRef.current.contains(target)
+        !wasScrolling &&
+        touchDuration < 300 // Less than 300ms = tap
       ) {
         setIsDropdownOpen(false);
         setHighlightedIndex(-1);
@@ -334,6 +336,8 @@ export function DragInput({
       // Reset
       touchMoved = false;
       touchStartTime = 0;
+      touchStartedInsideDropdown = false;
+      touchStartedInsideInput = false;
     };
 
     const handleMouseDown = (event: MouseEvent) => {
@@ -490,15 +494,21 @@ export function DragInput({
       const element = dropdownRef.current;
       let touchStartY = 0;
       let touchStartScrollTop = 0;
-      let isUserScrolling = false;
+      let touchStartX = 0;
 
       const handleTouchStart = (e: TouchEvent) => {
         if (!element.contains(e.target as Node)) return;
         const touch = e.touches[0];
         if (touch) {
           touchStartY = touch.clientY;
+          touchStartX = touch.clientX;
           touchStartScrollTop = element.scrollTop;
-          isUserScrolling = false;
+          isUserScrollingRef.current = false;
+          touchStartRef.current = {
+            x: touch.clientX,
+            y: touch.clientY,
+            time: Date.now(),
+          };
         }
       };
 
@@ -509,12 +519,19 @@ export function DragInput({
         if (!touch) return;
         
         const touchY = touch.clientY;
-        const deltaY = touchY - touchStartY;
+        const touchX = touch.clientX;
+        const deltaY = Math.abs(touchY - touchStartY);
+        const deltaX = Math.abs(touchX - touchStartX);
         const currentScrollTop = element.scrollTop;
         
         // Check if scroll position has changed (user is scrolling within dropdown)
         if (Math.abs(currentScrollTop - touchStartScrollTop) > 2) {
-          isUserScrolling = true;
+          isUserScrollingRef.current = true;
+        }
+        
+        // Also check if finger moved significantly (more than 5px) - indicates scrolling
+        if (deltaY > 5 || deltaX > 5) {
+          isUserScrollingRef.current = true;
         }
         
         // Get element bounds
@@ -535,7 +552,7 @@ export function DragInput({
         // 1. At boundary AND trying to scroll beyond boundary
         // 2. AND user is not actively scrolling within the dropdown
         // This allows smooth momentum scrolling to work
-        if (isUserScrolling) {
+        if (isUserScrollingRef.current) {
           // User is scrolling - only prevent if at boundary and trying to go beyond
           if ((isAtTop && scrollingUp) || (isAtBottom && scrollingDown)) {
             e.preventDefault();
@@ -552,6 +569,14 @@ export function DragInput({
             }
           }
         }
+      };
+      
+      const handleTouchEnd = (e: TouchEvent) => {
+        // Reset scrolling state after a delay to allow for next interaction
+        setTimeout(() => {
+          isUserScrollingRef.current = false;
+          touchStartRef.current = null;
+        }, 100);
       };
 
       // Prevent body scroll when wheel event reaches dropdown boundaries
@@ -572,11 +597,13 @@ export function DragInput({
       // Use capture phase to catch events before they bubble
       element.addEventListener('touchstart', handleTouchStart, { passive: true });
       document.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
+      document.addEventListener('touchend', handleTouchEnd, { passive: true, capture: true });
       document.addEventListener('wheel', handleBodyWheel, { passive: false, capture: true });
 
       return () => {
         element.removeEventListener('touchstart', handleTouchStart);
         document.removeEventListener('touchmove', handleTouchMove, { capture: true });
+        document.removeEventListener('touchend', handleTouchEnd, { capture: true });
         document.removeEventListener('wheel', handleBodyWheel, { capture: true });
       };
     }
@@ -621,11 +648,44 @@ export function DragInput({
             onTouchStart={(e) => {
               // Prevent dropdown from closing when touching an option
               e.stopPropagation();
+              // Track touch start for this item
+              const touch = e.touches[0];
+              if (touch) {
+                touchStartRef.current = {
+                  x: touch.clientX,
+                  y: touch.clientY,
+                  time: Date.now(),
+                };
+              }
             }}
             onTouchEnd={(e) => {
-              e.preventDefault();
               e.stopPropagation();
-              // Small delay to ensure touch events are processed
+              
+              // Check if this was a scroll gesture or a tap
+              const touch = e.changedTouches[0];
+              if (!touch || !touchStartRef.current) {
+                return;
+              }
+              
+              const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+              const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+              const deltaTime = Date.now() - touchStartRef.current.time;
+              const totalMovement = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+              
+              // If user was scrolling, don't select
+              if (isUserScrollingRef.current) {
+                e.preventDefault();
+                return;
+              }
+              
+              // If movement is significant (>10px) or took too long (>300ms), it's likely a scroll
+              if (totalMovement > 10 || deltaTime > 300) {
+                e.preventDefault();
+                return;
+              }
+              
+              // It's a tap - select the value
+              e.preventDefault();
               setTimeout(() => {
                 handleSelectValue(option);
               }, 50);

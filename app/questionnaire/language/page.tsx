@@ -65,25 +65,23 @@ export default function LanguagePage() {
               <div key={lang.code} className="flex flex-col items-center">
                 <button
                   onClick={() => handleLanguageSelect(lang.code)}
-                  className={`flex items-center justify-center rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-lg transition-all duration-200 active:scale-95 group overflow-visible ${
-                    lang.code === 'hi' || lang.code === 'hinglish' ? 'w-28 h-28 sm:w-32 sm:h-32' : 'w-24 h-24 sm:w-28 sm:h-28'
-                  }`}
+                  className="flex items-center justify-center rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-lg transition-all duration-200 active:scale-95 group overflow-visible w-28 h-28 sm:w-32 sm:h-32"
                 >
                   <div className="group-hover:scale-110 transition-transform flex items-center justify-center w-full h-full p-2">
                     {lang.code === 'en' && (
-                      <div className="text-4xl sm:text-5xl font-bold bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 bg-clip-text text-transparent drop-shadow-lg leading-none">
+                      <div className="text-4xl sm:text-5xl font-bold bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 bg-clip-text text-transparent drop-shadow-lg leading-none flex items-center justify-center w-full h-full">
                         E
                       </div>
                     )}
                     {lang.code === 'hi' && (
-                      <div className="text-4xl sm:text-5xl font-bold bg-gradient-to-br from-orange-500 via-red-500 to-orange-600 bg-clip-text text-transparent drop-shadow-lg" style={{ lineHeight: '1.1', paddingTop: '2px' }}>
+                      <div className="text-4xl sm:text-5xl font-bold bg-gradient-to-br from-orange-500 via-red-500 to-orange-600 bg-clip-text text-transparent drop-shadow-lg flex items-center justify-center w-full h-full" style={{ lineHeight: '1.1' }}>
                         हिं
                       </div>
                     )}
                     {lang.code === 'hinglish' && (
-                      <div className="flex items-center justify-center gap-1">
-                        <span className="text-3xl sm:text-4xl font-bold bg-gradient-to-br from-blue-600 to-purple-600 bg-clip-text text-transparent drop-shadow-lg leading-none">E</span>
-                        <span className="text-3xl sm:text-4xl font-bold bg-gradient-to-br from-orange-500 to-red-500 bg-clip-text text-transparent drop-shadow-lg" style={{ lineHeight: '1.1', paddingTop: '2px' }}>हिं</span>
+                      <div className="flex items-center justify-center gap-1 w-full h-full">
+                        <span className="text-4xl sm:text-5xl font-bold bg-gradient-to-br from-blue-600 to-purple-600 bg-clip-text text-transparent drop-shadow-lg leading-none flex items-center justify-center">E</span>
+                        <span className="text-4xl sm:text-5xl font-bold bg-gradient-to-br from-orange-500 to-red-500 bg-clip-text text-transparent drop-shadow-lg flex items-center justify-center" style={{ lineHeight: '1.1' }}>हिं</span>
                       </div>
                     )}
                   </div>
