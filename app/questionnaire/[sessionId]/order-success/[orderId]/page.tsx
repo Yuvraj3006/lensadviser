@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
 import { useSessionStore } from '@/stores/session-store';
 import { Button } from '@/components/ui/Button';
+import html2pdf from 'html2pdf.js';
 import { 
   CheckCircle,
   Package,
@@ -14,7 +15,8 @@ import {
   Share2,
   ExternalLink,
   FileText,
-  Gift
+  Gift,
+  Download
 } from 'lucide-react';
 
 interface OrderData {
@@ -244,6 +246,69 @@ export default function OrderSuccessPage() {
     setTimeout(() => {
       printWindow.print();
     }, 500);
+  };
+
+  const handleDownloadReceipt = () => {
+    if (!orderData) return;
+    
+    try {
+      // Create a temporary container for the receipt
+      const receiptHTML = generateReceiptHTML(orderData, true); // true for print mode
+      
+      // Create a temporary div to hold the receipt content
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = receiptHTML;
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.style.top = '-9999px';
+      document.body.appendChild(tempDiv);
+      
+      // Get the receipt element
+      const receiptElement = tempDiv.querySelector('.receipt') as HTMLElement;
+      
+      if (!receiptElement) {
+        document.body.removeChild(tempDiv);
+        showToast('error', 'Failed to generate receipt');
+        return;
+      }
+      
+      // Configure PDF options
+      const opt: any = {
+        margin: [10, 10, 10, 10],
+        filename: `Receipt_${orderData.id}_${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          letterRendering: true,
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait' 
+        },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+      
+      // Generate and download PDF
+      html2pdf()
+        .set(opt)
+        .from(receiptElement)
+        .save()
+        .then(() => {
+          // Clean up
+          document.body.removeChild(tempDiv);
+          showToast('success', 'Receipt downloaded successfully!');
+        })
+        .catch((error: any) => {
+          console.error('[OrderSuccess] Download receipt error:', error);
+          document.body.removeChild(tempDiv);
+          showToast('error', 'Failed to download receipt. Please try printing instead.');
+        });
+    } catch (error) {
+      console.error('[OrderSuccess] Download receipt error:', error);
+      showToast('error', 'Failed to download receipt. Please try printing instead.');
+    }
   };
 
 
@@ -1057,6 +1122,14 @@ export default function OrderSuccessPage() {
               <UserPlus size={20} className="mr-2" />
               New Customer
               <ArrowRight size={20} className="ml-2" />
+            </Button>
+            <Button
+              onClick={handleDownloadReceipt}
+              variant="outline"
+              className="flex-1 border-2 border-slate-300 dark:border-slate-400 text-slate-700 dark:text-slate-900 hover:bg-slate-50 dark:hover:bg-slate-100 font-semibold py-4 text-base bg-white dark:bg-white"
+            >
+              <Download size={20} className="mr-2" />
+              Download Receipt
             </Button>
             <Button
               onClick={handlePrintReceipt}
