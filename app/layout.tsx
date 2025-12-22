@@ -36,8 +36,8 @@ export default function RootLayout({
   
   try {
     return (
-      <html lang="en">
-        <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
+      <html lang="en" className="overscroll-none">
+        <body className={`${inter.variable} font-sans antialiased overscroll-none`} suppressHydrationWarning>
           {appProvidersElement}
         </body>
       </html>

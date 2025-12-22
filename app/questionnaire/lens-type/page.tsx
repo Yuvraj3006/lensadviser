@@ -50,7 +50,7 @@ export default function LensTypePage() {
         hi: 'चश्मा',
         hinglish: 'Eyeglasses'
       },
-      icon: <Glasses size={48} className="drop-shadow-lg" />,
+      icon: <Glasses className="w-8 h-8 sm:w-12 sm:h-12 drop-shadow-lg" />,
       description: {
         en: 'Frame + Lens',
         hi: 'फ्रेम + लेंस',
@@ -65,7 +65,7 @@ export default function LensTypePage() {
         hi: 'केवल लेंस',
         hinglish: 'Only Lens'
       },
-      icon: <Eye size={48} className="drop-shadow-lg" />,
+      icon: <Eye className="w-8 h-8 sm:w-12 sm:h-12 drop-shadow-lg" />,
       description: {
         en: 'Lens replacement only',
         hi: 'केवल लेंस बदलना',
@@ -82,12 +82,10 @@ export default function LensTypePage() {
       },
       icon: (
         <svg 
-          width="48" 
-          height="48" 
           viewBox="0 0 48 48" 
           fill="none" 
           xmlns="http://www.w3.org/2000/svg"
-          className="drop-shadow-lg"
+          className="w-8 h-8 sm:w-12 sm:h-12 drop-shadow-lg"
         >
           {/* Left lens */}
           <ellipse cx="14" cy="24" rx="8" ry="7" fill="black" stroke="currentColor" strokeWidth="2" />
@@ -119,12 +117,10 @@ export default function LensTypePage() {
       },
       icon: (
         <svg 
-          width="48" 
-          height="48" 
           viewBox="0 0 48 48" 
           fill="none" 
           xmlns="http://www.w3.org/2000/svg"
-          className="drop-shadow-lg"
+          className="w-8 h-8 sm:w-12 sm:h-12 drop-shadow-lg"
         >
           {/* First contact lens (left, flat) */}
           <ellipse 
@@ -181,12 +177,10 @@ export default function LensTypePage() {
       },
       icon: (
         <svg 
-          width="48" 
-          height="48" 
           viewBox="0 0 48 48" 
           fill="none" 
           xmlns="http://www.w3.org/2000/svg"
-          className="drop-shadow-lg"
+          className="w-8 h-8 sm:w-12 sm:h-12 drop-shadow-lg"
         >
           {/* Case/Box */}
           <rect x="12" y="16" width="24" height="18" rx="2" fill="currentColor" opacity="0.1" stroke="currentColor" strokeWidth="2" />
@@ -296,19 +290,19 @@ export default function LensTypePage() {
                   // For other categories, navigate to prescription
                   router.push('/questionnaire/prescription');
                 }}
-                className={`p-6 rounded-xl border-2 transition-all cursor-pointer ${
+                className={`p-4 sm:p-6 rounded-xl border-2 transition-all cursor-pointer flex flex-col items-center text-center ${
                   selectedCategory === category.value
                     ? 'border-blue-500 bg-blue-500/10 dark:bg-blue-500/10'
                     : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600'
                 }`}
               >
-                <div className={`w-16 h-16 rounded-lg bg-gradient-to-br ${category.color} flex items-center justify-center text-white mb-4 mx-auto`}>
+                <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-lg bg-gradient-to-br ${category.color} flex items-center justify-center text-white mb-3 sm:mb-4`}>
                   {category.icon}
                 </div>
-                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+                <h3 className="text-base sm:text-xl font-semibold text-slate-900 dark:text-white mb-1 sm:mb-2 leading-tight">
                   {getText(category.label.en, category.label.hi, category.label.hinglish)}
                 </h3>
-                <p className="text-slate-600 dark:text-slate-400 text-sm">
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-tight">
                   {getText(category.description.en, category.description.hi, category.description.hinglish)}
                 </p>
               </button>
@@ -364,19 +358,19 @@ export default function LensTypePage() {
                       showToast('error', errorMsg);
                     }
                 }}
-                  className={`p-6 rounded-xl border-2 transition-all cursor-pointer w-full max-w-[280px] ${
+                  className={`p-4 sm:p-6 rounded-xl border-2 transition-all cursor-pointer w-full max-w-[280px] flex flex-col items-center text-center ${
                     selectedCategory === categories[4].value
                       ? 'border-blue-500 bg-blue-500/10 dark:bg-blue-500/10'
                       : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600'
                 }`}
               >
-                  <div className={`w-16 h-16 rounded-lg bg-gradient-to-br ${categories[4].color} flex items-center justify-center text-white mb-4 mx-auto`}>
+                  <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-lg bg-gradient-to-br ${categories[4].color} flex items-center justify-center text-white mb-3 sm:mb-4`}>
                     {categories[4].icon}
                 </div>
-                  <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+                  <h3 className="text-base sm:text-xl font-semibold text-slate-900 dark:text-white mb-1 sm:mb-2 leading-tight">
                     {getText(categories[4].label.en, categories[4].label.hi, categories[4].label.hinglish)}
                   </h3>
-                  <p className="text-slate-600 dark:text-slate-400 text-sm">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-tight">
                     {getText(categories[4].description.en, categories[4].description.hi, categories[4].description.hinglish)}
                   </p>
               </button>

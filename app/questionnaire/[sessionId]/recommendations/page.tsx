@@ -468,10 +468,12 @@ export default function RecommendationsPage() {
     return match ? parseFloat(match[0]) : 1.56;
   };
 
-  // Filter out 0% match lenses first
+  // Filter out invalid lenses, but keep all valid ones (even with low match scores)
+  // Only filter out lenses that are explicitly marked as invalid
   const validRecommendations = data.recommendations.filter(rec => {
-    const matchPercent = rec.matchPercent ?? (rec.matchScore ? rec.matchScore * 100 : 0);
-    return matchPercent > 0; // Only show lenses with > 0% match
+    // Don't filter by matchPercent - show all products returned by API
+    // Only filter out explicitly invalid products
+    return !rec.indexInvalid; // Keep all products except those marked as invalid
   });
 
   // Sort recommendations based on sortBy, then get first 4 (use valid recommendations only)
@@ -677,7 +679,7 @@ export default function RecommendationsPage() {
 
           return (
             /* LA-05: 4-Card Layout - Grid layout for parallel cards */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-10 items-stretch">
               {sortedDisplayRecommendations.map((rec, index) => {
             const roleTag = getRoleTag(rec.id);
             const label = getLabel(rec.id);
@@ -714,28 +716,28 @@ export default function RecommendationsPage() {
             return (
               <div
                 key={`${rec.id}-${index}`}
-                className="bg-white dark:bg-slate-800/50 rounded-2xl border-2 border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl hover:shadow-2xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 overflow-hidden group"
+                className="bg-white dark:bg-slate-800/50 rounded-2xl border-2 border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl hover:shadow-2xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 overflow-hidden group flex flex-col h-full"
               >
                 {/* Tag & Match Score Header */}
-                <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 px-6 py-3 border-b border-slate-200 dark:border-slate-700">
+                <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 px-4 sm:px-6 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
                   <div className="flex items-center justify-between">
-                    <span className={`px-4 py-1.5 rounded-full text-xs font-bold ${tagConfig.color} shadow-sm`}>
+                    <span className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-bold ${tagConfig.color} shadow-sm`}>
                       {tagConfig.label}
                     </span>
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      <span className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">
                         {Math.round(rec.matchPercent ?? (rec.matchScore * 100))}% Match
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="p-6">
+                <div className="p-4 sm:p-6 flex flex-col flex-grow">
                   {/* Lens Name + Brand Line */}
-                  <div className="mb-4">
-                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 leading-tight">{rec.name}</h3>
-                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <div className="mb-4 flex-shrink-0">
+                    <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-2 leading-tight">{rec.name}</h3>
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 dark:text-slate-400 flex-wrap">
                       <span className="font-medium text-slate-700 dark:text-slate-300">{brandLine}</span>
                       <span className="text-slate-400 dark:text-slate-500">•</span>
                       <span>Index {lensIndex}</span>
@@ -745,41 +747,54 @@ export default function RecommendationsPage() {
                     </div>
                   </div>
 
-                  {/* Benefits */}
-                  {benefits.length > 0 && (
-                    <div className="mb-5">
-                      <ul className="space-y-2">
-                        {benefits.map((benefit: string, idx: number) => (
-                          <li key={idx} className="text-sm text-slate-700 dark:text-slate-300 flex items-start gap-3">
-                            <CheckCircle size={16} className="text-green-500 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                            <span className="leading-relaxed">{benefit}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowKnowMoreModal(rec.id);
-                        }}
-                        className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mt-3 flex items-center gap-1 group-hover:underline transition-all"
-                      >
-                        Know more
-                        <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                      </button>
-                    </div>
-                  )}
+                  {/* Benefits - Fixed height section to keep cards even */}
+                  <div className="mb-5 flex-grow min-h-[120px] flex flex-col">
+                    {benefits.length > 0 ? (
+                      <>
+                        <ul className="space-y-2 flex-grow">
+                          {benefits.slice(0, 3).map((benefit: string, idx: number) => (
+                            <li key={idx} className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 flex items-start gap-2 sm:gap-3">
+                              <CheckCircle size={14} className="sm:w-4 sm:h-4 text-green-500 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                              <span className="leading-relaxed">{benefit}</span>
+                            </li>
+                          ))}
+                          {benefits.length > 3 && (
+                            <li className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 italic">
+                              +{benefits.length - 3} more features
+                            </li>
+                          )}
+                        </ul>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowKnowMoreModal(rec.id);
+                          }}
+                          className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mt-3 flex items-center gap-1 group-hover:underline transition-all self-start"
+                        >
+                          Know more
+                          <ArrowRight size={12} className="sm:w-3.5 sm:h-3.5 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex-grow flex items-center justify-center">
+                        <p className="text-xs sm:text-sm text-slate-400 dark:text-slate-500 italic text-center">
+                          Premium quality lens
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Price Row - MRP with strikethrough and Offer Price */}
-                  <div className="mb-5 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border-2 border-blue-100 dark:border-blue-800">
-                    <div className="flex items-baseline gap-3 flex-wrap">
-                      <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Lens Price:</span>
+                  <div className="mb-5 p-3 sm:p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border-2 border-blue-100 dark:border-blue-800 flex-shrink-0">
+                    <div className="flex items-baseline gap-2 sm:gap-3 flex-wrap">
+                      <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">Lens Price:</span>
                       {lensMRP && lensMRP >= lensPrice ? (
                         <>
-                          <span className="text-lg text-slate-500 dark:text-slate-400 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
+                          <span className="text-base sm:text-lg text-slate-500 dark:text-slate-400 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
                           {lensMRP > lensPrice && <span className="text-slate-400 dark:text-slate-500">→</span>}
                         </>
                       ) : null}
-                      <span className="text-2xl font-bold text-slate-900 dark:text-white">₹{Math.round(lensPrice).toLocaleString()}</span>
+                      <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">₹{Math.round(lensPrice).toLocaleString()}</span>
                     </div>
                   </div>
 
@@ -810,9 +825,9 @@ export default function RecommendationsPage() {
                         router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);
                       }
                     }}
-                    className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 text-white font-bold py-4 text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
+                    className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 text-white font-bold py-3 sm:py-4 text-sm sm:text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] flex-shrink-0"
                   >
-                    <ShoppingBag size={20} className="mr-2" />
+                    <ShoppingBag size={18} className="sm:w-5 sm:h-5 mr-2" />
                     Select This Lens
                   </Button>
                 </div>
@@ -839,27 +854,27 @@ export default function RecommendationsPage() {
         {/* Removed: Coupon Code, Category Discount, and Second Pair sections - not relevant for lens selection */}
 
         {/* Bottom CTA Section */}
-        <div className="mt-8 bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 dark:from-slate-800/80 dark:via-slate-800/80 dark:to-slate-900/80 backdrop-blur rounded-2xl border-2 border-slate-200 dark:border-slate-700/50 p-6 shadow-xl">
+        <div className="mt-8 bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 dark:from-slate-800/80 dark:via-slate-800/80 dark:to-slate-900/80 backdrop-blur rounded-2xl border-2 border-slate-200 dark:border-slate-700/50 p-4 sm:p-6 shadow-xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Ready to order your lens?</h3>
+            <div className="text-center md:text-left w-full md:w-auto">
+              <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-2">Ready to order your lens?</h3>
               <p className="text-slate-600 dark:text-slate-300 text-sm">
                 Our optician will assist you with lens selection and fitting
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto justify-center">
               <Button 
                 variant="outline" 
                 onClick={() => router.push('/questionnaire')}
-                className="border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50"
+                className="border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50 w-full sm:w-auto flex items-center justify-center"
               >
-                <RefreshCw size={18} className="mr-2" />
-                New Search
+                <RefreshCw size={18} className="mr-2 flex-shrink-0" />
+                <span>New Search</span>
               </Button>
-              <Button className="bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:via-teal-600 hover:to-emerald-700 text-white font-semibold shadow-lg shadow-emerald-500/30">
-                <Phone size={18} className="mr-2" />
-                Call Store
-                <ArrowRight size={18} className="ml-2" />
+              <Button className="bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:via-teal-600 hover:to-emerald-700 text-white font-semibold shadow-lg shadow-emerald-500/30 w-full sm:w-auto flex items-center justify-center">
+                <Phone size={18} className="mr-2 flex-shrink-0" />
+                <span>Call Store</span>
+                <ArrowRight size={18} className="ml-2 flex-shrink-0" />
               </Button>
             </div>
           </div>
@@ -931,10 +946,10 @@ export default function RecommendationsPage() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 px-6 py-5 border-b border-indigo-700">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-1">All lenses matching your power</h2>
+            <div className="sticky top-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 px-4 sm:px-6 py-4 sm:py-5 border-b border-indigo-700">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl sm:text-2xl font-bold text-white mb-1">All lenses matching your power</h2>
                   <p className="text-blue-100 text-sm">Found {validRecommendations.length} options</p>
                 </div>
                 <button
@@ -944,20 +959,22 @@ export default function RecommendationsPage() {
                   <span className="text-2xl">×</span>
                 </button>
               </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-medium text-blue-100">Sorted by:</span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="px-4 py-2 border-2 border-white/30 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 shadow-md focus:outline-none focus:ring-2 focus:ring-white/50 dark:focus:ring-blue-500"
-                >
-                  <option value="match">Best Match First</option>
-                  <option value="price-low">Price: Low to High</option>
-                  <option value="price-high">Price: High to Low</option>
-                  <option value="index">Thinnest First (Index)</option>
-                </select>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <span className="text-sm font-medium text-blue-100">Sorted by:</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="px-3 sm:px-4 py-2 border-2 border-white/30 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 shadow-md focus:outline-none focus:ring-2 focus:ring-white/50 dark:focus:ring-blue-500 flex-1 sm:flex-initial min-w-[150px]"
+                  >
+                    <option value="match">Best Match First</option>
+                    <option value="price-low">Price: Low to High</option>
+                    <option value="price-high">Price: High to Low</option>
+                    <option value="index">Thinnest First (Index)</option>
+                  </select>
+                </div>
                 {data && (
-                  <span className="text-sm text-blue-100 ml-auto">
+                  <span className="text-xs sm:text-sm text-blue-100 sm:ml-auto">
                     Showing {sortedRecommendations.length} of {validRecommendations.length} eligible lenses
                   </span>
                 )}
@@ -965,7 +982,7 @@ export default function RecommendationsPage() {
             </div>
 
             {/* List */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50 dark:bg-slate-900/50">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 bg-slate-50 dark:bg-slate-900/50">
               {sortedRecommendations.map((rec, index) => {
                 const lensPrice = getLensPrice(rec);
                 // Get MRP - only use if explicitly set (not null/undefined)
@@ -1011,11 +1028,11 @@ export default function RecommendationsPage() {
                 const thicknessInfo = getThicknessDisplay();
                 
                 return (
-                  <div key={`${rec.id}-${index}`} className={`border-2 rounded-xl p-5 hover:shadow-lg transition-all bg-white dark:bg-slate-800/50 group ${
+                  <div key={`${rec.id}-${index}`} className={`border-2 rounded-xl p-4 sm:p-5 hover:shadow-lg transition-all bg-white dark:bg-slate-800/50 group ${
                     indexInvalid ? 'border-red-300 dark:border-red-700 bg-red-50/30 dark:bg-red-900/20' : thicknessWarning ? 'border-yellow-300 dark:border-yellow-700 bg-yellow-50/30 dark:bg-yellow-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
                   }`}>
-                    <div className="flex items-start justify-between gap-6">
-                      <div className="flex-1">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-4 sm:gap-6">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-3 flex-wrap">
                           <h3 className="text-xl font-bold text-slate-900">{rec.name}</h3>
                           {/* Label Badge */}
@@ -1103,7 +1120,7 @@ export default function RecommendationsPage() {
                           router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);
                         }}
                         disabled={indexInvalid}
-                        className={`font-bold px-8 py-3 shadow-md hover:shadow-lg transition-all whitespace-nowrap ${
+                        className={`font-bold w-full sm:w-auto px-6 sm:px-8 py-3 shadow-md hover:shadow-lg transition-all whitespace-nowrap flex-shrink-0 ${
                           indexInvalid 
                             ? 'bg-slate-400 cursor-not-allowed' 
                             : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
@@ -1118,7 +1135,7 @@ export default function RecommendationsPage() {
             </div>
 
             {/* Footer */}
-            <div className="sticky bottom-0 bg-gradient-to-r from-slate-50 to-blue-50 border-t-2 border-slate-200 px-6 py-4">
+            <div className="sticky bottom-0 bg-gradient-to-r from-slate-50 to-blue-50 border-t-2 border-slate-200 px-4 sm:px-6 py-4">
               <Button
                 fullWidth
                 onClick={() => setShowViewAllModal(false)}

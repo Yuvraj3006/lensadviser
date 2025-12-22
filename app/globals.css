@@ -23,6 +23,71 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Prevent mobile browser address bar from showing/hiding on scroll */
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  /* Prevent pull-to-refresh on mobile */
+  overscroll-behavior: none;
+  /* Use dynamic viewport height for mobile */
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* Prevent unwanted scrolling */
+  touch-action: pan-y;
+  /* Prevent elastic scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent address bar show/hide on mobile browsers */
+html {
+  /* Prevent pull-to-refresh */
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  /* Use dynamic viewport height */
+  height: 100%;
+  height: 100dvh;
+}
+
+/* Prevent address bar from showing/hiding on scroll */
+* {
+  /* Prevent overscroll bounce on iOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Contain scroll within scrollable areas */
+.scroll-container,
+[data-scroll-container],
+main,
+[role="main"] {
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
+}
+
+/* Prevent address bar from showing/hiding on mobile */
+@media (max-width: 768px) {
+  html {
+    /* Lock viewport height to prevent address bar show/hide */
+    height: -webkit-fill-available;
+  }
+  
+  body {
+    /* Use fill-available height on mobile */
+    min-height: -webkit-fill-available;
+    min-height: 100dvh;
+    /* Prevent address bar interaction */
+    position: relative;
+  }
+  
+  /* Prevent overscroll on touch devices */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Prevent pull-to-refresh */
+  body,
+  html {
+    overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
+  }
 }
 
 @keyframes shimmer {

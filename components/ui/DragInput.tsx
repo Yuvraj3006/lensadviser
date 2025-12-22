@@ -74,8 +74,6 @@ export function DragInput({
         if (!inputRef.current) return;
         
         const rect = inputRef.current.getBoundingClientRect();
-        const scrollY = window.scrollY || window.pageYOffset || 0;
-        const scrollX = window.scrollX || window.pageXOffset || 0;
         const viewportHeight = window.innerHeight;
         const viewportWidth = window.innerWidth;
         
@@ -84,34 +82,36 @@ export function DragInput({
         const gap = 4; // Small gap between input and dropdown
         const edgeMargin = 8; // Margin from viewport edges
         
-        // Calculate available space
+        // Calculate available space (using getBoundingClientRect which is relative to viewport)
         const spaceBelow = viewportHeight - rect.bottom;
         const spaceAbove = rect.top;
         
-        // Determine best position (prefer below, but check if enough space)
-        const minSpaceForBelow = 150; // Need at least 150px below to show dropdown below
-        const canShowBelow = spaceBelow >= minSpaceForBelow;
-        const canShowAbove = spaceAbove >= minSpaceForBelow;
+        // Determine best position (prefer below, but open upwards if insufficient space below)
+        // Minimum space required to show dropdown comfortably
+        const minRequiredSpace = 200; // Minimum height we want to show
+        const hasEnoughSpaceBelow = spaceBelow >= minRequiredSpace;
+        const hasEnoughSpaceAbove = spaceAbove >= minRequiredSpace;
         
-        // Calculate position - stick directly to input field
+        // Calculate position - use getBoundingClientRect values directly (viewport-relative)
         let top: number;
         let left: number;
         let width: number;
         
-        if (canShowBelow) {
-          // Show below - stick to bottom of input
-          top = rect.bottom + scrollY + gap;
-        } else if (canShowAbove && spaceAbove > spaceBelow) {
-          // Show above - stick to top of input (only if more space above)
+        // Decision logic: open below if enough space, otherwise open above if more space there
+        if (hasEnoughSpaceBelow) {
+          // Enough space below - open downwards
+          top = rect.bottom + gap;
+        } else if (hasEnoughSpaceAbove || spaceAbove > spaceBelow) {
+          // Not enough space below, but more space above - open upwards
           const availableHeight = Math.min(dropdownMaxHeight, spaceAbove - gap);
-          top = rect.top + scrollY - availableHeight - gap;
+          top = rect.top - availableHeight - gap;
         } else {
-          // Not enough space either way - show below anyway (will be clipped but visible)
-          top = rect.bottom + scrollY + gap;
+          // More space below (even if not ideal) - show below
+          top = rect.bottom + gap;
         }
         
-        // Horizontal positioning - stick exactly to input field edges
-        left = rect.left + scrollX;
+        // Horizontal positioning - stick exactly to input field edges (viewport-relative)
+        left = rect.left;
         width = rect.width;
         
         // Ensure dropdown doesn't go off-screen horizontally
@@ -144,6 +144,32 @@ export function DragInput({
         
         // Ensure minimum width
         width = Math.max(width, 200);
+        
+        // Final bounds checking - ensure dropdown stays within viewport
+        // If dropdown would go below viewport, try opening above instead
+        if (top + dropdownMaxHeight > viewportHeight - edgeMargin) {
+          const spaceAbove = rect.top;
+          // If we have more space above, switch to opening upwards
+          if (spaceAbove > spaceBelow && spaceAbove >= 100) {
+            const availableHeight = Math.min(dropdownMaxHeight, spaceAbove - gap);
+            top = Math.max(edgeMargin, rect.top - availableHeight - gap);
+          } else {
+            // Can't open above, adjust to fit within viewport
+            top = Math.max(edgeMargin, viewportHeight - dropdownMaxHeight - edgeMargin);
+          }
+        }
+        
+        // Ensure dropdown doesn't go above viewport
+        if (top < edgeMargin) {
+          top = edgeMargin;
+        }
+        
+        // Final check: ensure dropdown doesn't go below viewport
+        const finalBottom = top + dropdownMaxHeight;
+        if (finalBottom > viewportHeight - edgeMargin) {
+          // Adjust to fit within viewport (reduce effective height)
+          top = Math.max(edgeMargin, viewportHeight - dropdownMaxHeight - edgeMargin);
+        }
         
         setDropdownPosition({
           top,
@@ -205,14 +231,15 @@ export function DragInput({
     }
   }, [isDropdownOpen]);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside (handle both mouse and touch events)
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
+        !dropdownRef.current.contains(target) &&
         inputRef.current &&
-        !inputRef.current.contains(event.target as Node)
+        !inputRef.current.contains(target)
       ) {
         setIsDropdownOpen(false);
         setHighlightedIndex(-1);
@@ -221,8 +248,13 @@ export function DragInput({
     };
 
     if (isDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      // Use capture phase to catch events early
+      document.addEventListener('mousedown', handleClickOutside, true);
+      document.addEventListener('touchstart', handleClickOutside, true);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside, true);
+        document.removeEventListener('touchstart', handleClickOutside, true);
+      };
     }
   }, [isDropdownOpen]);
 
@@ -233,21 +265,25 @@ export function DragInput({
     return val.toString();
   };
 
-  const handleInputClick = (e: React.MouseEvent<HTMLInputElement>) => {
+  const handleInputClick = (e: React.MouseEvent<HTMLInputElement> | React.TouchEvent<HTMLInputElement>) => {
     e.preventDefault();
     e.stopPropagation();
     if (!disabled && options.length > 0) {
-      // Update position and open dropdown immediately
-      updateDropdownPosition();
-      setIsDropdownOpen(true);
+      // Small delay to ensure layout is settled, especially on mobile
+      setTimeout(() => {
+        updateDropdownPosition();
+        setIsDropdownOpen(true);
+      }, 10);
     }
   };
 
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     if (!disabled && options.length > 0) {
-      // Update position and open dropdown immediately
-      updateDropdownPosition();
-      setIsDropdownOpen(true);
+      // Small delay to ensure layout is settled, especially on mobile
+      setTimeout(() => {
+        updateDropdownPosition();
+        setIsDropdownOpen(true);
+      }, 10);
     }
   };
 
@@ -395,7 +431,7 @@ export function DragInput({
     <div
       ref={dropdownRef}
       onWheel={handleWheel}
-      className="fixed z-[9999] bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg shadow-2xl max-h-[300px] overflow-y-auto"
+      className="fixed z-[99999] bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg shadow-2xl max-h-[300px] overflow-y-auto"
       style={{
         top: `${dropdownPosition.top}px`,
         left: `${dropdownPosition.left}px`,
@@ -406,6 +442,9 @@ export function DragInput({
         scrollbarColor: '#cbd5e1 #f1f5f9',
         overscrollBehavior: 'contain', // Prevent scroll chaining
         touchAction: 'pan-y', // Allow vertical scrolling but prevent page scroll
+        position: 'fixed',
+        transform: 'translateZ(0)', // Force hardware acceleration
+        WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
       }}
     >
       {options.map((option, index) => {
@@ -417,17 +456,25 @@ export function DragInput({
             key={index}
             data-index={index}
             onClick={() => handleSelectValue(option)}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleSelectValue(option);
+            }}
             className={`
               px-4 py-3 text-center cursor-pointer
               text-[clamp(1.25rem,3vw,2rem)] sm:text-[clamp(1rem,2vw,1.5rem)]
               font-semibold
               transition-colors
               flex items-center justify-center gap-2
+              touch-manipulation
+              select-none
               ${isHighlighted
                 ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-900 dark:text-blue-100'
-                : 'text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700'
+                : 'text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600'
               }
             `}
+            style={{ touchAction: 'manipulation' }}
           >
             {formatValue(option)}
             {isSelected && (
@@ -462,6 +509,7 @@ export function DragInput({
                 : ''
             }
             onClick={handleInputClick}
+            onTouchStart={handleInputClick}
             onFocus={handleInputFocus}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
@@ -477,12 +525,14 @@ export function DragInput({
               transition-all duration-200
               placeholder:text-slate-400 dark:placeholder:text-slate-500
               cursor-pointer
+              touch-manipulation
               ${error 
                 ? 'border-red-300 dark:border-red-700 focus:ring-red-500 text-red-900 dark:text-red-100' 
                 : 'border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white'
               }
               ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
             `}
+            style={{ touchAction: 'manipulation' }}
           />
         </div>
 

@@ -7,7 +7,7 @@ import { useLensAdvisorStore } from '@/stores/lens-advisor-store';
 import { useSessionStore } from '@/stores/session-store';
 import { FrameEntryForm } from '@/components/lens-advisor/FrameEntryForm';
 import { Button } from '@/components/ui/Button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 // Helper function to get user-friendly status messages
 function getStatusMessage(status: number): string {
@@ -470,14 +470,14 @@ export default function FramePage() {
           </div>
 
           {/* Custom Navigation */}
-          <div className="flex justify-between mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0 mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
             <Button
               variant="outline"
               onClick={() => router.push('/questionnaire/prescription')}
-              className="flex items-center gap-2"
+              className="flex items-center justify-center gap-2 w-full sm:w-auto order-2 sm:order-1 text-center"
             >
-              <ArrowLeft size={18} />
-              Back
+              <ArrowLeft size={18} className="flex-shrink-0" />
+              <span>Back</span>
             </Button>
             <Button
               onClick={handleNext}
@@ -490,9 +490,10 @@ export default function FramePage() {
                 isSubmitting
               }
               loading={isSubmitting}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+              className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 w-full sm:w-auto order-1 sm:order-2 text-center"
             >
-              Next: Your Lifestyle →
+              <span>Next: Your Lifestyle</span>
+              <ArrowRight size={18} className="flex-shrink-0" />
             </Button>
           </div>
         </div>

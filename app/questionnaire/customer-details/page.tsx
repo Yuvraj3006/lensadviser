@@ -198,7 +198,7 @@ export default function CustomerDetailsPage() {
           </div>
 
           {/* Form */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Customer Name <span className="text-red-500">*</span>
@@ -208,14 +208,14 @@ export default function CustomerDetailsPage() {
                 placeholder="Enter customer name"
                 value={customerName}
                 onChange={handleNameChange}
-                className={errors.name ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
+                className={`w-full ${errors.name ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
               />
               {errors.name && (
                 <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.name}</p>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Phone Number <span className="text-red-500">*</span>
@@ -251,22 +251,22 @@ export default function CustomerDetailsPage() {
           </div>
 
           {/* Navigation */}
-          <div className="flex justify-between mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0 mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
             <Button
               variant="outline"
               onClick={() => router.push('/questionnaire')}
-              className="flex items-center gap-2"
+              className="flex items-center justify-center gap-2 w-full sm:w-auto order-2 sm:order-1 text-center"
             >
-              <ArrowLeft size={18} />
-              Back
+              <ArrowLeft size={18} className="flex-shrink-0" />
+              <span>Back</span>
             </Button>
             <Button
               onClick={handleNext}
               disabled={!customerName.trim() || !customerPhone.trim()}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto order-1 sm:order-2 text-center"
             >
-              Next: Mode Selection
-              <ArrowRight size={18} />
+              <span>Next: Mode Selection</span>
+              <ArrowRight size={18} className="flex-shrink-0" />
             </Button>
           </div>
         </div>
