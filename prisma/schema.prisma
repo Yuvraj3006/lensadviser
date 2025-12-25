@@ -281,6 +281,7 @@ model Feature {
   description    String?
   category       String // DURABILITY, COATING, PROTECTION, LIFESTYLE, VISION
   displayOrder   Int // Order for display (1-11)
+  iconUrl        String? // URL to feature icon image
   isActive       Boolean          @default(true)
   createdAt      DateTime         @default(now()) @db.Date
   updatedAt      DateTime         @updatedAt @db.Date

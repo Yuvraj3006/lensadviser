@@ -202,6 +202,7 @@ export class RecommendationsAdapterService {
             id: String(feature.id),
             name: feature.name || 'Feature',
             key: feature.code || '',
+            iconUrl: feature.iconUrl || null, // Include iconUrl from feature
             strength: 5, // Default strength for display (0-10 scale, 5 = medium)
             price: 0, // Features don't have prices anymore
           };

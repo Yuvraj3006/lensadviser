@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { DataTable, Column } from '@/components/data-display/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Plus, Edit2, Trash2, Sparkles, Link2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Sparkles, Link2, Upload, X } from 'lucide-react';
 // Client-safe ProductCategory
 const ProductCategory = {
   EYEGLASSES: 'EYEGLASSES',
@@ -27,6 +27,7 @@ interface Feature {
   description?: string | null;
   category: string; // DURABILITY, COATING, PROTECTION, LIFESTYLE, VISION
   displayOrder: number;
+  iconUrl?: string | null;
   isActive: boolean;
   productCount: number;
   createdAt: string;
@@ -38,6 +39,7 @@ interface FeatureFormData {
   description: string;
   category: 'DURABILITY' | 'COATING' | 'PROTECTION' | 'LIFESTYLE' | 'VISION';
   displayOrder?: number;
+  iconUrl?: string;
 }
 
 export default function FeaturesPage() {
@@ -53,8 +55,11 @@ export default function FeaturesPage() {
     name: '',
     description: '',
     category: 'DURABILITY',
+    iconUrl: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [iconFile, setIconFile] = useState<File | null>(null);
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
   
   // Benefit mapping state
   const [benefitMappingFeature, setBenefitMappingFeature] = useState<Feature | null>(null);
@@ -100,7 +105,10 @@ export default function FeaturesPage() {
       name: '',
       description: '',
       category: 'DURABILITY',
+      iconUrl: '',
     });
+    setIconFile(null);
+    setIconPreview(null);
     setEditingFeature(null);
     setIsCreateOpen(true);
   };
@@ -114,7 +122,10 @@ export default function FeaturesPage() {
       description: feature.description || '',
       category: feature.category as any,
       displayOrder: feature.displayOrder,
+      iconUrl: feature.iconUrl || '',
     });
+    setIconFile(null);
+    setIconPreview(feature.iconUrl || null);
     setEditingFeature(feature);
     setIsCreateOpen(true);
   };
@@ -207,10 +218,50 @@ export default function FeaturesPage() {
 
     try {
       const token = localStorage.getItem('lenstrack_token');
+      
+      // If icon file is selected, upload it first
+      let iconUrl = formData.iconUrl;
+      if (iconFile) {
+        const formDataUpload = new FormData();
+        formDataUpload.append('icon', iconFile);
+        formDataUpload.append('featureCode', formData.code);
+        
+        const uploadResponse = await fetch('/api/admin/features/upload-icon', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formDataUpload,
+        });
+        
+        const uploadData = await uploadResponse.json();
+        if (uploadData.success) {
+          iconUrl = uploadData.data.iconUrl;
+          console.log('[FeatureForm] Icon uploaded successfully:', iconUrl);
+        } else {
+          console.error('[FeatureForm] Icon upload failed:', uploadData);
+          showToast('error', uploadData.error?.message || 'Failed to upload icon');
+          setSubmitting(false);
+          return;
+        }
+      }
+      
       const url = editingFeature
         ? `/api/admin/features/${editingFeature.id}`
         : '/api/admin/features';
       const method = editingFeature ? 'PUT' : 'POST';
+
+      const requestBody = {
+        ...formData,
+        iconUrl: iconUrl || null,
+      };
+      
+      console.log('[FeatureForm] Submitting feature:', { 
+        method, 
+        url, 
+        iconUrl: requestBody.iconUrl,
+        hasIconFile: !!iconFile 
+      });
 
       const response = await fetch(url, {
         method,
@@ -218,17 +269,22 @@ export default function FeaturesPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
+      
+      console.log('[FeatureForm] API response:', data);
 
       if (data.success) {
         showToast('success', `Feature ${editingFeature ? 'updated' : 'created'} successfully`);
         setIsCreateOpen(false);
+        setIconFile(null);
+        setIconPreview(null);
         fetchFeatures();
       } else {
-        showToast('error', data.error?.message || 'Operation failed');
+        console.error('[FeatureForm] API error:', data);
+        showToast('error', data.error?.message || data.error?.code || 'Operation failed');
       }
     } catch (error) {
       showToast('error', 'An error occurred');
@@ -499,6 +555,64 @@ export default function FeaturesPage() {
             hint="Order in which feature appears (lower = first). Leave empty for auto-assignment."
             min="1"
           />
+
+          {/* Icon Upload */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Feature Icon
+            </label>
+            <div className="flex items-center gap-4">
+              <label className="flex-1 cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setIconFile(file);
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setIconPreview(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 hover:border-blue-500 dark:hover:border-blue-500 transition-colors">
+                  <Upload size={18} className="text-slate-500 dark:text-slate-400" />
+                  <span className="text-sm text-slate-700 dark:text-slate-300">
+                    {iconFile ? iconFile.name : 'Click to upload icon'}
+                  </span>
+                </div>
+              </label>
+              {(iconPreview || iconFile) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIconFile(null);
+                    setIconPreview(null);
+                    setFormData({ ...formData, iconUrl: '' });
+                  }}
+                  className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg"
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+            {(iconPreview || formData.iconUrl) && (
+              <div className="mt-3">
+                <img
+                  src={iconPreview || formData.iconUrl || ''}
+                  alt="Icon preview"
+                  className="w-16 h-16 object-contain border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-white dark:bg-slate-800"
+                />
+              </div>
+            )}
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Upload an icon image to display in the feature grid popup (recommended: 64x64px, PNG/SVG)
+            </p>
+          </div>
         </form>
       </Modal>
 

@@ -39,6 +39,17 @@ export async function PUT(
       description: z.string().optional().nullable(),
       category: z.enum(['DURABILITY', 'COATING', 'PROTECTION', 'LIFESTYLE', 'VISION']).optional(),
       displayOrder: z.number().int().min(1).optional(),
+      iconUrl: z.preprocess(
+        (val) => {
+          if (val === '' || val === undefined || val === null) return null;
+          return val;
+        },
+        z.union([
+          z.string().url(), // Full URL (http://, https://)
+          z.string().regex(/^\/[^\/].*/, 'Relative URL must start with /'), // Relative URL (/feature-icons/...)
+          z.null()
+        ]).nullable().optional()
+      ),
       isActive: z.boolean().optional(),
     });
     

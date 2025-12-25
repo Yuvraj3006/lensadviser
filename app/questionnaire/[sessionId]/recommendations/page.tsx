@@ -103,6 +103,15 @@ interface Recommendation {
       extraCharge: number;
     };
   };
+  rxAddOn?: {
+    applied: boolean;
+    totalAddOn: number;
+    breakdown: Array<{
+      label: string;
+      charge: number;
+    }>;
+  };
+  itCode?: string; // IT code for RX add-on calculation
 }
 
 interface RecommendationData {
@@ -181,13 +190,43 @@ export default function RecommendationsPage() {
   const [showViewAllModal, setShowViewAllModal] = useState(false);
   const [sortBy, setSortBy] = useState<'price-high' | 'price-low' | 'match' | 'index'>('match');
   const [activeTab, setActiveTab] = useState<'best-match' | 'all' | 'anti-walkout'>('best-match');
+  const [prescription, setPrescription] = useState<any>(null);
 
   useEffect(() => {
     if (sessionId) {
+      // Fetch prescription data first
+      fetchPrescription();
       // Check if this is an ACCESSORIES session - redirect to accessories page
       checkSessionCategory();
     }
   }, [sessionId]);
+
+  const fetchPrescription = async () => {
+    try {
+      const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json();
+        if (sessionData.success && sessionData.data) {
+          // Extract prescription from session notes (stored in customerEmail field)
+          const sessionNotes = sessionData.data.customerEmail as any;
+          const prescriptionData = sessionNotes?.prescription;
+          if (prescriptionData) {
+            // Convert to RxInput format
+            const rxInput = {
+              rSph: prescriptionData.rSph ?? prescriptionData.odSphere ?? null,
+              rCyl: prescriptionData.rCyl ?? prescriptionData.odCylinder ?? null,
+              lSph: prescriptionData.lSph ?? prescriptionData.osSphere ?? null,
+              lCyl: prescriptionData.lCyl ?? prescriptionData.osCylinder ?? null,
+              add: prescriptionData.add ?? prescriptionData.odAdd ?? prescriptionData.osAdd ?? null,
+            };
+            setPrescription(rxInput);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[fetchPrescription] Failed to fetch prescription:', error);
+    }
+  };
 
   const checkSessionCategory = async () => {
     try {
@@ -354,6 +393,65 @@ export default function RecommendationsPage() {
           result.data.generatedAt = new Date(result.data.generatedAt).toISOString();
         }
         
+        // Calculate RX add-on for each recommendation if prescription is available
+        if (prescription && result.data.recommendations) {
+          const recommendationsWithRxAddOn = await Promise.all(
+            result.data.recommendations.map(async (rec: Recommendation) => {
+              // Get IT code from recommendation (it might be in sku or we need to fetch from product)
+              if (!rec.itCode && rec.sku) {
+                rec.itCode = rec.sku;
+              }
+              
+              if (rec.itCode && prescription) {
+                try {
+                  const rxAddOnResponse = await fetch('/api/rx-addon/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      lensItCode: rec.itCode,
+                      prescription: prescription,
+                    }),
+                  });
+                  
+                  if (rxAddOnResponse.ok) {
+                    const rxAddOnData = await rxAddOnResponse.json();
+                    if (rxAddOnData.success && rxAddOnData.data?.addOnApplied) {
+                      rec.rxAddOn = {
+                        applied: true,
+                        totalAddOn: rxAddOnData.data.totalAddOn || 0,
+                        breakdown: rxAddOnData.data.breakdown || [],
+                      };
+                    } else {
+                      rec.rxAddOn = {
+                        applied: false,
+                        totalAddOn: 0,
+                        breakdown: [],
+                      };
+                    }
+                  }
+                } catch (error) {
+                  console.error('[fetchRecommendations] Failed to calculate RX add-on for', rec.id, error);
+                  rec.rxAddOn = {
+                    applied: false,
+                    totalAddOn: 0,
+                    breakdown: [],
+                  };
+                }
+              } else {
+                rec.rxAddOn = {
+                  applied: false,
+                  totalAddOn: 0,
+                  breakdown: [],
+                };
+              }
+              
+              return rec;
+            })
+          );
+          
+          result.data.recommendations = recommendationsWithRxAddOn;
+        }
+        
         setData(result.data);
         if (result.data.recommendations && result.data.recommendations.length > 0) {
           const firstProductId = result.data.recommendations[0].id;
@@ -394,9 +492,11 @@ export default function RecommendationsPage() {
     }
   };
 
-  // Simple price calculation - just return lens price (no discounts/offers)
+  // Price calculation - return lens price with RX add-on if applicable
   const getLensPrice = (rec: Recommendation) => {
-    return rec.pricing.lensPrice.totalLensPrice;
+    const basePrice = rec.pricing.lensPrice.totalLensPrice;
+    const rxAddOn = rec.rxAddOn?.totalAddOn || 0;
+    return basePrice + rxAddOn;
   };
 
   if (loading) {
@@ -784,17 +884,35 @@ export default function RecommendationsPage() {
                     )}
                   </div>
 
-                  {/* Price Row - MRP with strikethrough and Offer Price */}
+                  {/* Price Row - MRP with strikethrough and Offer Price with RX Add-On */}
                   <div className="mb-5 p-3 sm:p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border-2 border-blue-100 dark:border-blue-800 flex-shrink-0">
-                    <div className="flex items-baseline gap-2 sm:gap-3 flex-wrap">
-                      <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">Lens Price:</span>
-                      {lensMRP && lensMRP >= lensPrice ? (
-                        <>
-                          <span className="text-base sm:text-lg text-slate-500 dark:text-slate-400 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
-                          {lensMRP > lensPrice && <span className="text-slate-400 dark:text-slate-500">→</span>}
-                        </>
-                      ) : null}
-                      <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">₹{Math.round(lensPrice).toLocaleString()}</span>
+                    <div className="space-y-2">
+                      <div className="flex items-baseline gap-2 sm:gap-3 flex-wrap">
+                        <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">Lens Price:</span>
+                        {lensMRP && lensMRP >= (rec.pricing.lensPrice.totalLensPrice) ? (
+                          <>
+                            <span className="text-base sm:text-lg text-slate-500 dark:text-slate-400 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
+                            {lensMRP > (rec.pricing.lensPrice.totalLensPrice) && <span className="text-slate-400 dark:text-slate-500">→</span>}
+                          </>
+                        ) : null}
+                        <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">₹{Math.round(lensPrice).toLocaleString()}</span>
+                      </div>
+                      
+                      {/* RX Add-On Breakdown */}
+                      {rec.rxAddOn?.applied && rec.rxAddOn.totalAddOn > 0 && (
+                        <div className="pt-2 border-t border-blue-200 dark:border-blue-700">
+                          <div className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-1">
+                            Base Price: ₹{Math.round(rec.pricing.lensPrice.totalLensPrice).toLocaleString()}
+                          </div>
+                          {rec.rxAddOn.breakdown.map((item, idx) => (
+                            <div key={idx} className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                              <span>+</span>
+                              <span>{item.label}:</span>
+                              <span className="font-semibold">₹{Math.round(item.charge).toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -914,24 +1032,14 @@ export default function RecommendationsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {rec.features?.filter((f: any) => f && f.name).map((feature: any) => {
                     const FeatureIcon = getFeatureIcon(feature.key);
+                    const hasCustomIcon = feature.iconUrl && feature.iconUrl.trim() !== '';
                     return (
-                      <div key={feature.key} className="flex items-start gap-4 p-4 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-700 dark:to-blue-900/20 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-blue-300 dark:hover:border-blue-500 transition-all group">
-                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors">
-                          <FeatureIcon size={24} className="text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-semibold text-slate-900 dark:text-white mb-1">{feature.name}</p>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all"
-                                style={{ width: `${Math.min(feature.strength * 10, 100)}%` }}
-                              />
-                            </div>
-                            <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{feature.strength}/10</span>
-                          </div>
-                        </div>
-                      </div>
+                      <FeatureIconDisplay
+                        key={feature.key}
+                        feature={feature}
+                        FeatureIcon={FeatureIcon}
+                        hasCustomIcon={hasCustomIcon}
+                      />
                     );
                   })}
                 </div>
@@ -941,213 +1049,231 @@ export default function RecommendationsPage() {
         );
       })()}
 
-      {/* LA-06: View All Lenses Modal */}
+      {/* View All Lenses Modal */}
       {showViewAllModal && data && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 px-4 sm:px-6 py-4 sm:py-5 border-b border-indigo-700">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4">
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl sm:text-2xl font-bold text-white mb-1">All lenses matching your power</h2>
-                  <p className="text-blue-100 text-sm">Found {validRecommendations.length} options</p>
-                </div>
-                <button
-                  onClick={() => setShowViewAllModal(false)}
-                  className="text-white hover:bg-white/20 rounded-full p-2 transition-all"
-                >
-                  <span className="text-2xl">×</span>
-                </button>
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-6xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 flex items-center justify-between border-b border-blue-700">
+              <div>
+                <h3 className="text-2xl font-bold text-white mb-1">All Available Lenses</h3>
+                <p className="text-blue-100 text-sm">Browse and select from all recommendations</p>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                  <span className="text-sm font-medium text-blue-100">Sorted by:</span>
-                  <select
+              <button
+                onClick={() => setShowViewAllModal(false)}
+                className="text-white hover:bg-white/20 rounded-full p-2 transition-all"
+              >
+                <span className="text-2xl">×</span>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+              {/* Sort Controls */}
+              <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Sort by:</span>
+                  <Select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as any)}
-                    className="px-3 sm:px-4 py-2 border-2 border-white/30 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 shadow-md focus:outline-none focus:ring-2 focus:ring-white/50 dark:focus:ring-blue-500 flex-1 sm:flex-initial min-w-[150px]"
-                  >
-                    <option value="match">Best Match First</option>
-                    <option value="price-low">Price: Low to High</option>
-                    <option value="price-high">Price: High to Low</option>
-                    <option value="index">Thinnest First (Index)</option>
-                  </select>
+                    options={[
+                      { value: 'match', label: 'Best Match' },
+                      { value: 'price-low', label: 'Price: Low to High' },
+                      { value: 'price-high', label: 'Price: High to Low' },
+                      { value: 'index', label: 'Index' },
+                    ]}
+                    className="flex-1 sm:flex-initial min-w-[150px] text-xs sm:text-sm"
+                  />
                 </div>
-                {data && (
-                  <span className="text-xs sm:text-sm text-blue-100 sm:ml-auto">
-                    Showing {sortedRecommendations.length} of {validRecommendations.length} eligible lenses
-                  </span>
-                )}
               </div>
-            </div>
 
-            {/* List */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 bg-slate-50 dark:bg-slate-900/50">
-              {sortedRecommendations.map((rec, index) => {
-                const lensPrice = getLensPrice(rec);
-                // Get MRP - only use if explicitly set (not null/undefined)
-                const lensMRP = (rec.mrp && rec.mrp > 0) ? rec.mrp : null;
+              {/* All Recommendations Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {sortedRecommendations.map((rec, index) => {
+                  const roleTag = getRoleTag(rec.id);
+                  const tagConfig = getRankBadge(rec.rank);
+                  const lensPrice = getLensPrice(rec);
+                  const lensMRP = (rec.mrp && rec.mrp > 0) ? rec.mrp : null;
+                  
+                  const brandLine = rec.pricing?.lensPrice?.baseLensPrice 
+                    ? rec.pricing.lensPrice.baseLensPrice.toString() 
+                    : rec.brand || 'Premium';
+                  
+                  const lensIndexStr = rec.lensIndex || rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
+                  const indexLabel = formatIndexDisplay(lensIndexStr);
+                  
+                  const benefits = (rec.features || [])
+                    .map((f: any) => {
+                      if (typeof f === 'string') return f;
+                      if (f && typeof f === 'object') return f.name || f.key || null;
+                      return null;
+                    })
+                    .filter((name): name is string => Boolean(name && name.trim())) || [];
 
-                // Extract index from lensIndex or name
-                const lensIndexStr = rec.lensIndex || rec.name.match(/\d+\.\d+/)?.[0] || '1.50';
-                const lensIndexDisplay = formatIndexDisplay(lensIndexStr);
-                const brandLine = rec.brand || 'Premium';
-                // Get all features (show all, not limited)
-                // Handle both array format and ensure name exists
-                const benefits = rec.features
-                  ?.map((f: any) => {
-                    if (typeof f === 'string') return f;
-                    if (f && typeof f === 'object') return f.name || f.key || null;
-                    return null;
-                  })
-                  .filter((name): name is string => Boolean(name && name.trim())) || [];
-                
-                // Get label based on match percent and price (same logic as top 4)
-                const label = getLabel(rec.id);
-                const canTry = rec.id !== highestMatchId && rec.id !== secondHighestMatchId;
-                
-                // Get index recommendation data
-                const indexDelta = rec.indexRecommendation?.indexDelta ?? 0;
-                const recommendedIndex = rec.indexRecommendation?.recommendedIndex || data?.recommendedIndex;
-                const recommendedIndexDisplay = formatIndexDisplay(recommendedIndex) || '';
-                const thicknessWarning = rec.thicknessWarning || rec.indexRecommendation?.isWarning || false;
-                const indexInvalid = rec.indexInvalid || rec.indexRecommendation?.isInvalid || false;
-                const validationMessage = rec.indexRecommendation?.validationMessage;
-                
-                // Calculate thickness difference display
-                const getThicknessDisplay = () => {
-                  if (indexDelta === 0) {
-                    return { text: 'Ideal thickness', color: 'text-green-600', icon: '✓' };
-                  } else if (indexDelta > 0) {
-                    return { text: `${indexDelta === 1 ? '~20-30%' : indexDelta === 2 ? '~40-50%' : '~60%+'} thinner than recommended`, color: 'text-blue-600', icon: '✨' };
-                  } else {
-                    const thicknessPercent = Math.abs(indexDelta) === 1 ? '~20-30%' : Math.abs(indexDelta) === 2 ? '~40-50%' : '~60%+';
-                    return { text: `${thicknessPercent} thicker than recommended`, color: 'text-yellow-600', icon: '⚠️' };
-                  }
-                };
-                const thicknessInfo = getThicknessDisplay();
-                
-                return (
-                  <div key={`${rec.id}-${index}`} className={`border-2 rounded-xl p-4 sm:p-5 hover:shadow-lg transition-all bg-white dark:bg-slate-800/50 group ${
-                    indexInvalid ? 'border-red-300 dark:border-red-700 bg-red-50/30 dark:bg-red-900/20' : thicknessWarning ? 'border-yellow-300 dark:border-yellow-700 bg-yellow-50/30 dark:bg-yellow-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
-                  }`}>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-4 sm:gap-6">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-3 flex-wrap">
-                          <h3 className="text-xl font-bold text-slate-900">{rec.name}</h3>
-                          {/* Label Badge */}
-                          {label && (
-                            <span className={`px-3 py-1 text-xs font-bold rounded-full border ${
-                              label === 'Recommended' 
-                                ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 border-blue-200'
-                                : label === 'Next Best'
-                                ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 border-purple-200'
-                                : label === 'Can Try'
-                                ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-200'
-                                : 'bg-slate-100 text-slate-800 border-slate-200'
-                            }`}>
-                              {label}
+                  return (
+                    <div
+                      key={`${rec.id}-${index}`}
+                      className="bg-white dark:bg-slate-800/50 rounded-2xl border-2 border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl hover:shadow-2xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 overflow-hidden group flex flex-col h-full"
+                    >
+                      {/* Tag & Match Score Header */}
+                      <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 px-4 sm:px-6 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                        <div className="flex items-center justify-between">
+                          <span className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-bold ${tagConfig.color} shadow-sm`}>
+                            {tagConfig.label}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <span className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              {Math.round(rec.matchPercent ?? (rec.matchScore * 100))}% Match
                             </span>
-                          )}
-                          {indexInvalid && (
-                            <span className="px-2.5 py-1 bg-red-100 text-red-800 text-xs font-semibold rounded-lg border border-red-200">
-                              ❌ Not Suitable
-                            </span>
-                          )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-3 flex-wrap">
-                          <span className="font-medium text-slate-700 dark:text-slate-300">{brandLine}</span>
-                          <span className="text-slate-400 dark:text-slate-500">•</span>
-                          <span>Index {lensIndexDisplay}</span>
-                          {recommendedIndexDisplay && (
+                      </div>
+
+                      <div className="p-4 sm:p-6 flex flex-col flex-grow">
+                        {/* Lens Name + Brand Line */}
+                        <div className="mb-4 flex-shrink-0">
+                          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-2 leading-tight">{rec.name}</h3>
+                          <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 dark:text-slate-400 flex-wrap">
+                            <span className="font-medium text-slate-700 dark:text-slate-300">{brandLine}</span>
+                            <span className="text-slate-400 dark:text-slate-500">•</span>
+                            <span>Index {lensIndexStr}</span>
+                            <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md text-xs font-medium">
+                              {indexLabel}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Benefits - Fixed height section to keep cards even */}
+                        <div className="mb-5 flex-grow min-h-[120px] flex flex-col">
+                          {benefits.length > 0 ? (
                             <>
-                              <span className="text-slate-400 dark:text-slate-500">•</span>
-                              <span className="text-slate-500 dark:text-slate-400">Recommended: {recommendedIndexDisplay}</span>
+                              <ul className="space-y-2 flex-grow">
+                                {benefits.slice(0, 3).map((benefit: string, idx: number) => (
+                                  <li key={idx} className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 flex items-start gap-2 sm:gap-3">
+                                    <CheckCircle size={14} className="sm:w-4 sm:h-4 text-green-500 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                                    <span className="leading-relaxed">{benefit}</span>
+                                  </li>
+                                ))}
+                                {benefits.length > 3 && (
+                                  <li className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 italic">
+                                    +{benefits.length - 3} more features
+                                  </li>
+                                )}
+                              </ul>
                             </>
-                          )}
-                          <span className="text-slate-400 dark:text-slate-500">•</span>
-                          <span>{rec.category}</span>
-                        </div>
-                        
-                        {/* Thickness Difference Display */}
-                        {recommendedIndexDisplay && (
-                          <div className={`mb-3 px-3 py-2 rounded-lg border ${indexInvalid ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' : thicknessWarning ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700' : indexDelta > 0 ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700' : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'}`}>
-                            <div className="flex items-center gap-2 text-sm">
-                              <span className={thicknessInfo.color}>{thicknessInfo.icon}</span>
-                              <span className={`font-medium ${thicknessInfo.color}`}>
-                                {thicknessInfo.text}
-                              </span>
-                              {indexDelta !== 0 && recommendedIndexDisplay && (
-                                <span className="text-slate-500 dark:text-slate-400 text-xs">
-                                  (Recommended: {recommendedIndexDisplay})
-                                </span>
-                              )}
-                            </div>
-                            {validationMessage && (
-                              <p className={`text-xs mt-1 ${indexInvalid ? 'text-red-700 dark:text-red-400' : thicknessWarning ? 'text-yellow-700 dark:text-yellow-400' : 'text-slate-600 dark:text-slate-400'}`}>
-                                {validationMessage}
+                          ) : (
+                            <div className="flex-grow flex items-center justify-center">
+                              <p className="text-xs sm:text-sm text-slate-400 dark:text-slate-500 italic text-center">
+                                Premium quality lens
                               </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Price Row - MRP with strikethrough and Offer Price with RX Add-On */}
+                        <div className="mb-5 p-3 sm:p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border-2 border-blue-100 dark:border-blue-800 flex-shrink-0">
+                          <div className="space-y-2">
+                            <div className="flex items-baseline gap-2 sm:gap-3 flex-wrap">
+                              <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">Lens Price:</span>
+                              {lensMRP && lensMRP >= (rec.pricing.lensPrice.totalLensPrice) ? (
+                                <>
+                                  <span className="text-base sm:text-lg text-slate-500 dark:text-slate-400 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
+                                  {lensMRP > (rec.pricing.lensPrice.totalLensPrice) && <span className="text-slate-400 dark:text-slate-500">→</span>}
+                                </>
+                              ) : null}
+                              <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">₹{Math.round(lensPrice).toLocaleString()}</span>
+                            </div>
+                            
+                            {/* RX Add-On Breakdown */}
+                            {rec.rxAddOn?.applied && rec.rxAddOn.totalAddOn > 0 && (
+                              <div className="pt-2 border-t border-blue-200 dark:border-blue-700">
+                                <div className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-1">
+                                  Base Price: ₹{Math.round(rec.pricing.lensPrice.totalLensPrice).toLocaleString()}
+                                </div>
+                                {rec.rxAddOn.breakdown.map((item, idx) => (
+                                  <div key={idx} className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                                    <span>+</span>
+                                    <span>{item.label}:</span>
+                                    <span className="font-semibold">₹{Math.round(item.charge).toLocaleString()}</span>
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </div>
-                        )}
-                        
-                        <div className="mb-3 flex items-baseline gap-2">
-                          {lensMRP && lensMRP >= lensPrice ? (
-                            <>
-                              <span className="text-lg text-slate-500 dark:text-slate-400 line-through">₹{Math.round(lensMRP).toLocaleString()}</span>
-                              {lensMRP > lensPrice && <span className="text-slate-400 dark:text-slate-500">→</span>}
-                            </>
-                          ) : null}
-                          <span className="text-2xl font-bold text-slate-900 dark:text-white">₹{Math.round(lensPrice).toLocaleString()}</span>
                         </div>
-                        {benefits.length > 0 && (
-                          <ul className="space-y-1.5 mb-3">
-                            {benefits.map((benefit: string, idx: number) => (
-                              <li key={idx} className="text-sm text-slate-700 flex items-start gap-2">
-                                <CheckCircle size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
-                                <span>{benefit}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                      <Button
-                        onClick={() => {
-                          setSelectedProduct(rec.id);
-                          setShowViewAllModal(false);
-                          
-                          // Navigate to offer summary page
-                          router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);
-                        }}
-                        disabled={indexInvalid}
-                        className={`font-bold w-full sm:w-auto px-6 sm:px-8 py-3 shadow-md hover:shadow-lg transition-all whitespace-nowrap flex-shrink-0 ${
-                          indexInvalid 
-                            ? 'bg-slate-400 cursor-not-allowed' 
-                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
-                        }`}
-                      >
-                        {indexInvalid ? 'Not Available' : 'Select'}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
 
-            {/* Footer */}
-            <div className="sticky bottom-0 bg-gradient-to-r from-slate-50 to-blue-50 border-t-2 border-slate-200 px-4 sm:px-6 py-4">
-              <Button
-                fullWidth
-                onClick={() => setShowViewAllModal(false)}
-                variant="outline"
-                className="border-2 border-slate-300 text-slate-700 hover:bg-white hover:border-blue-400 font-semibold py-3 shadow-sm"
-              >
-                Close
-              </Button>
+                        {/* Primary CTA */}
+                        <Button
+                          fullWidth
+                          onClick={() => {
+                            setSelectedProduct(rec.id);
+                            
+                            // Check if this is Power Sunglasses flow
+                            const lensType = localStorage.getItem('lenstrack_lens_type');
+                            const isPowerSunglasses = lensType === 'SUNGLASSES';
+                            
+                            // Check if lens has tint option (TINT/PHOTOCHROMIC/TRANSITION)
+                            const isTintLens = rec.tintOption && ['TINT', 'PHOTOCHROMIC', 'TRANSITION'].includes(rec.tintOption);
+                            
+                            if (isPowerSunglasses && isTintLens) {
+                              // Save selected lens and navigate to tint color selection
+                              localStorage.setItem(`lenstrack_selected_lens_${sessionId}`, JSON.stringify({
+                                id: rec.id,
+                                name: rec.name,
+                                baseOfferPrice: rec.pricing?.lensPrice?.totalLensPrice || rec.basePrice || 0,
+                                tintOption: rec.tintOption,
+                              }));
+                              router.push(`/questionnaire/${sessionId}/tint-color-selection`);
+                            } else {
+                              // Navigate to offer summary page (normal flow)
+                              router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);
+                            }
+                          }}
+                          className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 text-white font-bold py-3 sm:py-4 text-sm sm:text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] flex-shrink-0"
+                        >
+                          Select Lens <ArrowRight size={18} className="ml-2" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Feature Icon Display Component
+function FeatureIconDisplay({ feature, FeatureIcon, hasCustomIcon }: { feature: any; FeatureIcon: any; hasCustomIcon: boolean }) {
+  const [iconError, setIconError] = useState(false);
+  
+  return (
+    <div className="flex items-start gap-4 p-4 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-700 dark:to-blue-900/20 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-blue-300 dark:hover:border-blue-500 transition-all group">
+      <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors flex-shrink-0 w-10 h-10 flex items-center justify-center">
+        {hasCustomIcon && !iconError ? (
+          <img
+            src={feature.iconUrl}
+            alt={feature.name}
+            className="w-6 h-6 object-contain"
+            onError={() => setIconError(true)}
+          />
+        ) : (
+          <FeatureIcon size={24} className="text-blue-600 dark:text-blue-400" />
+        )}
+      </div>
+      <div className="flex-1">
+        <p className="font-semibold text-slate-900 dark:text-white mb-1">{feature.name}</p>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all"
+              style={{ width: `${Math.min(feature.strength * 10, 100)}%` }}
+            />
+          </div>
+          <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{feature.strength}/10</span>
+        </div>
+      </div>
     </div>
   );
 }

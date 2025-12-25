@@ -78,6 +78,7 @@ export interface OfferCalculationInput {
     firstPairTotal: number; // total of first pair (frame + lens)
     secondPairFrameMRP?: number;
     secondPairLensPrice?: number;
+    secondPairLensItCode?: string; // IT code for second pair lens (for RX add-on calculation)
   } | null;
   organizationId: string; // Required for fetching rules
   storeId?: string | null; // Optional: for store-based offer activation

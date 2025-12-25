@@ -36,9 +36,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-safe-screen flex">
+    <div className="min-h-safe-screen flex bg-slate-50 dark:bg-slate-900">
       {/* Left Side - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-white">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-white dark:bg-slate-800">
         <div className="w-full max-w-md">
           {/* Logo */}
           <div className="flex items-center gap-2 sm:gap-3 mb-6 sm:mb-8">
@@ -46,15 +46,15 @@ export default function LoginPage() {
               <Glasses className="text-white sm:w-7 sm:h-7" size={24} />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">LensTrack</h1>
-              <p className="text-xs sm:text-sm text-slate-600">Optical Store Management</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">LensTrack</h1>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Optical Store Management</p>
             </div>
           </div>
 
           {/* Login Form */}
           <div className="mb-4 sm:mb-6">
-            <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-2">Welcome Back</h2>
-            <p className="text-sm text-slate-600">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-2">Welcome Back</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
               Sign in to access your dashboard
             </p>
           </div>
@@ -83,7 +83,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-9 text-slate-400 hover:text-slate-600"
+                className="absolute right-3 top-9 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
@@ -95,11 +95,11 @@ export default function LoginPage() {
           </form>
 
           {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <p className="text-xs font-semibold text-blue-900 mb-2">
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-xs font-semibold text-blue-900 dark:text-blue-300 mb-2">
               Demo Credentials:
             </p>
-            <div className="text-xs text-blue-800 space-y-1">
+            <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
               <p>Super Admin: superadmin@lenstrack.com / admin123</p>
               <p>Admin: admin@lenstrack.com / admin123</p>
               <p>Manager: manager@lenstrack.com / admin123</p>

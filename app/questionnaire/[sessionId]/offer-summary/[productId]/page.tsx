@@ -883,6 +883,7 @@ export default function OfferSummaryPage() {
               firstPairTotal: data.offerResult.baseTotal,
               secondPairFrameMRP: secondPairData.frameMRP,
               secondPairLensPrice: secondPairData.lensPrice,
+              lensId: secondPairData.lensId, // Pass lensId so API can fetch IT code
             } : null,
           }),
         }

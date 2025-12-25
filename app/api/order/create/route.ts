@@ -48,7 +48,7 @@ const createOrderSchema = z.object({
   frameData: z.any(),
   lensData: z.any(),
   offerData: z.any(),
-  orderType: z.enum(['EYEGLASSES', 'LENS_ONLY', 'POWER_SUNGLASS', 'CONTACT_LENS_ONLY']).optional(),
+  orderType: z.enum(['EYEGLASSES', 'LENS_ONLY', 'POWER_SUNGLASS', 'CONTACT_LENS_ONLY', 'ACCESSORIES_ONLY']).optional(),
   finalPrice: z.number().positive(),
   sessionId: z.string().nullable().optional(), // For purchase context validation
   purchaseContext: z.enum(['REGULAR', 'COMBO', 'YOPO']).nullable().optional(),
@@ -243,12 +243,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Validate JSON fields are objects
-    if (typeof validated.frameData !== 'object' || validated.frameData === null) {
-      throw new ValidationError('frameData must be a valid object');
-    }
-    if (typeof validated.lensData !== 'object' || validated.lensData === null) {
-      throw new ValidationError('lensData must be a valid object');
+    // Check if this is an ACCESSORIES_ONLY order
+    const isAccessoriesOnly = validated.orderType === 'ACCESSORIES_ONLY';
+    
+    // Validate JSON fields are objects (skip for ACCESSORIES_ONLY orders)
+    if (!isAccessoriesOnly) {
+      if (typeof validated.frameData !== 'object' || validated.frameData === null) {
+        throw new ValidationError('frameData must be a valid object');
+      }
+      if (typeof validated.lensData !== 'object' || validated.lensData === null) {
+        throw new ValidationError('lensData must be a valid object');
+      }
     }
     if (typeof validated.offerData !== 'object' || validated.offerData === null) {
       throw new ValidationError('offerData must be a valid object');
@@ -271,34 +276,38 @@ export async function POST(request: NextRequest) {
     await logDebug('route.ts:170', 'After serialization', {frameDataKeys:serializedFrameData?Object.keys(serializedFrameData):[],lensDataKeys:serializedLensData?Object.keys(serializedLensData):[],offerDataKeys:serializedOfferData?Object.keys(serializedOfferData):[]}, 'D', sessionId, runId);
     // #endregion
     
-    // Validate and fix frameData structure
-    if (!serializedFrameData || typeof serializedFrameData !== 'object') {
-      throw new ValidationError('frameData must be a valid object');
+    // Validate and fix frameData structure (skip for ACCESSORIES_ONLY orders)
+    if (!isAccessoriesOnly) {
+      if (!serializedFrameData || typeof serializedFrameData !== 'object') {
+        throw new ValidationError('frameData must be a valid object');
+      }
+      
+      // OrderFrameData requires: brand, mrp (Int), frameType (optional), subBrand (optional)
+      if (!serializedFrameData.brand || typeof serializedFrameData.brand !== 'string') {
+        throw new ValidationError('frameData.brand is required and must be a string');
+      }
+      if (typeof serializedFrameData.mrp !== 'number') {
+        throw new ValidationError('frameData.mrp is required and must be a number');
+      }
+      serializedFrameData.mrp = Math.round(serializedFrameData.mrp);
     }
     
-    // OrderFrameData requires: brand, mrp (Int), frameType (optional), subBrand (optional)
-    if (!serializedFrameData.brand || typeof serializedFrameData.brand !== 'string') {
-      throw new ValidationError('frameData.brand is required and must be a string');
-    }
-    if (typeof serializedFrameData.mrp !== 'number') {
-      throw new ValidationError('frameData.mrp is required and must be a number');
-    }
-    serializedFrameData.mrp = Math.round(serializedFrameData.mrp);
-    
-    // Validate and fix lensData structure
-    if (!serializedLensData || typeof serializedLensData !== 'object') {
-      throw new ValidationError('lensData must be a valid object');
-    }
-    
-    // OrderLensData requires: brandLine, id, index, name, price (Int)
-    const requiredLensFields = ['brandLine', 'id', 'index', 'name', 'price'];
-    for (const field of requiredLensFields) {
-      if (!serializedLensData[field] && serializedLensData[field] !== 0) {
-        console.warn(`[order/create] Missing lensData.${field}, using default`);
-        if (field === 'price') {
-          serializedLensData[field] = 0;
-        } else {
-          serializedLensData[field] = 'Unknown';
+    // Validate and fix lensData structure (skip for ACCESSORIES_ONLY orders)
+    if (!isAccessoriesOnly) {
+      if (!serializedLensData || typeof serializedLensData !== 'object') {
+        throw new ValidationError('lensData must be a valid object');
+      }
+      
+      // OrderLensData requires: brandLine, id, index, name, price (Int)
+      const requiredLensFields = ['brandLine', 'id', 'index', 'name', 'price'];
+      for (const field of requiredLensFields) {
+        if (!serializedLensData[field] && serializedLensData[field] !== 0) {
+          console.warn(`[order/create] Missing lensData.${field}, using default`);
+          if (field === 'price') {
+            serializedLensData[field] = 0;
+          } else {
+            serializedLensData[field] = 'Unknown';
+          }
         }
       }
     }
@@ -347,39 +356,53 @@ export async function POST(request: NextRequest) {
       label: comp.label || 'Item',
     }));
     
-    // Clean up frameData to only include schema-defined fields
-    const cleanFrameData: any = {
-      brand: serializedFrameData.brand,
-      mrp: serializedFrameData.mrp,
-    };
-    if (serializedFrameData.frameType) {
-      cleanFrameData.frameType = serializedFrameData.frameType;
-    }
-    if (serializedFrameData.subBrand) {
-      cleanFrameData.subBrand = serializedFrameData.subBrand;
+    // Clean up frameData to only include schema-defined fields (or use defaults for ACCESSORIES_ONLY)
+    const cleanFrameData: any = isAccessoriesOnly 
+      ? { brand: 'N/A', mrp: 0 }
+      : {
+          brand: serializedFrameData.brand,
+          mrp: serializedFrameData.mrp,
+        };
+    if (!isAccessoriesOnly) {
+      if (serializedFrameData.frameType) {
+        cleanFrameData.frameType = serializedFrameData.frameType;
+      }
+      if (serializedFrameData.subBrand) {
+        cleanFrameData.subBrand = serializedFrameData.subBrand;
+      }
     }
     
-    // Clean up lensData to only include schema-defined fields
-    const cleanLensData: any = {
-      brandLine: serializedLensData.brandLine || 'Unknown',
-      id: serializedLensData.id || 'Unknown',
-      index: serializedLensData.index || 'Unknown',
-      name: serializedLensData.name || 'Unknown',
-      price: serializedLensData.price || 0,
-    };
-    // Add optional fields only if they exist
-    if (serializedLensData.itCode) cleanLensData.itCode = serializedLensData.itCode;
-    if (serializedLensData.visionType) cleanLensData.visionType = serializedLensData.visionType;
-    if (typeof serializedLensData.basePrice === 'number') cleanLensData.basePrice = Math.round(serializedLensData.basePrice);
-    if (typeof serializedLensData.finalLensPrice === 'number') cleanLensData.finalLensPrice = Math.round(serializedLensData.finalLensPrice);
-    if (serializedLensData.powerBand) cleanLensData.powerBand = serializedLensData.powerBand;
-    if (typeof serializedLensData.bandExtra === 'number') cleanLensData.bandExtra = Math.round(serializedLensData.bandExtra);
-    if (serializedLensData.rxAddOnBreakdown) cleanLensData.rxAddOnBreakdown = serializedLensData.rxAddOnBreakdown;
-    if (typeof serializedLensData.totalRxAddOn === 'number') cleanLensData.totalRxAddOn = Math.round(serializedLensData.totalRxAddOn);
-    if (serializedLensData.tint) cleanLensData.tint = serializedLensData.tint;
-    if (serializedLensData.mirror) cleanLensData.mirror = serializedLensData.mirror;
-    if (typeof serializedLensData.thicknessWarning === 'boolean') cleanLensData.thicknessWarning = serializedLensData.thicknessWarning;
-    if (serializedLensData.recommendedIndex) cleanLensData.recommendedIndex = serializedLensData.recommendedIndex;
+    // Clean up lensData to only include schema-defined fields (or use defaults for ACCESSORIES_ONLY)
+    const cleanLensData: any = isAccessoriesOnly
+      ? {
+          brandLine: 'N/A',
+          id: 'N/A',
+          index: 'N/A',
+          name: 'N/A',
+          price: 0,
+        }
+      : {
+          brandLine: serializedLensData.brandLine || 'Unknown',
+          id: serializedLensData.id || 'Unknown',
+          index: serializedLensData.index || 'Unknown',
+          name: serializedLensData.name || 'Unknown',
+          price: serializedLensData.price || 0,
+        };
+    // Add optional fields only if they exist (skip for ACCESSORIES_ONLY)
+    if (!isAccessoriesOnly) {
+      if (serializedLensData.itCode) cleanLensData.itCode = serializedLensData.itCode;
+      if (serializedLensData.visionType) cleanLensData.visionType = serializedLensData.visionType;
+      if (typeof serializedLensData.basePrice === 'number') cleanLensData.basePrice = Math.round(serializedLensData.basePrice);
+      if (typeof serializedLensData.finalLensPrice === 'number') cleanLensData.finalLensPrice = Math.round(serializedLensData.finalLensPrice);
+      if (serializedLensData.powerBand) cleanLensData.powerBand = serializedLensData.powerBand;
+      if (typeof serializedLensData.bandExtra === 'number') cleanLensData.bandExtra = Math.round(serializedLensData.bandExtra);
+      if (serializedLensData.rxAddOnBreakdown) cleanLensData.rxAddOnBreakdown = serializedLensData.rxAddOnBreakdown;
+      if (typeof serializedLensData.totalRxAddOn === 'number') cleanLensData.totalRxAddOn = Math.round(serializedLensData.totalRxAddOn);
+      if (serializedLensData.tint) cleanLensData.tint = serializedLensData.tint;
+      if (serializedLensData.mirror) cleanLensData.mirror = serializedLensData.mirror;
+      if (typeof serializedLensData.thicknessWarning === 'boolean') cleanLensData.thicknessWarning = serializedLensData.thicknessWarning;
+      if (serializedLensData.recommendedIndex) cleanLensData.recommendedIndex = serializedLensData.recommendedIndex;
+    }
     
     // Clean up offerData to only include schema-defined fields
     const cleanOfferData: any = {
@@ -500,14 +523,23 @@ export async function POST(request: NextRequest) {
       if (!prismaOrderData.storeId) {
         throw new ValidationError('storeId is required');
       }
-      if (!prismaOrderData.frameData || !prismaOrderData.frameData.brand || typeof prismaOrderData.frameData.mrp !== 'number') {
-        throw new ValidationError('frameData is invalid - brand and mrp are required');
+      const isAccessoriesOnlyOrder = prismaOrderData.orderType === 'ACCESSORIES_ONLY';
+      if (!isAccessoriesOnlyOrder) {
+        if (!prismaOrderData.frameData || !prismaOrderData.frameData.brand || typeof prismaOrderData.frameData.mrp !== 'number') {
+          throw new ValidationError('frameData is invalid - brand and mrp are required');
+        }
+        if (!prismaOrderData.lensData || !prismaOrderData.lensData.brandLine || !prismaOrderData.lensData.id || !prismaOrderData.lensData.index || !prismaOrderData.lensData.name || typeof prismaOrderData.lensData.price !== 'number') {
+          throw new ValidationError('lensData is invalid - brandLine, id, index, name, and price are required');
+        }
       }
-      if (!prismaOrderData.lensData || !prismaOrderData.lensData.brandLine || !prismaOrderData.lensData.id || !prismaOrderData.lensData.index || !prismaOrderData.lensData.name || typeof prismaOrderData.lensData.price !== 'number') {
-        throw new ValidationError('lensData is invalid - brandLine, id, index, name, and price are required');
+      if (!prismaOrderData.offerData || typeof prismaOrderData.offerData.baseTotal !== 'number' || typeof prismaOrderData.offerData.effectiveBase !== 'number' || typeof prismaOrderData.offerData.finalPayable !== 'number') {
+        throw new ValidationError('offerData is invalid - baseTotal, effectiveBase, and finalPayable are required');
       }
-      if (!prismaOrderData.offerData || typeof prismaOrderData.offerData.baseTotal !== 'number' || typeof prismaOrderData.offerData.effectiveBase !== 'number' || typeof prismaOrderData.offerData.finalPayable !== 'number' || typeof prismaOrderData.offerData.frameMRP !== 'number' || typeof prismaOrderData.offerData.lensPrice !== 'number') {
-        throw new ValidationError('offerData is invalid - baseTotal, effectiveBase, finalPayable, frameMRP, and lensPrice are required');
+      // frameMRP and lensPrice are optional for ACCESSORIES_ONLY orders
+      if (!isAccessoriesOnlyOrder) {
+        if (typeof prismaOrderData.offerData.frameMRP !== 'number' || typeof prismaOrderData.offerData.lensPrice !== 'number') {
+          throw new ValidationError('offerData is invalid - frameMRP and lensPrice are required for non-accessories orders');
+        }
       }
       
       // Safe logging - avoid circular references

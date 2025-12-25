@@ -53,7 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex min-h-safe-screen bg-slate-50 dark:bg-slate-900">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isMobile={isMobile} />
       
       {/* Mobile Menu Button */}
@@ -81,7 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </button>
       )}
 
-      <main className="w-full lg:ml-64 flex-1 p-3 sm:p-4 lg:p-6 xl:p-8 transition-all duration-300 min-w-0">
+      <main className="w-full lg:ml-64 flex-1 p-3 sm:p-4 lg:p-6 xl:p-8 transition-all duration-300 min-w-0 overflow-y-auto h-full">
         <div className="w-full min-w-0 max-w-full">
           {children}
         </div>

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
-import { ArrowLeft, Package, CheckCircle, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Package, CheckCircle, ShoppingBag, Sparkles, Tag } from 'lucide-react';
 
 interface Accessory {
   id: string;
@@ -16,6 +16,8 @@ interface Accessory {
     id: string;
     name: string;
   };
+  sku?: string;
+  imageUrl?: string;
 }
 
 export default function AccessoriesPage() {
@@ -105,6 +107,7 @@ export default function AccessoriesPage() {
                 price: p.mrp || 0,
                 mrp: p.mrp || 0,
                 brand: p.brand,
+                sku: p.sku,
               })));
             setLoading(false);
             return;
@@ -250,56 +253,43 @@ export default function AccessoriesPage() {
     const selectedAccessoriesList = accessories.filter(a => selectedAccessories.has(a.id));
     localStorage.setItem(`lenstrack_accessories_${sessionId}`, JSON.stringify(selectedAccessoriesList));
     
-    // If this is a standalone accessories flow (no frame/lens), go to a simple checkout
-    const frameData = localStorage.getItem('lenstrack_frame');
-    const selectedLens = localStorage.getItem(`lenstrack_selected_lens_${sessionId}`);
-    
-    if (!frameData && !selectedLens) {
-      // Standalone accessories order - navigate to a simple checkout
-      if (selectedAccessoriesList.length === 0) {
-        showToast('error', 'Please select at least one accessory');
-        return;
-      }
-      // Navigate to checkout with accessories only
-      router.push(`/questionnaire/${sessionId}/accessories-checkout`);
+    // Always go to order summary for accessories (skip recommendations and offer engine)
+    if (selectedAccessoriesList.length === 0) {
+      showToast('error', 'Please select at least one accessory');
       return;
     }
     
-    // Get productId from localStorage or URL
-    const savedProductId = localStorage.getItem(`lenstrack_selected_product_${sessionId}`);
-    if (savedProductId) {
-      router.push(`/questionnaire/${sessionId}/checkout/${savedProductId}`);
-    } else {
-      // Try to get from offer summary
-      router.push(`/questionnaire/${sessionId}/checkout`);
-    }
+    // Navigate directly to order summary (skip recommendations and checkout)
+    router.push(`/questionnaire/${sessionId}/accessories-order-summary`);
   };
 
   const handleSkip = () => {
-    // If this is a standalone accessories flow, just go back
+    // Skip accessories - go back to previous page
     const frameData = localStorage.getItem('lenstrack_frame');
     const selectedLens = localStorage.getItem(`lenstrack_selected_lens_${sessionId}`);
     
     if (!frameData && !selectedLens) {
+      // Standalone accessories flow - go back to lens-type
       router.push('/questionnaire/lens-type');
       return;
     }
     
-    // No accessories selected, proceed to checkout
+    // If there's frame/lens, go to checkout or offer summary
     const savedProductId = localStorage.getItem(`lenstrack_selected_product_${sessionId}`);
     if (savedProductId) {
       router.push(`/questionnaire/${sessionId}/checkout/${savedProductId}`);
     } else {
-      router.push(`/questionnaire/${sessionId}/checkout`);
+      // Go to offer summary if available, otherwise recommendations
+      router.push(`/questionnaire/${sessionId}/recommendations`);
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+      <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin" />
-          <div className="text-white">Loading accessories...</div>
+          <div className="w-16 h-16 mx-auto mb-4 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 rounded-full animate-spin" />
+          <div className="text-slate-600 dark:text-slate-300">Loading accessories...</div>
         </div>
       </div>
     );
@@ -309,24 +299,14 @@ export default function AccessoriesPage() {
   const accessoriesSubtotal = selectedAccessoriesList.reduce((sum, a) => sum + a.price, 0);
   
   // Calculate discount from offer result
-  // If offer result exists, it includes accessories in the calculation
-  // The discount is the difference between subtotal and what's actually charged
   let discountAmount = 0;
   let finalAccessoriesTotal = accessoriesSubtotal;
   
   if (offerResult && offerResult.offersApplied) {
-    // Find offers that apply to accessories
-    const accessoryOffers = offerResult.offersApplied.filter((offer: any) => 
-      offer.description?.toLowerCase().includes('accessory') ||
-      offer.description?.toLowerCase().includes('combo')
-    );
-    
-    // Calculate total discount from offers
     const totalDiscount = offerResult.offersApplied.reduce((sum: number, offer: any) => 
       sum + (offer.savings || 0), 0
     );
     
-    // Estimate accessories discount (proportional to accessories in total)
     if (offerResult.baseTotal > 0) {
       const accessoriesRatio = accessoriesSubtotal / offerResult.baseTotal;
       discountAmount = Math.round(totalDiscount * accessoriesRatio);
@@ -334,166 +314,272 @@ export default function AccessoriesPage() {
     }
   }
 
+  const isStandalone = !localStorage.getItem('lenstrack_frame') && !localStorage.getItem(`lenstrack_selected_lens_${sessionId}`);
+
   return (
-    <div className="min-h-safe-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-700 shadow-2xl">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 flex items-center gap-2 sm:gap-3">
-            <Package size={24} className="sm:w-8 sm:h-8" />
-            Accessories
-          </h1>
-          <p className="text-slate-300 mb-6">
-            {(() => {
+    <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => {
               const frameData = localStorage.getItem('lenstrack_frame');
               const selectedLens = localStorage.getItem(`lenstrack_selected_lens_${sessionId}`);
-              return (!frameData && !selectedLens) 
-                ? 'Select accessories for your order' 
-                : 'Add accessories to complete your order';
-            })()}
+              
+              if (!frameData && !selectedLens) {
+                router.push('/questionnaire/lens-type');
+                return;
+              }
+              
+              const savedProductId = localStorage.getItem(`lenstrack_selected_product_${sessionId}`);
+              if (savedProductId) {
+                router.push(`/questionnaire/${sessionId}/offer-summary/${savedProductId}`);
+              } else {
+                router.push(`/questionnaire/${sessionId}/recommendations`);
+              }
+            }}
+            className="mb-4 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          >
+            <ArrowLeft size={18} className="mr-2" />
+            Back
+          </Button>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+            <Package size={28} className="text-blue-500" />
+            Accessories
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400">
+            {isStandalone 
+              ? 'Select accessories for your order' 
+              : 'Add accessories to complete your order'}
           </p>
+        </div>
 
-          {/* Offer Banner */}
-          {offerResult && offerResult.offersApplied && offerResult.offersApplied.length > 0 && (
-            <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2">
-                <CheckCircle size={20} />
-                <span className="font-semibold">Special Offers Applied!</span>
-              </div>
-              <div className="mt-2 space-y-1">
-                {offerResult.offersApplied.map((offer: any, idx: number) => (
-                  <p key={idx} className="text-sm opacity-90">• {offer.description}</p>
-                ))}
-              </div>
+        {/* Offer Banner */}
+        {offerResult && offerResult.offersApplied && offerResult.offersApplied.length > 0 && (
+          <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl p-4 mb-6 shadow-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle size={20} />
+              <span className="font-semibold">Special Offers Applied!</span>
             </div>
-          )}
+            <div className="space-y-1">
+              {offerResult.offersApplied.map((offer: any, idx: number) => (
+                <p key={idx} className="text-sm opacity-90">• {offer.description}</p>
+              ))}
+            </div>
+          </div>
+        )}
 
-          <div className="bg-white rounded-xl p-6 space-y-4 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Products Grid */}
+          <div className="lg:col-span-2">
             {accessories.length === 0 ? (
-              <div className="text-center py-12">
-                <Package size={48} className="mx-auto text-slate-400 mb-4" />
-                <p className="text-slate-600">No accessories available at the moment</p>
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-12 text-center border border-slate-200 dark:border-slate-700">
+                <Package size={64} className="mx-auto text-slate-400 mb-4" />
+                <p className="text-slate-600 dark:text-slate-400 text-lg">No accessories available at the moment</p>
               </div>
             ) : (
-              accessories.map((accessory) => {
-                const isSelected = selectedAccessories.has(accessory.id);
-                return (
-                  <button
-                    key={accessory.id}
-                    type="button"
-                    onClick={() => toggleAccessory(accessory.id)}
-                    className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                      isSelected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleAccessory(accessory.id)}
-                            className="w-5 h-5 text-blue-500"
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {accessories.map((accessory) => {
+                  const isSelected = selectedAccessories.has(accessory.id);
+                  const discountPercent = accessory.mrp > accessory.price 
+                    ? Math.round(((accessory.mrp - accessory.price) / accessory.mrp) * 100)
+                    : 0;
+
+                  return (
+                    <div
+                      key={accessory.id}
+                      onClick={() => toggleAccessory(accessory.id)}
+                      className={`relative bg-white dark:bg-slate-800 rounded-xl border-2 transition-all cursor-pointer hover:shadow-lg ${
+                        isSelected
+                          ? 'border-blue-500 dark:border-blue-400 shadow-lg'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                      }`}
+                    >
+                      {/* Selection Indicator */}
+                      {isSelected && (
+                        <div className="absolute top-3 right-3 z-10">
+                          <div className="w-8 h-8 bg-blue-500 dark:bg-blue-400 rounded-full flex items-center justify-center shadow-lg">
+                            <CheckCircle size={20} className="text-white" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Discount Badge */}
+                      {discountPercent > 0 && (
+                        <div className="absolute top-3 left-3 z-10">
+                          <div className="bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
+                            <Tag size={12} />
+                            {discountPercent}% OFF
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Product Image/Icon */}
+                      <div className="relative h-48 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-t-xl flex items-center justify-center overflow-hidden">
+                        {accessory.imageUrl ? (
+                          <img
+                            src={accessory.imageUrl}
+                            alt={accessory.name}
+                            className="w-full h-full object-cover"
                           />
-                          <h3 className="font-semibold text-slate-900">{accessory.name}</h3>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center">
+                            <Package size={64} className="text-blue-500 dark:text-blue-400 mb-2" />
+                            <Sparkles size={24} className="text-purple-500 dark:text-purple-400" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Product Info */}
+                      <div className="p-4">
+                        <div className="mb-2">
+                          <h3 className="font-semibold text-slate-900 dark:text-white text-lg mb-1 line-clamp-1">
+                            {accessory.name}
+                          </h3>
                           {accessory.brand && (
-                            <span className="text-xs text-slate-500">({accessory.brand.name})</span>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                              {accessory.brand.name}
+                            </p>
+                          )}
+                          {accessory.sku && (
+                            <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">
+                              SKU: {accessory.sku}
+                            </p>
                           )}
                         </div>
+
                         {accessory.description && (
-                          <p className="text-sm text-slate-600 ml-8">{accessory.description}</p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-3 line-clamp-2">
+                            {accessory.description}
+                          </p>
                         )}
-                      </div>
-                      <div className="text-right">
-                        {accessory.mrp > accessory.price && (
-                          <div className="text-sm text-slate-400 line-through">₹{accessory.mrp}</div>
-                        )}
-                        <div className="text-lg font-bold text-slate-900">₹{accessory.price}</div>
+
+                        {/* Price Section */}
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-700">
+                          <div>
+                            {accessory.mrp > accessory.price && (
+                              <p className="text-xs text-slate-400 dark:text-slate-500 line-through">
+                                ₹{accessory.mrp.toLocaleString()}
+                              </p>
+                            )}
+                            <p className="text-xl font-bold text-slate-900 dark:text-white">
+                              ₹{accessory.price.toLocaleString()}
+                            </p>
+                          </div>
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                            isSelected
+                              ? 'bg-blue-500 dark:bg-blue-400 border-blue-500 dark:border-blue-400'
+                              : 'border-slate-300 dark:border-slate-600'
+                          }`}>
+                            {isSelected && (
+                              <CheckCircle size={16} className="text-white" />
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </button>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
           </div>
 
-          {/* Summary */}
-          {selectedAccessoriesList.length > 0 && (
-            <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200 mb-6">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-700 font-medium">Accessories Subtotal:</span>
-                  <span className="text-lg font-semibold text-slate-900">₹{accessoriesSubtotal.toLocaleString()}</span>
+          {/* Summary Sidebar */}
+          <div className="lg:col-span-1">
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 sticky top-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                <ShoppingBag size={24} className="text-blue-500" />
+                Cart Summary
+              </h2>
+
+              {selectedAccessoriesList.length === 0 ? (
+                <div className="text-center py-8">
+                  <Package size={48} className="mx-auto text-slate-400 mb-3" />
+                  <p className="text-slate-500 dark:text-slate-400 text-sm">No accessories selected</p>
                 </div>
-                {discountAmount > 0 && (
-                  <div className="flex justify-between items-center text-green-600">
-                    <span className="font-medium">Discount:</span>
-                    <span className="font-semibold">-₹{discountAmount.toLocaleString()}</span>
+              ) : (
+                <>
+                  <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+                    {selectedAccessoriesList.map((acc) => (
+                      <div key={acc.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                            {acc.name}
+                          </p>
+                          {acc.brand && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              {acc.brand.name}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right ml-2">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                            ₹{acc.price.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                )}
-                <div className="flex justify-between items-center pt-2 border-t border-blue-200">
-                  <span className="text-slate-700 font-semibold">Accessories Total:</span>
-                  <span className="text-xl font-bold text-blue-700">₹{finalAccessoriesTotal.toLocaleString()}</span>
+
+                  <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 text-sm">Subtotal:</span>
+                      <span className="text-slate-900 dark:text-white font-semibold">
+                        ₹{accessoriesSubtotal.toLocaleString()}
+                      </span>
+                    </div>
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between items-center text-green-600 dark:text-green-400">
+                        <span className="text-sm font-medium">Discount:</span>
+                        <span className="font-semibold">-₹{discountAmount.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <span className="text-slate-900 dark:text-white font-semibold">Total:</span>
+                      <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                        ₹{finalAccessoriesTotal.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Navigation Buttons */}
+              <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                <Button
+                  onClick={handleNext}
+                  disabled={calculatingOffers || selectedAccessoriesList.length === 0}
+                  className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white"
+                >
+                  {calculatingOffers ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Calculating...
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag size={20} className="mr-2" />
+                      {isStandalone ? 'Proceed to Checkout' : 'Continue to Checkout'}
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleSkip}
+                  className="w-full"
+                >
+                  {isStandalone ? 'Back' : 'Skip'}
+                </Button>
+              </div>
+
+              {/* Selection Count */}
+              <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span>Selected Items</span>
+                  <span className="font-semibold">{selectedAccessoriesList.length} / {accessories.length}</span>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Navigation */}
-          <div className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={() => {
-                // Check if this is standalone accessories flow
-                const frameData = localStorage.getItem('lenstrack_frame');
-                const selectedLens = localStorage.getItem(`lenstrack_selected_lens_${sessionId}`);
-                
-                if (!frameData && !selectedLens) {
-                  // Standalone accessories - go back to lens-type
-                  router.push('/questionnaire/lens-type');
-                  return;
-                }
-                
-                // For accessories added to frame/lens order, go back appropriately
-                const savedProductId = localStorage.getItem(`lenstrack_selected_product_${sessionId}`);
-                if (savedProductId) {
-                  router.push(`/questionnaire/${sessionId}/offer-summary/${savedProductId}`);
-                } else {
-                  // Try to go to recommendations, but if it fails, go to lens-type
-                  router.push(`/questionnaire/${sessionId}/recommendations`);
-                }
-              }}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft size={18} />
-              Back
-            </Button>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={handleSkip}
-                className="flex items-center gap-2"
-              >
-                Skip
-              </Button>
-              <Button
-                onClick={handleNext}
-                disabled={calculatingOffers}
-                className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600"
-              >
-                {calculatingOffers ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Calculating...
-                  </>
-                ) : (
-                  <>
-                    <ShoppingBag size={20} />
-                    Continue to Checkout
-                  </>
-                )}
-              </Button>
             </div>
           </div>
         </div>

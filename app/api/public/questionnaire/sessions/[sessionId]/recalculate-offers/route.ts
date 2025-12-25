@@ -60,6 +60,31 @@ export async function POST(
     }
 
     const { productId, couponCode, secondPair, customerCategory, accessories } = body;
+    
+    // If second pair is enabled, fetch the lens IT code from lens ID
+    let secondPairWithItCode = secondPair;
+    if (secondPair?.enabled && secondPair.lensId) {
+      try {
+        const secondPairLens = await prisma.lensProduct.findUnique({
+          where: { id: secondPair.lensId },
+          select: { itCode: true },
+        });
+        
+        if (secondPairLens?.itCode) {
+          const itCodeValue = typeof secondPairLens.itCode === 'string' 
+            ? secondPairLens.itCode 
+            : String(secondPairLens.itCode);
+          
+          secondPairWithItCode = {
+            ...secondPair,
+            secondPairLensItCode: itCodeValue,
+          };
+        }
+      } catch (error: any) {
+        console.warn('[recalculate-offers] Failed to fetch second pair lens IT code:', error?.message);
+        // Continue without IT code - RX add-on won't be calculated
+      }
+    }
 
     if (!productId) {
       throw new ValidationError('Product ID is required');
@@ -262,7 +287,7 @@ export async function POST(
       prescription: prescriptionInput,
       customerCategory: finalCustomerCategory,
       couponCode: couponCode || null,
-      secondPair: secondPair || null,
+      secondPair: secondPairWithItCode || null,
       organizationId,
       otherItems, // Include accessories in offer calculation
       purchaseContext, // Pass purchase context (REGULAR/COMBO/YOPO)

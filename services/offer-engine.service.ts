@@ -137,15 +137,73 @@ export class OfferEngineService {
       console.log('[OfferEngine] No primary rule found. Lens YOPO eligible:', lens?.yopoEligible);
     }
 
-    // 2. SECOND PAIR OFFER (if applicable)
+    // 2. CALCULATE RX ADD-ON FOR FIRST PAIR (needed for BOGO comparison)
+    // Calculate RX add-on charges for first pair lens early so we can include it in BOGO comparison
+    let firstPairRxAddOn = 0;
+    let firstPairRxAddOnBreakdown: RxAddOnBreakdown[] = [];
+    
+    if (input.prescription && input.lens?.itCode) {
+      try {
+        const lensProduct = await prisma.lensProduct.findUnique({
+          where: { itCode: input.lens.itCode },
+        });
+
+        if (lensProduct) {
+          const rxAddOnResult = await rxAddOnPricingService.calculateRxAddOnPricing(
+            lensProduct.id,
+            input.prescription,
+            'HIGHEST_ONLY' // Business rule: Apply only highest matching band
+          );
+
+          if (rxAddOnResult.addOnApplied && rxAddOnResult.totalAddOn > 0) {
+            firstPairRxAddOn = rxAddOnResult.totalAddOn;
+            firstPairRxAddOnBreakdown = rxAddOnResult.breakdown;
+          }
+        }
+      } catch (rxAddOnError: any) {
+        console.warn('[OfferEngine] First pair RX add-on pricing calculation failed:', rxAddOnError?.message);
+      }
+    }
+
+    // 3. SECOND PAIR OFFER (if applicable)
     // BOGO Logic: Customer pays the HIGHEST price pair, lower pair is free
     let secondPairDiscount: OfferApplied | null = null;
+    let secondPairRxAddOn = 0;
+    let secondPairRxAddOnBreakdown: RxAddOnBreakdown[] = [];
+    
     if (input.secondPair?.enabled) {
+      // Calculate RX add-on for second pair lens if prescription and IT code are available
+      if (input.prescription && input.secondPair.secondPairLensItCode) {
+        try {
+          const secondPairLensProduct = await prisma.lensProduct.findUnique({
+            where: { itCode: input.secondPair.secondPairLensItCode },
+          });
+
+          if (secondPairLensProduct) {
+            const secondPairRxAddOnResult = await rxAddOnPricingService.calculateRxAddOnPricing(
+              secondPairLensProduct.id,
+              input.prescription,
+              'HIGHEST_ONLY' // Business rule: Apply only highest matching band
+            );
+
+            if (secondPairRxAddOnResult.addOnApplied && secondPairRxAddOnResult.totalAddOn > 0) {
+              secondPairRxAddOn = secondPairRxAddOnResult.totalAddOn;
+              secondPairRxAddOnBreakdown = secondPairRxAddOnResult.breakdown;
+            }
+          }
+        } catch (secondPairRxAddOnError: any) {
+          console.warn('[OfferEngine] Second pair RX add-on pricing calculation failed:', secondPairRxAddOnError?.message);
+        }
+      }
+      
       const secondPairRule = await this.findApplicableSecondPairRule(input);
       if (secondPairRule) {
         // effectiveBase is the first pair total AFTER primary offer (YOPO, COMBO, etc.)
-        const firstPairTotal = effectiveBase;
-        const secondPairTotal = (input.secondPair.secondPairFrameMRP || 0) + (input.secondPair.secondPairLensPrice || 0);
+        // Include first pair RX add-on in comparison (RX add-on is non-discountable)
+        const firstPairTotal = effectiveBase + firstPairRxAddOn;
+        // Second pair total includes frame + lens + RX add-on (RX add-on is non-discountable)
+        const secondPairBaseTotal = (input.secondPair.secondPairFrameMRP || 0) + (input.secondPair.secondPairLensPrice || 0);
+        const secondPairTotal = secondPairBaseTotal + secondPairRxAddOn;
         
         const result = this.applySecondPairRule(secondPairRule, firstPairTotal, secondPairTotal);
         if (result.savings > 0) {
@@ -166,8 +224,18 @@ export class OfferEngineService {
             // Add second pair details to price components for display
             priceComponents.push({
               label: 'Second Pair (Frame + Lens)',
-              amount: secondPairTotal,
+              amount: secondPairBaseTotal,
             });
+            
+            // Add second pair RX add-on if applicable
+            if (secondPairRxAddOn > 0) {
+              secondPairRxAddOnBreakdown.forEach((item) => {
+                priceComponents.push({
+                  label: `2nd Pair: ${item.label}`,
+                  amount: item.charge,
+                });
+              });
+            }
             
             // Add BOGO discount
             priceComponents.push({
@@ -181,8 +249,18 @@ export class OfferEngineService {
             // BOG50: Apply discount on lower pair
             priceComponents.push({
               label: 'Second Pair (Frame + Lens)',
-              amount: secondPairTotal,
+              amount: secondPairBaseTotal,
             });
+            
+            // Add second pair RX add-on if applicable
+            if (secondPairRxAddOn > 0) {
+              secondPairRxAddOnBreakdown.forEach((item) => {
+                priceComponents.push({
+                  label: `2nd Pair: ${item.label}`,
+                  amount: item.charge,
+                });
+              });
+            }
             priceComponents.push({
               label: result.label,
               amount: -result.savings,
@@ -194,7 +272,7 @@ export class OfferEngineService {
       }
     }
 
-    // 3. CUSTOMER CATEGORY DISCOUNT
+    // 4. CUSTOMER CATEGORY DISCOUNT
     let categoryDiscount: OfferApplied | null = null;
     if (input.customerCategory) {
       try {
@@ -252,7 +330,7 @@ export class OfferEngineService {
       }
     }
 
-    // 4. COUPON DISCOUNT
+    // 5. COUPON DISCOUNT
     let couponDiscount: OfferApplied | null = null;
     let couponError: string | null = null;
     if (input.couponCode) {
@@ -343,7 +421,7 @@ export class OfferEngineService {
       }
     }
 
-    // 5. BONUS FREE PRODUCT (after all discounts, before upsell)
+    // 6. BONUS FREE PRODUCT (after all discounts, before upsell)
     // Bonus products don't reduce price, they're free add-ons
     let bonusProduct: OfferApplied | null = null;
     try {
@@ -400,49 +478,25 @@ export class OfferEngineService {
       console.warn('[OfferEngine] Bonus product query failed:', bonusError?.message);
     }
 
-    // 6. RX ADD-ON PRICING (Non-discountable)
-    // Calculate RX add-on charges based on combined SPH + CYL + ADD ranges
-    // These charges are added AFTER discounts and are NOT discountable
-    let rxAddOnBreakdown: RxAddOnBreakdown[] = [];
-    let totalRxAddOn = 0;
-    
-    if (input.prescription && input.lens?.itCode) {
-      try {
-        // Get lens product to find lensId
-        const lensProduct = await prisma.lensProduct.findUnique({
-          where: { itCode: input.lens.itCode },
+    // 7. ADD FIRST PAIR RX ADD-ON TO PRICE COMPONENTS (if not already added)
+    // First pair RX add-on was calculated early for BOGO comparison
+    // Now add it to price components for display
+    if (firstPairRxAddOn > 0 && firstPairRxAddOnBreakdown.length > 0) {
+      firstPairRxAddOnBreakdown.forEach((item) => {
+        priceComponents.push({
+          label: item.label,
+          amount: item.charge,
         });
-
-        if (lensProduct) {
-          const rxAddOnResult = await rxAddOnPricingService.calculateRxAddOnPricing(
-            lensProduct.id,
-            input.prescription,
-            'HIGHEST_ONLY' // Business rule: Apply only highest matching band
-          );
-
-          if (rxAddOnResult.addOnApplied && rxAddOnResult.totalAddOn > 0) {
-            totalRxAddOn = rxAddOnResult.totalAddOn;
-            rxAddOnBreakdown = rxAddOnResult.breakdown;
-
-            // Add to price components (for display)
-            rxAddOnResult.breakdown.forEach((item) => {
-              priceComponents.push({
-                label: item.label,
-                amount: item.charge,
-              });
-            });
-          }
-        }
-      } catch (rxAddOnError: any) {
-        console.warn('[OfferEngine] RX add-on pricing calculation failed:', rxAddOnError?.message);
-      }
+      });
     }
 
     // Calculate final payable: effectiveBase (after discounts) + RX add-on charges
     // RX add-on charges are NOT discountable
-    const finalPayable = Math.max(0, Math.round(effectiveBase + totalRxAddOn));
+    // Include both first pair and second pair RX add-ons
+    const totalRxAddOnIncludingSecondPair = firstPairRxAddOn + (input.secondPair?.enabled ? secondPairRxAddOn : 0);
+    const finalPayable = Math.max(0, Math.round(effectiveBase + totalRxAddOnIncludingSecondPair));
 
-    // 7. DYNAMIC UPSELL ENGINE (DUE) - Evaluates AFTER all discounts
+    // 8. DYNAMIC UPSELL ENGINE (DUE) - Evaluates AFTER all discounts
     // Does not modify totals, only suggests upsell opportunities
     const upsell = await this.evaluateUpsellEngine(
       organizationId,
@@ -451,7 +505,7 @@ export class OfferEngineService {
       input.lens
     );
 
-    // 8. CHECK FOR AVAILABLE BOGO RULES (even if secondPair is not selected)
+    // 9. CHECK FOR AVAILABLE BOGO RULES (even if secondPair is not selected)
     // This helps frontend to show BOGO section and auto-enable if frame is eligible
     let availableBOGORule: any | null = null;
     if (!input.secondPair?.enabled) {
@@ -481,7 +535,7 @@ export class OfferEngineService {
       }
     }
 
-    // 9. FIND ALL APPLICABLE OFFERS (for user selection)
+    // 10. FIND ALL APPLICABLE OFFERS (for user selection)
     const availableOffers = await this.findAllApplicableOffers(input);
 
     return {
@@ -496,8 +550,8 @@ export class OfferEngineService {
       couponError: couponError || null,
       secondPairDiscount,
       bonusProduct, // Bonus free product (if applicable)
-      rxAddOnBreakdown: rxAddOnBreakdown.length > 0 ? rxAddOnBreakdown : undefined,
-      totalRxAddOn: totalRxAddOn > 0 ? totalRxAddOn : undefined,
+      rxAddOnBreakdown: firstPairRxAddOnBreakdown.length > 0 ? firstPairRxAddOnBreakdown : undefined,
+      totalRxAddOn: totalRxAddOnIncludingSecondPair > 0 ? totalRxAddOnIncludingSecondPair : undefined,
       finalPayable,
       upsell, // V3: Dynamic Upsell Engine result
       availableBOGORule, // Available BOGO rule if frame is eligible

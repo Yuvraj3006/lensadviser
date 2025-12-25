@@ -140,24 +140,29 @@ export default function QuestionnairePage() {
 
           <div className="space-y-4">
             <div className="relative">
-              <Input
-                label="Store Code"
-                placeholder="e.g., MAIN-001"
-                value={storeCode}
-                onChange={(e) => setStoreCode(e.target.value.toUpperCase())}
-                onKeyPress={(e) => e.key === 'Enter' && !storeVerified && handleVerifyStore()}
-                disabled={storeVerified}
-              />
-              {!storeVerified && (
-                <button
-                  type="button"
-                  onClick={() => setShowQRScanner(true)}
-                  className="absolute right-3 top-9 p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                  title="Scan QR Code"
-                >
-                  <QrCode size={20} className="text-slate-600 dark:text-slate-400" />
-                </button>
-              )}
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                Store Code
+              </label>
+              <div className="relative">
+                <Input
+                  placeholder="e.g., MAIN-001"
+                  value={storeCode}
+                  onChange={(e) => setStoreCode(e.target.value.toUpperCase())}
+                  onKeyPress={(e) => e.key === 'Enter' && !storeVerified && handleVerifyStore()}
+                  disabled={storeVerified}
+                  className="pr-12"
+                />
+                {!storeVerified && (
+                  <button
+                    type="button"
+                    onClick={() => setShowQRScanner(true)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors flex items-center justify-center"
+                    title="Scan QR Code"
+                  >
+                    <QrCode size={20} className="text-slate-600 dark:text-slate-400" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {!storeVerified && (

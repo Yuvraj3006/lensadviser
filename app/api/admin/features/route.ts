@@ -121,9 +121,40 @@ export async function POST(request: NextRequest) {
       description: z.string().optional(),
       category: z.enum(['DURABILITY', 'COATING', 'PROTECTION', 'LIFESTYLE', 'VISION']),
       displayOrder: z.number().int().min(1).optional(),
+      iconUrl: z.preprocess(
+        (val) => {
+          if (val === '' || val === undefined || val === null) return null;
+          return val;
+        },
+        z.union([
+          z.string().url(), // Full URL (http://, https://)
+          z.string().regex(/^\/[^\/].*/, 'Relative URL must start with /'), // Relative URL (/feature-icons/...)
+          z.null()
+        ]).nullable().optional()
+      ),
     });
 
-    const validatedData = createFeatureSchema.parse(body);
+    let validatedData;
+    try {
+      validatedData = createFeatureSchema.parse(body);
+      console.log('[POST /api/admin/features] Validated data:', validatedData);
+    } catch (error: any) {
+      console.error('[POST /api/admin/features] Validation error:', error);
+      if (error instanceof z.ZodError) {
+        return Response.json(
+          {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Validation failed',
+              details: error.issues,
+            },
+          },
+          { status: 400 }
+        );
+      }
+      throw error;
+    }
 
     // Check if code already exists
     const existing = await prisma.feature.findUnique({
@@ -160,6 +191,7 @@ export async function POST(request: NextRequest) {
         description: validatedData.description || null,
         category: validatedData.category,
         displayOrder,
+        iconUrl: validatedData.iconUrl || null,
         isActive: true,
       },
     });
