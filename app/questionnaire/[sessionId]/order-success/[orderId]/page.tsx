@@ -235,7 +235,7 @@ export default function OrderSuccessPage() {
     }
   };
 
-  const handlePrintReceipt = () => {
+  const handlePrintReceipt = async () => {
     if (!orderData) return;
     
     // Create a new window with receipt content
@@ -246,7 +246,15 @@ export default function OrderSuccessPage() {
     }
 
     const receiptHTML = generateReceiptHTML(orderData, true); // true for print mode
-    printWindow.document.write(receiptHTML);
+    
+    // SECURITY: Sanitize HTML to prevent XSS attacks
+    const DOMPurify = (await import('dompurify')).default;
+    const sanitizedHTML = DOMPurify.sanitize(receiptHTML, {
+      ALLOWED_TAGS: ['html', 'head', 'title', 'style', 'body', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'h1', 'h2', 'h3', 'p', 'span', 'strong', 'b', 'br', 'hr'],
+      ALLOWED_ATTR: ['class', 'style', 'colspan', 'rowspan'],
+    } as any);
+    
+    printWindow.document.write(String(sanitizedHTML));
     printWindow.document.close();
     
     // Wait for content to load, then print
@@ -255,7 +263,7 @@ export default function OrderSuccessPage() {
     }, 500);
   };
 
-  const handleDownloadReceipt = () => {
+  const handleDownloadReceipt = async () => {
     if (!orderData) return;
     
     try {
@@ -264,7 +272,12 @@ export default function OrderSuccessPage() {
       
       // Create a temporary div to hold the receipt content
       const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = receiptHTML;
+      // SECURITY: Sanitize HTML to prevent XSS attacks
+      const DOMPurify = (await import('dompurify')).default;
+      tempDiv.innerHTML = String(DOMPurify.sanitize(receiptHTML, {
+        ALLOWED_TAGS: ['html', 'head', 'title', 'style', 'body', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'h1', 'h2', 'h3', 'p', 'span', 'strong', 'b', 'br', 'hr'],
+        ALLOWED_ATTR: ['class', 'style', 'colspan', 'rowspan'],
+      } as any));
       tempDiv.style.position = 'absolute';
       tempDiv.style.left = '-9999px';
       tempDiv.style.top = '-9999px';

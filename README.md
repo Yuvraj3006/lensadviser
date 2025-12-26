@@ -56,12 +56,30 @@ npm install
 2. **Set up environment variables**
 Create a `.env` file in the root directory:
 ```env
+# Database
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/lenstrack?schema=public"
+
+# Authentication & Security
 JWT_SECRET="your-super-secret-jwt-key-change-this-in-production-min-32-characters"
 JWT_EXPIRY="7d"
+
+# Storage Encryption (for sensitive data in localStorage)
+NEXT_PUBLIC_STORAGE_SECRET="your-storage-secret-for-encryption-min-32-characters"
+
+# Application
 NODE_ENV="development"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
+
+# CORS (Required for production)
+ALLOWED_ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
 ```
+
+**Generate secure secrets:**
+```bash
+npx tsx scripts/generate-secrets.ts
+```
+
+**See `ENV_VARIABLES_CHECKLIST.md` for complete details.**
 
 3. **Set up the database**
 ```bash

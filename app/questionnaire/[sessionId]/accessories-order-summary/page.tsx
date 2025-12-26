@@ -186,8 +186,8 @@ export default function AccessoriesOrderSummaryPage() {
         showToast('success', 'Order created successfully!');
         
         // Automatically print receipt after order creation
-        setTimeout(() => {
-          printReceipt(createdOrderData);
+        setTimeout(async () => {
+          await printReceipt(createdOrderData);
         }, 500);
       } else {
         showToast('error', data.error?.message || 'Failed to create order');
@@ -200,7 +200,7 @@ export default function AccessoriesOrderSummaryPage() {
     }
   };
 
-  const printReceipt = (order: any) => {
+  const printReceipt = async (order: any) => {
     if (!order || !order.id) {
       showToast('error', 'Order data not available');
       return;
@@ -216,18 +216,25 @@ export default function AccessoriesOrderSummaryPage() {
       return;
     }
 
+    // SECURITY: Sanitize HTML to prevent XSS attacks
+    const DOMPurify = (await import('dompurify')).default;
+    const sanitizedHTML = DOMPurify.sanitize(receiptHTML, {
+      ALLOWED_TAGS: ['html', 'head', 'title', 'style', 'body', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'h1', 'h2', 'h3', 'p', 'span', 'strong', 'b', 'br', 'hr'],
+      ALLOWED_ATTR: ['class', 'style', 'colspan', 'rowspan'],
+    } as any);
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
-        <head>
-          <title>Receipt - Order ${order.id}</title>
-          <style>
-            ${getReceiptStyles()}
-          </style>
-        </head>
-        <body>
-          ${receiptHTML}
-        </body>
+      <head>
+        <title>Receipt - Order ${order.id}</title>
+        <style>
+          ${getReceiptStyles()}
+        </style>
+      </head>
+      <body>
+        ${sanitizedHTML}
+      </body>
       </html>
     `);
 

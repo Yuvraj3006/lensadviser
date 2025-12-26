@@ -6,6 +6,9 @@ import { LoginSchema } from '@/lib/auth-validation';
 import { z } from 'zod';
 
 export async function POST(request: NextRequest) {
+  // SECURITY: Rate limiting is handled by Next.js middleware (middleware.ts)
+  // The middleware applies RATE_LIMITS.LOGIN (5 attempts per 15 minutes) to /api/auth/login
+  
   try {
     let body;
     try {
