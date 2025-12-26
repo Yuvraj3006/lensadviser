@@ -1094,9 +1094,13 @@ export default function ProductsPage() {
           <Input
             label="MRP"
             type="number"
-            placeholder="0.00"
+            placeholder="Enter MRP"
             value={productFormData.mrp || ''}
-            onChange={(e) => setProductFormData({ ...productFormData, mrp: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => {
+              const value = e.target.value;
+              const newFormData = { ...productFormData, mrp: value === '' ? 0 : (parseFloat(value) || 0) };
+              setProductFormData(newFormData);
+            }}
             required
             min="0"
             step="0.01"

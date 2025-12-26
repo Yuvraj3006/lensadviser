@@ -543,9 +543,13 @@ function ComboTierDetailPageContent() {
                 </label>
                 <Input
                   type="number"
-                  value={formData.effectivePrice}
-                  onChange={(e) => setFormData({ ...formData, effectivePrice: parseFloat(e.target.value) || 0 })}
-                  placeholder="5000"
+                  value={formData.effectivePrice || ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const newFormData = { ...formData, effectivePrice: value === '' ? 0 : (parseFloat(value) || 0) };
+                    setFormData(newFormData);
+                  }}
+                  placeholder="Enter effective price"
                   min="0"
                 />
               </div>

@@ -365,9 +365,13 @@ export default function ComboTiersPage() {
               </label>
               <Input
                 type="number"
-                value={formData.effectivePrice}
-                onChange={(e) => setFormData({ ...formData, effectivePrice: parseFloat(e.target.value) || 0 })}
-                placeholder="2999"
+                value={formData.effectivePrice || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const newFormData = { ...formData, effectivePrice: value === '' ? 0 : (parseFloat(value) || 0) };
+                  setFormData(newFormData);
+                }}
+                placeholder="Enter effective price"
                 min="0"
               />
             </div>
@@ -436,8 +440,11 @@ export default function ComboTiersPage() {
                       <Input
                         type="number"
                         value={benefit.maxValue || ''}
-                        onChange={(e) => updateBenefit(index, 'maxValue', parseFloat(e.target.value) || undefined)}
-                        placeholder="Max Value (₹)"
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          updateBenefit(index, 'maxValue', value === '' ? undefined : (parseFloat(value) || undefined));
+                        }}
+                        placeholder="Enter max value (₹)"
                         min="0"
                       />
                     )}

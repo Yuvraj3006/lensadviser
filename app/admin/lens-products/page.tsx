@@ -73,7 +73,32 @@ export default function LensProductsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    itCode: string;
+    name: string;
+    lensBrandId: string;
+    type: LensType;
+    index: LensIndex;
+    tintOption: 'CLEAR' | 'TINT' | 'PHOTOCHROMIC' | 'TRANSITION';
+    category: 'ECONOMY' | 'STANDARD' | 'PREMIUM' | 'ULTRA';
+    deliveryDays: number;
+    mrp: number;
+    baseOfferPrice: number;
+    addOnPrice: number | null;
+    rxRanges: Array<{
+      sphMin: number;
+      sphMax: number;
+      cylMin: number;
+      cylMax: number;
+      addMin: number | null;
+      addMax: number | null;
+      addOnPrice: number | null;
+    }>;
+    yopoEligible: boolean;
+    comboAllowed: boolean;
+    featureCodes: string[];
+    benefitScores: Record<string, number>;
+  }>({
     itCode: '',
     name: '',
     lensBrandId: '',
@@ -84,7 +109,7 @@ export default function LensProductsPage() {
     deliveryDays: 4,
     mrp: 0,
     baseOfferPrice: 0,
-    addOnPrice: 0,
+    addOnPrice: null,
     rxRanges: [
       {
         sphMin: -10,
@@ -214,7 +239,7 @@ export default function LensProductsPage() {
       deliveryDays: 4,
       mrp: 0,
       baseOfferPrice: 0,
-      addOnPrice: 0,
+      addOnPrice: null,
       rxRanges: [
         {
           sphMin: -10,
@@ -223,7 +248,7 @@ export default function LensProductsPage() {
           cylMax: 4,
           addMin: null,
           addMax: null,
-          addOnPrice: 0,
+          addOnPrice: null,
         },
       ],
       yopoEligible: false,
@@ -309,7 +334,7 @@ export default function LensProductsPage() {
         cylMax: 4,
         addMin: null,
         addMax: null,
-        addOnPrice: 0,
+        addOnPrice: null,
       }];
     }
 
@@ -324,7 +349,7 @@ export default function LensProductsPage() {
       deliveryDays: (product as any).deliveryDays || 4,
       mrp: product.mrp || product.baseOfferPrice || 0,
       baseOfferPrice: product.baseOfferPrice || (product as any).offerPrice || 0,
-      addOnPrice: product.addOnPrice || 0,
+      addOnPrice: product.addOnPrice || null,
       rxRanges,
       yopoEligible: product.yopoEligible,
       comboAllowed: product.comboAllowed ?? false,
@@ -387,7 +412,7 @@ export default function LensProductsPage() {
           deliveryDays: 4,
           mrp: 0,
           baseOfferPrice: 0,
-          addOnPrice: 0,
+          addOnPrice: null,
           rxRanges: [
             {
               sphMin: -10,
@@ -396,7 +421,7 @@ export default function LensProductsPage() {
               cylMax: 4,
               addMin: null,
               addMax: null,
-              addOnPrice: 0,
+              addOnPrice: null,
             },
           ],
           yopoEligible: false,
@@ -643,7 +668,7 @@ export default function LensProductsPage() {
             deliveryDays: 4,
             mrp: 0,
             baseOfferPrice: 0,
-            addOnPrice: 0,
+            addOnPrice: null,
             rxRanges: [
               {
                 sphMin: -10,
@@ -652,7 +677,7 @@ export default function LensProductsPage() {
                 cylMax: 4,
                 addMin: null,
                 addMax: null,
-                addOnPrice: 0,
+                addOnPrice: null,
               },
             ],
             yopoEligible: false,

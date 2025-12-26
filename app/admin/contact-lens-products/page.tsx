@@ -666,19 +666,27 @@ export default function ContactLensProductsPage() {
               label="MRP"
               type="number"
               step="0.01"
-              value={formData.mrp}
-              onChange={(e) => setFormData({ ...formData, mrp: parseFloat(e.target.value) || 0 })}
+              value={formData.mrp || ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                const newFormData = { ...formData, mrp: value === '' ? 0 : (parseFloat(value) || 0) };
+                setFormData(newFormData);
+              }}
               required
-              placeholder="0.00"
+              placeholder="Enter MRP"
             />
             <Input
               label="Offer Price"
               type="number"
               step="0.01"
-              value={formData.offerPrice}
-              onChange={(e) => setFormData({ ...formData, offerPrice: parseFloat(e.target.value) || 0 })}
+              value={formData.offerPrice || ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                const newFormData = { ...formData, offerPrice: value === '' ? 0 : (parseFloat(value) || 0) };
+                setFormData(newFormData);
+              }}
               required
-              placeholder="0.00"
+              placeholder="Enter offer price"
             />
           </div>
 
