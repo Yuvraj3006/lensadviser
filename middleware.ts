@@ -18,7 +18,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Apply rate limiting based on route
-  let rateLimitConfig = RATE_LIMITS.DEFAULT;
+  let rateLimitConfig: { maxRequests: number; windowMs: number; message: string } = RATE_LIMITS.DEFAULT;
 
   // Login endpoint - strict rate limiting
   if (pathname === '/api/auth/login') {
