@@ -93,7 +93,7 @@ export default function LensProductsPage() {
         cylMax: 4,
         addMin: null as number | null,
         addMax: null as number | null,
-        addOnPrice: 0,
+        addOnPrice: null as number | null, // Start with null to show placeholder
       },
     ] as Array<{
       sphMin: number;
@@ -102,7 +102,7 @@ export default function LensProductsPage() {
       cylMax: number;
       addMin: number | null;
       addMax: number | null;
-      addOnPrice: number;
+      addOnPrice: number | null; // Allow null for empty state
     }>,
     yopoEligible: false,
     comboAllowed: false,
@@ -264,7 +264,7 @@ export default function LensProductsPage() {
       cylMax: number;
       addMin: number | null;
       addMax: number | null;
-      addOnPrice: number;
+      addOnPrice: number | null;
     }> = [];
     
     try {
@@ -936,7 +936,7 @@ export default function LensProductsPage() {
                         cylMax: 4,
                         addMin: null,
                         addMax: null,
-                        addOnPrice: 0,
+                        addOnPrice: null,
                       },
                     ],
                   });
@@ -977,10 +977,11 @@ export default function LensProductsPage() {
                       <Input
                         type="number"
                         step="0.25"
-                        value={rxRange.sphMin}
+                        value={rxRange.sphMin || ''}
                         onChange={(e) => {
+                          const value = e.target.value;
                           const newRanges = [...formData.rxRanges];
-                          newRanges[index].sphMin = parseFloat(e.target.value) || 0;
+                          newRanges[index].sphMin = value === '' ? 0 : (parseFloat(value) || 0);
                           setFormData({ ...formData, rxRanges: newRanges });
                         }}
                       />
@@ -992,10 +993,11 @@ export default function LensProductsPage() {
                       <Input
                         type="number"
                         step="0.25"
-                        value={rxRange.sphMax}
+                        value={rxRange.sphMax || ''}
                         onChange={(e) => {
+                          const value = e.target.value;
                           const newRanges = [...formData.rxRanges];
-                          newRanges[index].sphMax = parseFloat(e.target.value) || 0;
+                          newRanges[index].sphMax = value === '' ? 0 : (parseFloat(value) || 0);
                           setFormData({ ...formData, rxRanges: newRanges });
                         }}
                       />
@@ -1007,10 +1009,11 @@ export default function LensProductsPage() {
                       <Input
                         type="number"
                         step="0.25"
-                        value={rxRange.cylMin}
+                        value={rxRange.cylMin || ''}
                         onChange={(e) => {
+                          const value = e.target.value;
                           const newRanges = [...formData.rxRanges];
-                          newRanges[index].cylMin = parseFloat(e.target.value) || 0;
+                          newRanges[index].cylMin = value === '' ? 0 : (parseFloat(value) || 0);
                           setFormData({ ...formData, rxRanges: newRanges });
                         }}
                       />
@@ -1023,10 +1026,11 @@ export default function LensProductsPage() {
                       <Input
                         type="number"
                         step="0.25"
-                        value={rxRange.cylMax}
+                        value={rxRange.cylMax || ''}
                         onChange={(e) => {
+                          const value = e.target.value;
                           const newRanges = [...formData.rxRanges];
-                          newRanges[index].cylMax = parseFloat(e.target.value) || 0;
+                          newRanges[index].cylMax = value === '' ? 0 : (parseFloat(value) || 0);
                           setFormData({ ...formData, rxRanges: newRanges });
                         }}
                       />
@@ -1043,8 +1047,9 @@ export default function LensProductsPage() {
                             step="0.25"
                             value={rxRange.addMin ?? ''}
                             onChange={(e) => {
+                              const value = e.target.value;
                               const newRanges = [...formData.rxRanges];
-                              newRanges[index].addMin = e.target.value ? parseFloat(e.target.value) : null;
+                              newRanges[index].addMin = value === '' ? null : (parseFloat(value) || null);
                               setFormData({ ...formData, rxRanges: newRanges });
                             }}
                             placeholder="Leave empty if not applicable"
@@ -1059,8 +1064,9 @@ export default function LensProductsPage() {
                             step="0.25"
                             value={rxRange.addMax ?? ''}
                             onChange={(e) => {
+                              const value = e.target.value;
                               const newRanges = [...formData.rxRanges];
-                              newRanges[index].addMax = e.target.value ? parseFloat(e.target.value) : null;
+                              newRanges[index].addMax = value === '' ? null : (parseFloat(value) || null);
                               setFormData({ ...formData, rxRanges: newRanges });
                             }}
                             placeholder="Leave empty if not applicable"
@@ -1076,13 +1082,14 @@ export default function LensProductsPage() {
                         type="number"
                         min="0"
                         step="0.01"
-                        value={rxRange.addOnPrice}
+                        value={rxRange.addOnPrice ?? ''}
                         onChange={(e) => {
+                          const value = e.target.value;
                           const newRanges = [...formData.rxRanges];
-                          newRanges[index].addOnPrice = parseFloat(e.target.value) || 0;
+                          newRanges[index].addOnPrice = value === '' ? null : (parseFloat(value) || 0);
                           setFormData({ ...formData, rxRanges: newRanges });
                         }}
-                        placeholder="0"
+                        placeholder="Enter add-on price (₹)"
                       />
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Extra charge for this RX range</p>
                     </div>
