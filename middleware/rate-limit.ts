@@ -34,30 +34,26 @@ export interface RateLimitConfig {
 
 /**
  * Default rate limit configurations
- * More lenient in development mode
+ * Reasonable limits for both dev and prod
  */
-const isDevelopment = process.env.NODE_ENV === 'development';
-
 export const RATE_LIMITS = {
   LOGIN: {
-    maxRequests: isDevelopment ? 20 : 5,
-    windowMs: isDevelopment ? 60 * 1000 : 15 * 60 * 1000, // 1 min in dev, 15 min in prod
-    message: isDevelopment
-      ? 'Too many login attempts. Please wait 1 minute before trying again.'
-      : 'Too many login attempts. Please wait 15 minutes before trying again.'
+    maxRequests: 10, // 10 attempts per window
+    windowMs: 5 * 60 * 1000, // 5 minutes
+    message: 'Too many login attempts. Please wait 5 minutes before trying again.'
   },
   PUBLIC_API: {
-    maxRequests: isDevelopment ? 500 : 100,
+    maxRequests: 200, // 200 requests per minute
     windowMs: 60 * 1000,
     message: 'Too many requests. Please slow down.'
   },
   ADMIN_API: {
-    maxRequests: isDevelopment ? 2000 : 1000,
+    maxRequests: 1000, // 1000 requests per minute
     windowMs: 60 * 1000,
     message: 'Rate limit exceeded. Please try again later.'
   },
   DEFAULT: {
-    maxRequests: isDevelopment ? 500 : 100,
+    maxRequests: 200, // 200 requests per minute
     windowMs: 60 * 1000,
     message: 'Too many requests. Please try again later.'
   },
@@ -72,12 +68,18 @@ function getClientIP(request: NextRequest): string {
   if (forwarded) {
     return forwarded.split(',')[0].trim();
   }
-  
+
   const realIP = request.headers.get('x-real-ip');
   if (realIP) {
     return realIP;
   }
-  
+
+  // For development/localhost
+  const host = request.headers.get('host');
+  if (host && (host.includes('localhost') || host.includes('127.0.0.1'))) {
+    return '127.0.0.1';
+  }
+
   // Fallback (NextRequest doesn't have direct IP access)
   return 'unknown';
 }
@@ -87,8 +89,19 @@ function getClientIP(request: NextRequest): string {
  */
 export function rateLimit(config: RateLimitConfig = RATE_LIMITS.DEFAULT) {
   return (request: NextRequest): NextResponse | null => {
+    // Completely disable rate limiting if environment variable is set
+    if (process.env.DISABLE_RATE_LIMITING === 'true') {
+      return null; // Allow request without rate limiting
+    }
+
     const ip = getClientIP(request);
     const now = Date.now();
+
+    // Skip rate limiting in development for localhost
+    if (process.env.NODE_ENV === 'development' && (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost')) {
+      return null; // Allow request without rate limiting
+    }
+
     const record = rateLimitMap.get(ip);
 
     // No record or window expired - create new record
