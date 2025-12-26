@@ -5,6 +5,8 @@ import { handleApiError } from '@/lib/errors';
 import { UserRole } from '@/lib/constants';
 import { VisionType, LensIndex } from '@prisma/client';
 import { z } from 'zod';
+import { getCachedValue, setCachedValue } from '@/lib/cache';
+import { measureQuery } from '@/lib/performance';
 
 // NOTE: This route is deprecated. Use /api/admin/lenses instead.
 // Keeping for backward compatibility but redirecting to new schema
@@ -42,37 +44,38 @@ export async function GET(request: NextRequest) {
       where.lensIndex = lensIndex;
     }
 
-    const products = await prisma.lensProduct.findMany({
-      where,
-      include: {
-        rxRanges: {
-          orderBy: { createdAt: 'asc' },
-        },
-        features: {
-          include: {
-            feature: {
-              select: {
-                code: true,
-                name: true,
+    const products = await measureQuery('lensProduct.findMany', () =>
+      prisma.lensProduct.findMany({
+        where,
+        include: {
+          rxRanges: {
+            orderBy: { createdAt: 'asc' },
+          },
+          features: {
+            include: {
+              feature: {
+                select: {
+                  code: true,
+                  name: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: [
-        { brandLine: 'asc' },
-        { name: 'asc' },
-      ],
-    });
+        orderBy: [
+          { brandLine: 'asc' },
+          { name: 'asc' },
+        ],
+      })
+    );
 
-    // Get unique brand lines and look up corresponding brands
-    const uniqueBrandLines = [...new Set(products.map(p => p.brandLine))];
-    const brands = await prisma.lensBrand.findMany({
-      where: {
-        name: { in: uniqueBrandLines },
-      },
-    });
-    const brandMap = new Map(brands.map(b => [b.name, b]));
+    const brandCacheKey = 'lens-brand-map';
+    let brandMap = getCachedValue<Map<string, { id: string; name: string }>>(brandCacheKey);
+    if (!brandMap) {
+      const brands = await measureQuery('lensBrand.findMany', () => prisma.lensBrand.findMany());
+      brandMap = new Map(brands.map(b => [b.name, { id: b.id, name: b.name }]));
+      setCachedValue(brandCacheKey, brandMap, 120_000);
+    }
 
     return Response.json({
       success: true,

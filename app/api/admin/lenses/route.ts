@@ -79,36 +79,36 @@ export async function GET(request: NextRequest) {
     const [total, lenses] = await Promise.all([
       prisma.lensProduct.count({ where }),
       prisma.lensProduct.findMany({
-        where,
+      where,
         skip,
         take: pageSize,
-        include: {
-          rxRanges: true,
-          features: {
-            include: {
-              feature: {
-                select: {
-                  code: true,
-                  name: true,
-                },
-              },
-            },
-          },
-          benefits: {
-            include: {
-              benefit: {
-                select: {
-                  code: true,
-                  name: true,
-                },
+      include: {
+        rxRanges: true,
+        features: {
+          include: {
+            feature: {
+              select: {
+                code: true,
+                name: true,
               },
             },
           },
         },
-        orderBy: [
-          { brandLine: 'asc' },
-          { name: 'asc' },
-        ],
+        benefits: {
+          include: {
+            benefit: {
+              select: {
+                code: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [
+        { brandLine: 'asc' },
+        { name: 'asc' },
+      ],
       }),
     ]);
 

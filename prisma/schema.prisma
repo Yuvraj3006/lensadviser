@@ -234,6 +234,18 @@ model Benefit {
   @@index([isActive])
 }
 
+model BenefitStat {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  organizationId       String   @db.ObjectId
+  benefitId            String   @db.ObjectId
+  questionMappingCount Int      @default(0)
+  productMappingCount  Int      @default(0)
+  updatedAt            DateTime @updatedAt @db.Date
+
+  @@unique([organizationId, benefitId])
+  @@index([organizationId])
+}
+
 model CategoryDiscount {
   id                           String   @id @default(auto()) @map("_id") @db.ObjectId
   brandCode                    String

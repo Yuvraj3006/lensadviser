@@ -45,7 +45,7 @@ class Logger {
     };
 
     return JSON.stringify(logObj);
-  }
+    }
 
   private log(level: LogLevel, message: string, context?: Record<string, unknown>, error?: Error) {
     if (!this.shouldLog(level)) {

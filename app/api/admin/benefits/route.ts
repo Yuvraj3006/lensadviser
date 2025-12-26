@@ -4,6 +4,9 @@ import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
 import { UserRole } from '@/lib/constants';
 import { z } from 'zod';
+import { measureQuery } from '@/lib/performance';
+import { parsePaginationParams, createPaginationResponse } from '@/lib/pagination';
+import { getBenefitStatsMap, recomputeBenefitStats } from '@/lib/benefit-stats';
 
 const createBenefitSchema = z.object({
   code: z.string().regex(/^B\d{2,}$/, 'Benefit code must be B followed by 2+ digits (e.g., B01)'),
@@ -21,37 +24,43 @@ export async function GET(request: NextRequest) {
   try {
     const user = await authenticate(request);
 
-    const benefits = await prisma.benefit.findMany({
-      where: {
-        organizationId: user.organizationId,
-        isActive: true,
-      },
-      orderBy: {
-        code: 'asc',
-      },
-    });
+    const where = {
+      organizationId: user.organizationId,
+      isActive: true,
+    };
 
-    // Get counts for each benefit
-    const benefitIds = benefits.map(b => b.id);
-    const [answerBenefitCounts, productBenefitCounts] = await Promise.all([
-      prisma.answerBenefit.groupBy({
-        by: ['benefitId'],
-        where: { benefitId: { in: benefitIds } },
-        _count: true,
-      }),
-      prisma.productBenefit.groupBy({
-        by: ['benefitId'],
-        where: { benefitId: { in: benefitIds } },
-        _count: true,
-      }),
+    const { page, pageSize } = parsePaginationParams(new URL(request.url).searchParams);
+
+    const [benefits, total] = await Promise.all([
+      measureQuery('benefits.findMany', () =>
+        prisma.benefit.findMany({
+          where,
+          orderBy: { code: 'asc' },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            description: true,
+            pointWeight: true,
+            maxScore: true,
+            isActive: true,
+          },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        })
+      ),
+      measureQuery('benefits.count', () => prisma.benefit.count({ where })),
     ]);
 
-    const answerCountMap = new Map(answerBenefitCounts.map(ab => [ab.benefitId, ab._count]));
-    const productCountMap = new Map(productBenefitCounts.map(pb => [pb.benefitId, pb._count]));
+    let benefitStats = await getBenefitStatsMap(user.organizationId);
+    if (benefitStats.size === 0) {
+      await recomputeBenefitStats(user.organizationId);
+      benefitStats = await getBenefitStatsMap(user.organizationId);
+    }
 
-    return Response.json({
-      success: true,
-      data: benefits.map((b) => ({
+    const formatted = benefits.map((b) => {
+      const stat = benefitStats.get(b.id);
+      return {
         id: b.id,
         code: b.code,
         name: b.name || b.code,
@@ -59,9 +68,16 @@ export async function GET(request: NextRequest) {
         pointWeight: b.pointWeight || 1.0,
         maxScore: b.maxScore || 3.0,
         isActive: b.isActive,
-        questionMappingCount: answerCountMap.get(b.id) || 0,
-        productMappingCount: productCountMap.get(b.id) || 0,
-      })),
+        questionMappingCount: stat?.questionMappingCount || 0,
+        productMappingCount: stat?.productMappingCount || 0,
+      };
+    });
+
+    const pagination = createPaginationResponse(formatted, total, page, pageSize);
+    return Response.json({
+      success: true,
+      data: pagination.data,
+      pagination: pagination.pagination,
     });
   } catch (error) {
     return handleApiError(error);
