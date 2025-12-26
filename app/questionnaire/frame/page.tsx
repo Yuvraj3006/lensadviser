@@ -81,7 +81,8 @@ export default function FramePage() {
     
     try {
       // Get all collected data
-      const customerDetails = JSON.parse(localStorage.getItem('lenstrack_customer_details') || '{}');
+      const { getCustomerDetails } = await import('@/lib/secure-storage');
+      const customerDetails = getCustomerDetails() || {};
       // SECURITY: Load prescription data from encrypted storage
       const { getPrescriptionData } = await import('@/lib/secure-storage');
       const prescription = getPrescriptionData() || {};

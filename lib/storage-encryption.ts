@@ -24,19 +24,23 @@ export function encryptData(data: string): string {
 /**
  * Decrypt data retrieved from localStorage
  */
-export function decryptData(encryptedData: string): string {
+export function decryptData(encryptedData?: string): string | null {
   try {
+    if (!encryptedData) {
+      return null;
+    }
+
     const bytes = CryptoJS.AES.decrypt(encryptedData, STORAGE_SECRET);
     const decrypted = bytes.toString(CryptoJS.enc.Utf8);
     
     if (!decrypted) {
-      throw new Error('Decryption failed - invalid data or key');
+      return null;
     }
     
     return decrypted;
   } catch (error) {
     console.error('[StorageEncryption] Decryption failed:', error);
-    throw new Error('Failed to decrypt data');
+    return null;
   }
 }
 
@@ -65,6 +69,10 @@ export function getEncryptedItem<T>(key: string): T | null {
     }
     
     const decrypted = decryptData(encrypted);
+    if (!decrypted) {
+      localStorage.removeItem(key);
+      return null;
+    }
     return JSON.parse(decrypted) as T;
   } catch (error) {
     console.error(`[StorageEncryption] Failed to retrieve ${key}:`, error);
