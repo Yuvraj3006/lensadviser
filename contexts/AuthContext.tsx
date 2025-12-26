@@ -100,9 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Invalid response from server');
       }
 
-      // SECURITY: Token is stored in httpOnly cookie by the server, not in localStorage
-      // The cookie is set by the server in the Set-Cookie header
-      // We don't need to store it in localStorage anymore
+      // SECURITY: Token is stored in httpOnly cookie by the server
+      // Also store in localStorage for backward compatibility during migration
+      // TODO: Remove localStorage storage once all components are migrated to use getTokenForAPI()
+      if (data.data.token && typeof window !== 'undefined') {
+        localStorage.setItem('lenstrack_token', data.data.token);
+      }
+      
       setUser(data.data.user);
     } catch (error) {
       console.error('Login exception:', error);
@@ -116,12 +120,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     // SECURITY: Clear httpOnly cookie via API
     try {
-      await fetch('/api/auth/logout', {
+      const response = await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       });
+      if (!response.ok) {
+        console.error('Logout API call failed:', response.statusText);
+      }
     } catch (error) {
       console.error('Logout API call failed:', error);
+    }
+    // Clear user state and localStorage token
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('lenstrack_token');
     }
     setUser(null);
   };

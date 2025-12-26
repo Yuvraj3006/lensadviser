@@ -34,8 +34,21 @@ export function generateToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): strin
 
 export function verifyToken(token: string): TokenPayload {
   try {
+    // Check if JWT_SECRET is set and not using default
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'your-secret-key-change-this') {
+      console.error('[AUTH] WARNING: JWT_SECRET is not set or using default value. This will cause authentication failures.');
+    }
+    
     return jwt.verify(token, JWT_SECRET) as TokenPayload;
-  } catch (error) {
+  } catch (error: any) {
+    // Provide more specific error messages
+    if (error.name === 'TokenExpiredError') {
+      throw new AuthError('Token has expired. Please log in again.');
+    } else if (error.name === 'JsonWebTokenError') {
+      throw new AuthError('Invalid token format or signature');
+    } else if (error.name === 'NotBeforeError') {
+      throw new AuthError('Token not yet valid');
+    }
     throw new AuthError('Invalid or expired token');
   }
 }
