@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { passwordSchema } from './password-validation';
 
 // Auth Schemas
 export const LoginSchema = z.object({
@@ -24,11 +25,7 @@ export const UpdateStoreSchema = CreateStoreSchema.partial();
 // User Schemas - Using z.enum() instead of z.nativeEnum() to avoid module load issues
 export const CreateUserSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number'),
+  password: passwordSchema, // Uses strong password validation (12+ chars, uppercase, lowercase, number, special char, not common)
   name: z.string().min(2, 'Name must be at least 2 characters'),
   role: z.enum(['SUPER_ADMIN', 'ADMIN', 'STORE_MANAGER', 'SALES_EXECUTIVE']),
   storeId: z.string().optional().nullable(), // MongoDB uses ObjectId, not UUID
@@ -37,12 +34,7 @@ export const CreateUserSchema = z.object({
 });
 
 export const UpdateUserSchema = CreateUserSchema.partial().omit({ password: true }).extend({
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number')
-    .optional(),
+  password: passwordSchema.optional(), // Optional password update with strong validation
 });
 
 // Product Schemas - Using z.enum() with explicit values to avoid module load issues
