@@ -34,28 +34,33 @@ export interface RateLimitConfig {
 
 /**
  * Default rate limit configurations
+ * More lenient in development mode
  */
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 export const RATE_LIMITS = {
   LOGIN: {
-    maxRequests: 5,
-    windowMs: 15 * 60 * 1000,
-    message: 'Too many login attempts. Please wait 15 minutes before trying again.'
-  }, // 5 attempts per 15 minutes
+    maxRequests: isDevelopment ? 20 : 5,
+    windowMs: isDevelopment ? 60 * 1000 : 15 * 60 * 1000, // 1 min in dev, 15 min in prod
+    message: isDevelopment
+      ? 'Too many login attempts. Please wait 1 minute before trying again.'
+      : 'Too many login attempts. Please wait 15 minutes before trying again.'
+  },
   PUBLIC_API: {
-    maxRequests: 100,
+    maxRequests: isDevelopment ? 500 : 100,
     windowMs: 60 * 1000,
     message: 'Too many requests. Please slow down.'
-  }, // 100 requests per minute
+  },
   ADMIN_API: {
-    maxRequests: 1000,
+    maxRequests: isDevelopment ? 2000 : 1000,
     windowMs: 60 * 1000,
     message: 'Rate limit exceeded. Please try again later.'
-  }, // 1000 requests per minute
+  },
   DEFAULT: {
-    maxRequests: 100,
+    maxRequests: isDevelopment ? 500 : 100,
     windowMs: 60 * 1000,
     message: 'Too many requests. Please try again later.'
-  }, // 100 requests per minute
+  },
 } as const;
 
 /**
@@ -141,5 +146,19 @@ export function getRateLimitInfo(ip: string): {
     remaining: Math.max(0, RATE_LIMITS.DEFAULT.maxRequests - record.count),
     resetTime: record.resetTime,
   };
+}
+
+/**
+ * Clear rate limits for an IP (useful for development/testing)
+ */
+export function clearRateLimit(ip: string): boolean {
+  return rateLimitMap.delete(ip);
+}
+
+/**
+ * Clear all rate limits (useful for development/testing)
+ */
+export function clearAllRateLimits(): void {
+  rateLimitMap.clear();
 }
 

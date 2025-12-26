@@ -24,8 +24,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // #region agent log
-  console.log('[DEBUG] AuthProvider rendering', { timestamp: Date.now() });
+  // #region agent log - removed spam
+  // console.log('[DEBUG] AuthProvider rendering', { timestamp: Date.now() });
   // #endregion
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
