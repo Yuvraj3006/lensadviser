@@ -4,6 +4,8 @@ import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
 import { UserRole } from '@/lib/constants';
 import { VisionType, LensIndex, TintOption, LensCategory } from '@prisma/client';
+import { parsePaginationParams, getPaginationSkip, createPaginationResponse } from '@/lib/pagination';
+import { logger } from '@/lib/logger';
 import { z } from 'zod';
 
 const rxRangeSchema = z.object({
@@ -43,6 +45,10 @@ export async function GET(request: NextRequest) {
     const visionType = searchParams.get('visionType') as VisionType | null;
     const index = searchParams.get('index') as LensIndex | null;
     const brandLine = searchParams.get('brandLine') || '';
+    
+    // Parse pagination parameters
+    const { page, pageSize } = parsePaginationParams(searchParams);
+    const skip = getPaginationSkip(page, pageSize);
 
     const where: any = {};
 
@@ -65,40 +71,55 @@ export async function GET(request: NextRequest) {
       where.brandLine = brandLine;
     }
 
-    const lenses = await prisma.lensProduct.findMany({
-      where,
-      include: {
-        rxRanges: true,
-        features: {
-          include: {
-            feature: {
-              select: {
-                code: true,
-                name: true,
+    // Get total count and lenses in parallel
+    const [total, lenses] = await Promise.all([
+      prisma.lensProduct.count({ where }),
+      prisma.lensProduct.findMany({
+        where,
+        skip,
+        take: pageSize,
+        include: {
+          rxRanges: true,
+          features: {
+            include: {
+              feature: {
+                select: {
+                  code: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          benefits: {
+            include: {
+              benefit: {
+                select: {
+                  code: true,
+                  name: true,
+                },
               },
             },
           },
         },
-        benefits: {
-          include: {
-            benefit: {
-              select: {
-                code: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: [
-        { brandLine: 'asc' },
-        { name: 'asc' },
-      ],
+        orderBy: [
+          { brandLine: 'asc' },
+          { name: 'asc' },
+        ],
+      }),
+    ]);
+
+    logger.info('Lenses list fetched', { 
+      userId: user.userId, 
+      total, 
+      page, 
+      pageSize,
+      returned: lenses.length 
     });
 
     return Response.json({
       success: true,
-      data: lenses.map((lens) => ({
+      data: createPaginationResponse(
+        lenses.map((lens) => ({
         id: lens.id,
         itCode: lens.itCode,
         name: lens.name,
@@ -122,8 +143,13 @@ export async function GET(request: NextRequest) {
         createdAt: lens.createdAt,
         updatedAt: lens.updatedAt,
       })),
+        total,
+        page,
+        pageSize
+      ),
     });
   } catch (error) {
+    logger.error('GET /api/admin/lenses error', { userId: user.userId }, error as Error);
     return handleApiError(error);
   }
 }

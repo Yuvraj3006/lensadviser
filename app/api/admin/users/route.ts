@@ -5,6 +5,8 @@ import { handleApiError, ForbiddenError } from '@/lib/errors';
 import { CreateUserSchema } from '@/lib/validation';
 import { hashPassword } from '@/lib/auth';
 import { UserRole } from '@/lib/constants';
+import { parsePaginationParams, getPaginationSkip, createPaginationResponse } from '@/lib/pagination';
+import { logger } from '@/lib/logger';
 import { z } from 'zod';
 
 // GET /api/admin/users - List all users
@@ -18,6 +20,10 @@ export async function GET(request: NextRequest) {
     const role = searchParams.get('role');
     const storeId = searchParams.get('storeId');
     const isActive = searchParams.get('isActive');
+    
+    // Parse pagination parameters
+    const { page, pageSize } = parsePaginationParams(searchParams);
+    const skip = getPaginationSkip(page, pageSize);
 
     // Build base where clause
     const baseWhere: any = {
@@ -39,26 +45,29 @@ export async function GET(request: NextRequest) {
       baseWhere.isActive = isActive === 'true';
     }
 
-    // Fetch users first, then filter by search in memory for case-insensitive search
-    let users = await prisma.user.findMany({
-      where: baseWhere,
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    // Filter by search term in memory (case-insensitive)
+    // Add search filter if provided (MongoDB text search)
     if (search) {
-      const searchLower = search.toLowerCase();
-      users = users.filter(
-        (u) =>
-          u.name.toLowerCase().includes(searchLower) ||
-          u.email.toLowerCase().includes(searchLower) ||
-          u.employeeId.toLowerCase().includes(searchLower)
-      );
+      baseWhere.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { employeeId: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
-    // Fetch store names separately
+    // Get total count and users in parallel
+    const [total, users] = await Promise.all([
+      prisma.user.count({ where: baseWhere }),
+      prisma.user.findMany({
+        where: baseWhere,
+        skip,
+        take: pageSize,
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+    ]);
+
+    // Fetch store names in batch (fix N+1)
     const storeIds = users.filter(u => u.storeId).map(u => u.storeId!);
     const stores = storeIds.length > 0 ? await prisma.store.findMany({
       where: {
@@ -86,9 +95,17 @@ export async function GET(request: NextRequest) {
       createdAt: u.createdAt,
     }));
 
+    logger.info('Users list fetched', { 
+      userId: user.userId, 
+      total, 
+      page, 
+      pageSize,
+      returned: formattedUsers.length 
+    });
+
     return Response.json({
       success: true,
-      data: formattedUsers,
+      data: createPaginationResponse(formattedUsers, total, page, pageSize),
     });
   } catch (error) {
     return handleApiError(error);
@@ -148,7 +165,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('POST /api/admin/users error:', error);
+    logger.error('POST /api/admin/users error', { userId: currentUser.userId }, error as Error);
     if (error instanceof z.ZodError) {
       console.error('Validation errors:', error.issues);
       return Response.json(

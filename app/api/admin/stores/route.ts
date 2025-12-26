@@ -4,6 +4,8 @@ import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
 import { CreateStoreSchema } from '@/lib/validation';
 import { UserRole } from '@/lib/constants';
+import { parsePaginationParams, getPaginationSkip, createPaginationResponse } from '@/lib/pagination';
+import { logger } from '@/lib/logger';
 import { z } from 'zod';
 
 // GET /api/admin/stores - List all stores
@@ -21,6 +23,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const isActive = searchParams.get('isActive');
+    
+    // Parse pagination parameters
+    const { page, pageSize } = parsePaginationParams(searchParams);
+    const skip = getPaginationSkip(page, pageSize);
 
     // Build where clause - MongoDB compatible
     const where: any = {
@@ -31,36 +37,30 @@ export async function GET(request: NextRequest) {
       where.isActive = isActive === 'true';
     }
 
-    // Fetch all stores first, then filter by search if needed
-    let stores;
-    try {
-      stores = await prisma.store.findMany({
+    // Add search filter if provided
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { code: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Get total count and stores in parallel
+    const [total, stores] = await Promise.all([
+      prisma.store.count({ where }),
+      prisma.store.findMany({
         where,
+        skip,
+        take: pageSize,
         orderBy: {
           createdAt: 'desc',
         },
-      });
-      console.log(`Found ${stores.length} stores`);
-    } catch (dbError) {
-      console.error('Database query error:', dbError);
-      throw dbError;
-    }
+      }),
+    ]);
 
-    // Filter by search term in memory (MongoDB compatible approach)
-    if (search) {
-      const searchLower = search.toLowerCase();
-      stores = stores.filter(
-        (store) =>
-          store.name.toLowerCase().includes(searchLower) ||
-          store.code.toLowerCase().includes(searchLower) ||
-          store.city.toLowerCase().includes(searchLower)
-      );
-    }
-
-    // Get all store IDs for batch counting
+    // Batch count users and orders for all stores (fix N+1)
     const storeIds = stores.map((s) => s.id);
-
-    // Batch count users and orders for all stores (only if we have stores)
     const [users, orders] = storeIds.length > 0
       ? await Promise.all([
           prisma.user.findMany({
@@ -107,17 +107,20 @@ export async function GET(request: NextRequest) {
         : new Date(store.createdAt).toISOString(),
     }));
 
+    logger.info('Stores list fetched', { 
+      userId: user.userId, 
+      total, 
+      page, 
+      pageSize,
+      returned: formattedStores.length 
+    });
+
     return Response.json({
       success: true,
-      data: formattedStores,
+      data: createPaginationResponse(formattedStores, total, page, pageSize),
     });
   } catch (error) {
-    console.error('GET /api/admin/stores error:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      console.error('Error name:', error.name);
-    }
+    logger.error('GET /api/admin/stores error', {}, error as Error);
     return handleApiError(error);
   }
 }
