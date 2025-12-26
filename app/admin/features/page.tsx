@@ -74,15 +74,12 @@ export default function FeaturesPage() {
   const fetchFeatures = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('lenstrack_token');
+      // SECURITY: Use authenticated fetch with httpOnly cookie
+      const { authenticatedFetch } = await import('@/lib/api-client');
       const params = new URLSearchParams();
       if (categoryFilter) params.append('category', categoryFilter);
 
-      const response = await fetch(`/api/admin/features?${params}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await authenticatedFetch(`/api/admin/features?${params}`);
 
       const data = await response.json();
       if (data.success) {
@@ -135,21 +132,18 @@ export default function FeaturesPage() {
     setLoadingBenefits(true);
     
     try {
-      const token = localStorage.getItem('lenstrack_token');
+      // SECURITY: Use authenticated fetch with httpOnly cookie
+      const { authenticatedFetch } = await import('@/lib/api-client');
       
       // Fetch available benefits
-      const benefitsResponse = await fetch('/api/admin/benefits/all', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const benefitsResponse = await authenticatedFetch('/api/admin/benefits/all');
       const benefitsData = await benefitsResponse.json();
       if (benefitsData.success) {
         setAvailableBenefits(benefitsData.data);
       }
       
       // Fetch existing feature-benefit mappings
-      const mappingsResponse = await fetch(`/api/admin/features/${feature.id}/benefits`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const mappingsResponse = await authenticatedFetch(`/api/admin/features/${feature.id}/benefits`);
       const mappingsData = await mappingsResponse.json();
       if (mappingsData.success) {
         setFeatureBenefits(mappingsData.data.map((m: any) => ({
@@ -172,16 +166,10 @@ export default function FeaturesPage() {
     
     setSubmitting(true);
     try {
-      const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/features/${benefitMappingFeature.id}/benefits`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          benefits: featureBenefits.filter(fb => fb.weight > 0),
-        }),
+      // SECURITY: Use authenticated fetch with httpOnly cookie
+      const { apiPut } = await import('@/lib/api-client');
+      const response = await apiPut(`/api/admin/features/${benefitMappingFeature.id}/benefits`, {
+        benefits: featureBenefits.filter(fb => fb.weight > 0),
       });
       
       const data = await response.json();
@@ -217,7 +205,8 @@ export default function FeaturesPage() {
     setSubmitting(true);
 
     try {
-      const token = localStorage.getItem('lenstrack_token');
+      // SECURITY: Use authenticated fetch with httpOnly cookie
+      const { authenticatedFetch } = await import('@/lib/api-client');
       
       // If icon file is selected, upload it first
       let iconUrl = formData.iconUrl;
@@ -226,11 +215,15 @@ export default function FeaturesPage() {
         formDataUpload.append('icon', iconFile);
         formDataUpload.append('featureCode', formData.code);
         
+        // SECURITY: Get token for FormData upload (can't use api-client for FormData)
+        const { getTokenForAPI } = await import('@/lib/auth-helper');
+        const token = await getTokenForAPI();
         const uploadResponse = await fetch('/api/admin/features/upload-icon', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          credentials: 'include',
           body: formDataUpload,
         });
         
@@ -263,14 +256,11 @@ export default function FeaturesPage() {
         hasIconFile: !!iconFile 
       });
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
+        // SECURITY: Use authenticated API client
+        const { apiPost, apiPut } = await import('@/lib/api-client');
+        const response = method === 'POST' 
+          ? await apiPost(url, requestBody)
+          : await apiPut(url, requestBody);
 
       const data = await response.json();
       
@@ -297,13 +287,9 @@ export default function FeaturesPage() {
     if (!deleteConfirm) return;
 
     try {
-      const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/features/${deleteConfirm.id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // SECURITY: Use authenticated fetch with httpOnly cookie
+      const { apiDelete } = await import('@/lib/api-client');
+      const response = await apiDelete(`/api/admin/features/${deleteConfirm.id}`);
 
       const data = await response.json();
 

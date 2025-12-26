@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { handleApiError, NotFoundError } from '@/lib/errors';
 import { recommendationsAdapterService } from '@/services/recommendations-adapter.service';
 import { prisma } from '@/lib/prisma';
+import { cacheService, CACHE_TTL, CacheService } from '@/lib/cache.service';
 
 // GET /api/public/questionnaire/sessions/[sessionId]/recommendations
 export async function GET(
@@ -16,34 +17,63 @@ export async function GET(
       throw new NotFoundError('Session ID is required');
     }
 
-    // Check if session exists
-    const session = await prisma.session.findUnique({
-      where: { id: sessionId },
-    });
+    // OPTIMIZATION: Check cache for session data (5 minutes TTL)
+    const sessionCacheKey = CacheService.generateKey('session', sessionId);
+    let session = cacheService.get<any>(sessionCacheKey);
+    let answerCount: number;
+
+    if (session) {
+      // Get answer count separately (changes frequently)
+      answerCount = await prisma.sessionAnswer.count({
+        where: { sessionId },
+      });
+    } else {
+      // OPTIMIZATION: Fetch session, store, and answer count in parallel
+      const [fetchedSession, count] = await Promise.all([
+        prisma.session.findUnique({
+          where: { id: sessionId },
+        }),
+        prisma.sessionAnswer.count({
+          where: { sessionId },
+        }),
+      ]);
+      session = fetchedSession;
+      answerCount = count;
+
+      // Cache session data
+      if (session) {
+        cacheService.set(sessionCacheKey, session, CACHE_TTL.SESSION_DATA);
+      }
+    }
 
     if (!session) {
       throw new NotFoundError('Session not found');
     }
 
-    // Get store information separately (no relation exists in schema)
-    const store = await prisma.store.findUnique({
-      where: { id: session.storeId },
-      select: {
-        name: true,
-        city: true,
-        phone: true,
-      },
-    });
+    // OPTIMIZATION: Check cache for store data (30 minutes TTL)
+    const storeCacheKey = CacheService.generateKey('store', session.storeId);
+    let store = cacheService.get<any>(storeCacheKey);
+
+    if (!store) {
+      // Get store information separately (no relation exists in schema)
+      store = await prisma.store.findUnique({
+        where: { id: session.storeId },
+        select: {
+          name: true,
+          city: true,
+          phone: true,
+        },
+      });
+
+      // Cache store data
+      if (store) {
+        cacheService.set(storeCacheKey, store, CACHE_TTL.STORE_DATA);
+      }
+    }
 
     if (!store) {
       throw new NotFoundError('Store not found');
     }
-
-    // Check if session has answers before generating recommendations
-    // For ACCESSORIES category, answers are not required
-    const answerCount = await prisma.sessionAnswer.count({
-      where: { sessionId },
-    });
 
     // If ACCESSORIES category, return empty recommendations (accessories are handled separately)
     // Check both exact match and case-insensitive match
@@ -74,11 +104,10 @@ export async function GET(
     }
 
     // Generate recommendations using new BenefitRecommendationService adapter
+    // OPTIMIZATION: Removed console.log for better performance
     let result;
     try {
-      console.log(`[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] Generating recommendations for session ${sessionId}`);
       result = await recommendationsAdapterService.generateRecommendations(sessionId);
-      console.log(`[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] Generated ${result.recommendations.length} recommendations`);
     } catch (genError: any) {
       console.error('[GET /api/public/questionnaire/sessions/[sessionId]/recommendations] Error details:', {
         message: genError?.message,

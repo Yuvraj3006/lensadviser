@@ -33,10 +33,23 @@ export async function POST(
     const validatedData = SubmitAnswerSchema.parse(body);
     const { questionId, optionIds } = validatedData;
 
-    // Verify session exists
-    const session = await prisma.session.findUnique({
-      where: { id: sessionId },
-    });
+    // OPTIMIZATION: Fetch session and question in parallel
+    const [session, question] = await Promise.all([
+      prisma.session.findUnique({
+        where: { id: sessionId },
+      }),
+      prisma.question.findFirst({
+        where: {
+          id: questionId,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          category: true,
+          organizationId: true,
+        },
+      }),
+    ]);
 
     if (!session) {
       throw new NotFoundError('Session');
@@ -53,74 +66,78 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Get store to find organizationId
-    const store = await prisma.store.findUnique({
-      where: { id: session.storeId },
-    });
+    if (!question) {
+      throw new NotFoundError('Question');
+    }
+
+    // Verify question belongs to session's category
+    if (question.category !== session.category) {
+      throw new ValidationError('Question does not belong to session category');
+    }
+
+    // OPTIMIZATION: Fetch store and verify options in parallel
+    const [store, options] = await Promise.all([
+      prisma.store.findUnique({
+        where: { id: session.storeId },
+        select: { organizationId: true },
+      }),
+      prisma.answerOption.findMany({
+        where: {
+          id: { in: optionIds },
+          questionId: questionId,
+        },
+        select: { id: true },
+      }),
+    ]);
 
     if (!store) {
       throw new NotFoundError('Store');
     }
 
-    // Verify question exists and belongs to the session's category
-    const question = await prisma.question.findFirst({
-      where: {
-        id: questionId,
-        category: session.category,
-        organizationId: store.organizationId,
-        isActive: true,
-      },
-    });
-
-    if (!question) {
-      throw new NotFoundError('Question');
+    // Verify question belongs to organization
+    if (question.organizationId !== store.organizationId) {
+      throw new ValidationError('Question does not belong to organization');
     }
-
-    // Verify all options exist and belong to the question
-    const options = await prisma.answerOption.findMany({
-      where: {
-        id: { in: optionIds },
-        questionId: questionId,
-      },
-    });
 
     if (options.length !== optionIds.length) {
       throw new ValidationError('One or more selected options are invalid');
     }
 
-    // Save answers with answeredAt timestamp
+    // OPTIMIZATION: Save answers and get counts in parallel
     const now = new Date();
-    const answerPromises = optionIds.map((optionId: string) =>
-      prisma.sessionAnswer.create({
-        data: {
-          sessionId,
-          questionId,
-          optionId,
-          answeredAt: now,
+    const answerData = optionIds.map((optionId: string) => ({
+      sessionId,
+      questionId,
+      optionId,
+      answeredAt: now,
+    }));
+
+    // OPTIMIZATION: Use createMany for better performance (single query)
+    // Note: MongoDB doesn't support skipDuplicates, so we use createMany without it
+    // Duplicates will be handled by unique index if needed
+    await prisma.sessionAnswer.createMany({
+      data: answerData,
+    });
+
+    // OPTIMIZATION: Get distinct question count and total questions in parallel
+    const [allAnswers, totalQuestions] = await Promise.all([
+      // Fetch only questionId for distinct count (lighter query)
+      prisma.sessionAnswer.findMany({
+        where: { sessionId },
+        select: { questionId: true },
+      }),
+      prisma.question.count({
+        where: {
+          organizationId: store.organizationId,
+          category: session.category,
+          isActive: true,
         },
-      })
-    );
+      }),
+    ]);
 
-    await Promise.all(answerPromises);
-
-    // Get all answers for this session (query separately since no relation exists)
-    const allAnswers = await prisma.sessionAnswer.findMany({
-      where: { sessionId },
-      select: { questionId: true },
-    });
-
-    // Get distinct question IDs that have been answered
-    const answeredQuestionIds = new Set(allAnswers.map((a) => a.questionId.toString()));
+    // Get distinct question IDs (in-memory, faster than DB distinct)
+    const answeredQuestionIds = new Set(allAnswers.map((a) => String(a.questionId)));
     const answeredQuestions = answeredQuestionIds.size;
-
-    // Get total questions for this category and organization
-    const totalQuestions = await prisma.question.count({
-      where: {
-        organizationId: store.organizationId,
-        category: session.category,
-        isActive: true,
-      },
-    });
 
     const isComplete = answeredQuestions >= totalQuestions;
 

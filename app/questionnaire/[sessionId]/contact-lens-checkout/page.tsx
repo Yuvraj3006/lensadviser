@@ -165,10 +165,11 @@ export default function ContactLensCheckoutPage() {
       const storeId = sessionData.data.session.storeId;
       
       // Get store to find organizationId
+      // SECURITY: Get token from httpOnly cookie
+      const { getTokenForAPI } = await import('@/lib/auth-helper');
+      const token = await getTokenForAPI();
       const storeResponse = await fetch(`/api/admin/stores/${storeId}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('lenstrack_token') || ''}`,
-        },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const storeData = await storeResponse.json();
       const organizationId = storeData.data?.organizationId;

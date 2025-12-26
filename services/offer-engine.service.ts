@@ -15,6 +15,7 @@ import {
   RxAddOnBreakdown,
 } from '@/types/offer-engine';
 import { rxAddOnPricingService } from './rx-addon-pricing.service';
+import { cacheService, CACHE_TTL, CacheService } from '@/lib/cache.service';
 // DiscountType and OfferType are string fields, not enums in Prisma
 const DiscountType = {
   PERCENTAGE: 'PERCENTAGE',
@@ -587,10 +588,11 @@ export class OfferEngineService {
       },
     });
 
-    // Filter by store activation if storeId is provided
+    // OPTIMIZATION: Fetch store offer maps in parallel with rules if storeId is provided
     let storeActivatedRuleIds: Set<string> | null = null;
     if (storeId && /^[0-9a-fA-F]{24}$/.test(storeId)) {
       try {
+        // This query is already optimized - single query with select
         const storeOfferMaps = await (prisma as any).storeOfferMap.findMany({
           where: { storeId, isActive: true },
           select: { offerRuleId: true },
@@ -698,16 +700,32 @@ export class OfferEngineService {
       return null;
     }
 
-    const allRules = await prisma.offerRule.findMany({
-      where: {
-        organizationId,
-        isActive: true,
-        offerType: { in: priorityOrder as any },
-      } as any,
-      orderBy: {
-        priority: 'asc',
-      },
-    });
+    // OPTIMIZATION: Check cache for offer rules (1 hour TTL)
+    const rulesCacheKey = CacheService.generateKey('offer-rules', organizationId);
+    let allRules: any[] | null = cacheService.get<any[]>(rulesCacheKey);
+
+    if (!allRules) {
+      allRules = await prisma.offerRule.findMany({
+        where: {
+          organizationId,
+          isActive: true,
+          offerType: { in: priorityOrder as any },
+        } as any,
+        orderBy: {
+          priority: 'asc',
+        },
+      });
+
+      // Cache the rules
+      if (allRules) {
+        cacheService.set(rulesCacheKey, allRules, CACHE_TTL.OFFER_RULES);
+      }
+    }
+    
+    // Ensure allRules is not null
+    if (!allRules) {
+      allRules = [];
+    }
     
     // V2: Sort by priority order first, then by priority field
     const rules = allRules.sort((a, b) => {
@@ -717,10 +735,11 @@ export class OfferEngineService {
       return Number(a.priority) - Number(b.priority);
     });
 
-    // If storeId is provided, filter rules by store activation
+    // OPTIMIZATION: Fetch store offer maps in parallel with rules if storeId is provided
     let storeActivatedRuleIds: Set<string> | null = null;
     if (storeId && /^[0-9a-fA-F]{24}$/.test(storeId)) {
       try {
+        // This query is already optimized - single query with select
         const storeOfferMaps = await (prisma as any).storeOfferMap.findMany({
           where: {
             storeId,

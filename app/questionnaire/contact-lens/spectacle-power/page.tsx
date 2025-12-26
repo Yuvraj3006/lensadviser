@@ -26,11 +26,18 @@ export default function SpectaclePowerPage() {
     }
 
     // Load saved prescription
-    const saved = localStorage.getItem('lenstrack_prescription');
-    if (saved) {
-      const rxData = JSON.parse(saved);
-      setRx(rxData);
-    }
+    // SECURITY: Load prescription data from encrypted storage
+    (async () => {
+      try {
+        const { getPrescriptionData } = await import('@/lib/secure-storage');
+        const saved = getPrescriptionData();
+        if (saved) {
+          setRx(saved);
+        }
+      } catch (error) {
+        console.error('[CLPowerPage] Failed to load prescription:', error);
+      }
+    })();
   }, [setRx, router]);
 
   const [validationErrors, setValidationErrors] = useState<string[]>([]);

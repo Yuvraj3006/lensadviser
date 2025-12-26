@@ -639,14 +639,15 @@ export default function CheckoutPage() {
                             if (file) {
                               // Store file for order creation
                               const reader = new FileReader();
-                              reader.onloadend = () => {
-                                // Store base64 or file reference
-                                localStorage.setItem('lenstrack_category_id_proof', JSON.stringify({
+                              reader.onloadend = async () => {
+                                // SECURITY: Store ID proof data encrypted
+                                const { setCategoryIdProof } = await import('@/lib/secure-storage');
+                                setCategoryIdProof({
                                   fileName: file.name,
                                   fileType: file.type,
                                   fileSize: file.size,
-                                  // In production, upload to server and store URL
-                                }));
+                                  data: reader.result as string, // Base64 data
+                                });
                               };
                               reader.readAsDataURL(file);
                             }

@@ -179,11 +179,28 @@ Product B: blue_light_filter strength 0.6 → 67% match
 ## 🔐 Security
 
 - **Password Hashing**: bcrypt with cost factor 10
-- **JWT Tokens**: 7-day expiry, secure secret
+- **JWT Tokens**: 7-day expiry, secure secret, httpOnly cookies
+- **Data Encryption**: AES encryption for sensitive localStorage data
 - **Input Validation**: Zod schemas on all endpoints
 - **SQL Injection Prevention**: Prisma parameterized queries
 - **Role-Based Access**: Middleware enforcement
-- **XSS Protection**: React auto-escaping
+- **XSS Protection**: React auto-escaping, encrypted storage
+- **Token Security**: httpOnly cookies (no localStorage tokens)
+
+### Environment Variables Required
+
+**Production:**
+- `JWT_SECRET` - JWT signing key (32+ characters)
+- `NEXT_PUBLIC_STORAGE_SECRET` - Encryption key for localStorage (32+ characters)
+- `DATABASE_URL` - MongoDB connection string
+- `NODE_ENV` - Set to `production`
+
+**Generate Secrets:**
+```bash
+npx tsx scripts/generate-secrets.ts
+```
+
+See `PRODUCTION_ENV_SETUP.md` for detailed setup instructions.
 
 ## 📊 Available Scripts
 

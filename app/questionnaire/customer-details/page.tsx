@@ -64,19 +64,21 @@ export default function CustomerDetailsPage() {
   }, [storeId, storeCode, router, setStore, showToast]);
 
   useEffect(() => {
-    // Load saved data from localStorage (only if store is verified)
+    // Load saved data from encrypted storage (only if store is verified)
     if (storeId) {
-      const saved = localStorage.getItem('lenstrack_customer_details');
-      if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        setCustomerName(data.name || '');
-        setCustomerPhone(data.phone || '');
-        setCustomerEmail(data.email || '');
-      } catch (error) {
-        console.error('Failed to parse saved customer details:', error);
-      }
-      }
+      (async () => {
+        try {
+          const { getCustomerDetails } = await import('@/lib/secure-storage');
+          const saved = getCustomerDetails();
+          if (saved) {
+            setCustomerName(saved.name || '');
+            setCustomerPhone(saved.phone || '');
+            setCustomerEmail(saved.email || '');
+          }
+        } catch (error) {
+          console.error('Failed to load saved customer details:', error);
+        }
+      })();
     }
   }, [storeId]);
 
@@ -93,7 +95,7 @@ export default function CustomerDetailsPage() {
     return emailRegex.test(email);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     // Reset errors
     const newErrors: { name?: string; phone?: string; email?: string } = {};
 
@@ -138,7 +140,9 @@ export default function CustomerDetailsPage() {
       phone: customerPhone.trim(),
       email: customerEmail.trim() || undefined,
     };
-    localStorage.setItem('lenstrack_customer_details', JSON.stringify(data));
+    // SECURITY: Store customer details encrypted
+    const { setCustomerDetails } = await import('@/lib/secure-storage');
+    setCustomerDetails(data);
     
     // Navigate to mode selection (after customer details)
     router.push('/questionnaire/mode-selection');

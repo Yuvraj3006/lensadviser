@@ -32,31 +32,31 @@ export default function PrescriptionPage() {
       return;
     }
     
-    // Load saved prescription from localStorage only once (prevent infinite loop)
+    // Load saved prescription from encrypted storage only once (prevent infinite loop)
     if (!hasLoadedRef.current) {
-      const saved = localStorage.getItem('lenstrack_prescription');
-      if (saved) {
+      (async () => {
         try {
-          const rxData = JSON.parse(saved);
-          // Check if rx is empty (no prescription data yet)
-          const isRxEmpty = !rx.odSphere && !rx.osSphere && !rx.odCylinder && !rx.osCylinder;
-          
-          // Only set if rx is empty or if saved data is different
-          if (isRxEmpty || JSON.stringify(rx) !== JSON.stringify(rxData)) {
-            setRx(rxData);
+          const { getPrescriptionData } = await import('@/lib/secure-storage');
+          const saved = getPrescriptionData();
+          if (saved) {
+            // Check if rx is empty (no prescription data yet)
+            const isRxEmpty = !rx.odSphere && !rx.osSphere && !rx.odCylinder && !rx.osCylinder;
+            
+            // Only set if rx is empty or if saved data is different
+            if (isRxEmpty || JSON.stringify(rx) !== JSON.stringify(saved)) {
+              setRx(saved);
+            }
           }
           hasLoadedRef.current = true; // Mark as loaded
         } catch (error) {
-          console.error('[PrescriptionPage] Failed to parse saved prescription:', error);
+          console.error('[PrescriptionPage] Failed to load saved prescription:', error);
           hasLoadedRef.current = true; // Mark as loaded even on error to prevent retries
         }
-      } else {
-        hasLoadedRef.current = true; // Mark as loaded if no saved data
-      }
+      })();
     }
   }, [language, router, rx, setRx]); // Now safe to include rx and setRx since we use ref to prevent re-runs
 
-  const handleNext = () => {
+  const handleNext = async () => {
     // Validation: SPH ±20 range, CYL negative only
     const isValid =
       (rx.odSphere === undefined || rx.odSphere === null || (rx.odSphere >= -20 && rx.odSphere <= 20)) &&
@@ -68,8 +68,9 @@ export default function PrescriptionPage() {
       return; // PrescriptionForm will show validation error
     }
 
-    // Save to localStorage
-    localStorage.setItem('lenstrack_prescription', JSON.stringify(rx));
+    // SECURITY: Store prescription data encrypted
+    const { setPrescriptionData } = await import('@/lib/secure-storage');
+    setPrescriptionData(rx);
     
     // Navigate to frame page (session will be created there, then redirect to tint selection if Power Sunglasses)
     router.push('/questionnaire/frame');

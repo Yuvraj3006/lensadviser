@@ -73,14 +73,21 @@ export default function OrderSuccessPage() {
   useEffect(() => {
     if (orderData && !loading) {
       // Clear all session-related data after a short delay to ensure order is saved
-      const clearTimer = setTimeout(() => {
+      const clearTimer = setTimeout(async () => {
+        // SECURITY: Clear encrypted sensitive data
+        const { removePrescriptionData, removeCustomerDetails, removeCategoryIdProof } = await import('@/lib/secure-storage');
+        removePrescriptionData();
+        removeCustomerDetails();
+        removeCategoryIdProof();
+        
+        // Remove non-sensitive session-specific keys
         const keysToRemove = [
           'lenstrack_frame',
-          'lenstrack_customer_details',
-          'lenstrack_prescription',
           'lenstrack_lens_type',
           'lenstrack_category',
         ];
+        
+        keysToRemove.forEach(key => localStorage.removeItem(key));
         
         // Remove all session-specific keys
         Object.keys(localStorage).forEach(key => {

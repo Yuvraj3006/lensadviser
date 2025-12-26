@@ -43,21 +43,21 @@ export default function AccessoriesOrderSummaryPage() {
     }
   }, [sessionId]);
 
-  const loadCustomerDetails = () => {
+  const loadCustomerDetails = async () => {
     try {
-      const savedCustomerDetails = localStorage.getItem('lenstrack_customer_details');
-      console.log('[AccessoriesOrderSummary] Loading customer details:', savedCustomerDetails);
-      if (savedCustomerDetails) {
-        const data = JSON.parse(savedCustomerDetails);
-        console.log('[AccessoriesOrderSummary] Parsed customer data:', data);
-        if (data.name && data.name.trim()) {
-          setCustomerName(data.name.trim());
+      const { getCustomerDetails } = await import('@/lib/secure-storage');
+      const saved = getCustomerDetails();
+      console.log('[AccessoriesOrderSummary] Loading customer details');
+      if (saved) {
+        console.log('[AccessoriesOrderSummary] Parsed customer data');
+        if (saved.name && saved.name.trim()) {
+          setCustomerName(saved.name.trim());
         }
-        if (data.phone && data.phone.trim()) {
-          setCustomerPhone(data.phone.trim());
+        if (saved.phone && saved.phone.trim()) {
+          setCustomerPhone(saved.phone.trim());
         }
       } else {
-        console.log('[AccessoriesOrderSummary] No customer details found in localStorage');
+        console.log('[AccessoriesOrderSummary] No customer details found');
       }
     } catch (error) {
       console.error('[AccessoriesOrderSummary] Failed to load customer details:', error);

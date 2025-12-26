@@ -32,29 +32,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshSession = useCallback(async () => {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('lenstrack_token') : null;
-      if (!token) {
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
-
+      // SECURITY: Token is stored in httpOnly cookie, not localStorage
+      // Fetch session using cookie (credentials: 'include' sends cookies automatically)
       const response = await fetch('/api/auth/session', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include', // Include httpOnly cookies
       });
 
       if (response.ok) {
         const data = await response.json();
         setUser(data.data.user);
       } else {
-        if (typeof window !== 'undefined') localStorage.removeItem('lenstrack_token');
         setUser(null);
       }
     } catch (error: any) {
       console.error('Session refresh failed:', error);
-      if (typeof window !== 'undefined') localStorage.removeItem('lenstrack_token');
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -104,12 +95,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(errorMessage);
       }
 
-      if (!data.success || !data.data || !data.data.token) {
+      if (!data.success || !data.data || !data.data.user) {
         console.error('Invalid response structure:', data);
         throw new Error('Invalid response from server');
       }
 
-      localStorage.setItem('lenstrack_token', data.data.token);
+      // SECURITY: Token is stored in httpOnly cookie by the server, not in localStorage
+      // The cookie is set by the server in the Set-Cookie header
+      // We don't need to store it in localStorage anymore
       setUser(data.data.user);
     } catch (error) {
       console.error('Login exception:', error);
@@ -120,8 +113,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('lenstrack_token');
+  const logout = async () => {
+    // SECURITY: Clear httpOnly cookie via API
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+    }
     setUser(null);
   };
 

@@ -119,10 +119,11 @@ export default function TintColorSelectionPage() {
     setLoading(true);
     try {
       // Fetch tint colors for this specific lens (requires auth)
+      // SECURITY: Get token from httpOnly cookie
+      const { getTokenForAPI } = await import('@/lib/auth-helper');
+      const token = await getTokenForAPI();
       const response = await fetch(`/api/admin/lenses/${lensId}/tint-colors`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('lenstrack_token') || ''}`,
-        },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
       if (response.ok) {

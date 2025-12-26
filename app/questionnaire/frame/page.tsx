@@ -82,7 +82,9 @@ export default function FramePage() {
     try {
       // Get all collected data
       const customerDetails = JSON.parse(localStorage.getItem('lenstrack_customer_details') || '{}');
-      const prescription = JSON.parse(localStorage.getItem('lenstrack_prescription') || '{}');
+      // SECURITY: Load prescription data from encrypted storage
+      const { getPrescriptionData } = await import('@/lib/secure-storage');
+      const prescription = getPrescriptionData() || {};
       const currentStoreCode = storeCode;
 
       // Create session without frame data
@@ -164,7 +166,9 @@ export default function FramePage() {
       // Get all collected data
       const customerDetails = JSON.parse(localStorage.getItem('lenstrack_customer_details') || '{}');
       const lensType = localStorage.getItem('lenstrack_lens_type') || localStorage.getItem('lenstrack_category') || 'EYEGLASSES';
-      const prescription = JSON.parse(localStorage.getItem('lenstrack_prescription') || '{}');
+      // SECURITY: Load prescription data from encrypted storage
+      const { getPrescriptionData } = await import('@/lib/secure-storage');
+      const prescription = getPrescriptionData() || {};
 
       console.log('[FramePage] Lens type check:', {
         lensType,

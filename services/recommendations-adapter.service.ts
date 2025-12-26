@@ -10,6 +10,7 @@ import { offerEngineService } from './offer-engine.service';
 import { prisma } from '@/lib/prisma';
 import { RxInput } from './rx-validation.service';
 import { FrameInput } from './index-recommendation.service';
+import { cacheService, CACHE_TTL, CacheService } from '@/lib/cache.service';
 
 type VisionType = 'SINGLE_VISION' | 'PROGRESSIVE' | 'BIFOCAL' | 'ANTI_FATIGUE' | 'MYOPIA_CONTROL';
 
@@ -43,6 +44,14 @@ export class RecommendationsAdapterService {
    * Generate recommendations using BenefitRecommendationService and format for frontend
    */
   async generateRecommendations(sessionId: string): Promise<RecommendationAdapterResult> {
+    // OPTIMIZATION: Check cache first
+    const cacheKey = CacheService.generateKey('recommendations', sessionId);
+    const cached = cacheService.get<RecommendationAdapterResult>(cacheKey);
+    if (cached) {
+      console.log('[RecommendationsAdapter] Cache hit for session:', sessionId);
+      return cached;
+    }
+
     // Get session data
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
@@ -106,13 +115,7 @@ export class RecommendationsAdapterService {
       : null;
 
     // Call BenefitRecommendationService
-    console.log('[RecommendationsAdapter] Calling benefit service with:', {
-      hasPrescription: !!prescription,
-      hasFrame: !!frame,
-      answerCount: answerSelections.length,
-      category: session.category,
-      organizationId: store.organizationId,
-    });
+    // OPTIMIZATION: Removed excessive console.log statements for better performance
     
     const recommendationResult = await this.benefitService.recommend({
       prescription,
@@ -124,68 +127,89 @@ export class RecommendationsAdapterService {
       organizationId: store.organizationId,
     });
     
-    console.log('[RecommendationsAdapter] Benefit service returned:', {
-      productCount: recommendationResult.products.length,
-      recommendedIndex: recommendationResult.recommendedIndex,
-      benefitScoresCount: Object.keys(recommendationResult.benefitScores).length,
+    // OPTIMIZATION: Batch fetch all products at once instead of N+1 queries
+    const itCodes = recommendationResult.products.map(p => p.itCode);
+    const allProducts = await (prisma as any).lensProduct.findMany({
+      where: { itCode: { in: itCodes } },
+      include: {
+        features: {
+          include: {
+            feature: true,
+          },
+        },
+        benefits: true,
+        bandPricing: {
+          where: { isActive: true },
+        },
+        rxRanges: true,
+      },
     });
 
-    // Fetch full product details and enrich with features, pricing, offers
-    console.log(`[RecommendationsAdapter] Enriching ${recommendationResult.products.length} products`);
+    // Create a map for O(1) lookup
+    const productMap = new Map(allProducts.map((p: any) => [p.itCode, p]));
+
+    // Batch fetch all store products at once
+    const productIds = allProducts.map((p: any) => p.id);
+    const allStoreProducts = await prisma.storeProduct.findMany({
+      where: {
+        productId: { in: productIds },
+        storeId: session.storeId,
+      },
+    });
+    const storeProductMap = new Map(allStoreProducts.map(sp => [sp.productId, sp]));
+
+    // Batch calculate band pricing for all products
+    const bandPricingPromises = allProducts.map((p: any) =>
+      bandPricingService.calculateBandPricing(p.id, prescription)
+    );
+    const bandPricingResults = await Promise.all(bandPricingPromises);
+    const bandPricingMap = new Map(
+      allProducts.map((p: any, idx: number) => [p.id, bandPricingResults[idx]])
+    );
+
+    // OPTIMIZATION: Batch fetch all benefits at once for all products
+    const allBenefitIds = new Set<string>();
+    allProducts.forEach((p: any) => {
+      if (p.benefits) {
+        p.benefits.forEach((pb: any) => {
+          if (pb.benefitId) {
+            allBenefitIds.add(String(pb.benefitId));
+          }
+        });
+      }
+    });
     
+    const allBenefitsData = allBenefitIds.size > 0
+      ? await (prisma as any).benefitFeature.findMany({
+          where: { 
+            id: { in: Array.from(allBenefitIds) },
+            type: 'BENEFIT',
+          },
+        })
+      : [];
+    const benefitMap = new Map(allBenefitsData.map((b: any) => [b.id, b]));
+
     const enrichedRecommendations = await Promise.all(
       recommendationResult.products.map(async (product) => {
-        // Get full product from DB
-        const fullProduct = await (prisma as any).lensProduct.findUnique({
-          where: { itCode: product.itCode },
-          include: {
-            features: {
-              include: {
-                feature: true, // Include full feature object
-              },
-            },
-            benefits: true, // We'll fetch BenefitFeature separately
-            bandPricing: {
-              where: { isActive: true },
-            },
-            rxRanges: true,
-          },
-        });
+        // Get full product from map (O(1) lookup)
+        const fullProduct = productMap.get(product.itCode) as any;
 
         if (!fullProduct) {
           console.warn(`[RecommendationsAdapter] Product not found in DB for itCode: ${product.itCode}`);
           return null;
         }
 
-        // Debug: Log full product data to verify MRP is being fetched
-        console.log(`[RecommendationsAdapter] Full product data for ${product.itCode}:`, {
-          id: fullProduct.id,
-          name: fullProduct.name,
-          mrp: fullProduct.mrp,
-          baseOfferPrice: fullProduct.baseOfferPrice,
-          addOnPrice: fullProduct.addOnPrice,
-          hasMRP: 'mrp' in fullProduct,
-          mrpType: typeof fullProduct.mrp,
-        });
+        // OPTIMIZATION: Removed debug logging for better performance
 
-        // Calculate band pricing
-        const bandPricing = await bandPricingService.calculateBandPricing(
-          fullProduct.id,
-          prescription
-        );
+        // Get band pricing from map
+        const bandPricing = (bandPricingMap.get(fullProduct.id) || { bandExtra: 0 }) as any;
 
         // Calculate final price with band pricing
         const basePrice = product.offerPrice || fullProduct.baseOfferPrice || 0;
         const finalLensPrice = basePrice + bandPricing.bandExtra;
 
-        // Get store product pricing
-        const storeProduct = await prisma.storeProduct.findFirst({
-          where: {
-            productId: fullProduct.id,
-            storeId: session.storeId,
-          },
-        });
-
+        // Get store product pricing from map
+        const storeProduct = storeProductMap.get(fullProduct.id);
         const finalPrice = storeProduct?.priceOverride || finalLensPrice;
 
         // Calculate offers (simplified - full offer calculation happens later)
@@ -208,18 +232,7 @@ export class RecommendationsAdapterService {
           };
         }).filter((f: any) => f !== null) || [];
 
-        // Format benefits - ProductBenefit has benefitId, need to fetch BenefitFeature separately
-        const benefitIds = fullProduct.benefits?.map((pb: any) => pb.benefitId) || [];
-        const benefitsData = benefitIds.length > 0
-          ? await (prisma as any).benefitFeature.findMany({
-              where: { 
-                id: { in: benefitIds },
-                type: 'BENEFIT',
-              },
-            })
-          : [];
-        const benefitMap = new Map(benefitsData.map((b: any) => [b.id, b]));
-        
+        // Format benefits using pre-fetched benefit map
         const benefits = fullProduct.benefits
           ?.map((pb: any) => {
             const benefit = benefitMap.get(pb.benefitId);
@@ -239,17 +252,6 @@ export class RecommendationsAdapterService {
         // Calculate MRP: Use database MRP if available, otherwise use baseOfferPrice as fallback (like admin panel does)
         // Admin panel uses: mrp: product.mrp || product.baseOfferPrice
         const calculatedMRP = fullProduct.mrp || fullProduct.baseOfferPrice || null;
-
-        // Debug: Log MRP value from database
-        console.log(`[RecommendationsAdapter] Product ${product.itCode} MRP calculation:`, {
-          itCode: product.itCode,
-          dbMRP: fullProduct.mrp,
-          baseOfferPrice: fullProduct.baseOfferPrice,
-          finalPrice: finalPrice,
-          calculatedMRP: calculatedMRP,
-          hasDBMRP: !!fullProduct.mrp,
-          usingFallback: !fullProduct.mrp && !!fullProduct.baseOfferPrice,
-        });
 
         return {
           id: fullProduct.id,
@@ -396,10 +398,10 @@ export class RecommendationsAdapterService {
     // Save recommendations to database for admin panel
     await this.saveRecommendationsToDatabase(sessionId, enrichedRecommendations);
 
-    return {
+    const result: RecommendationAdapterResult = {
       sessionId,
       category: session.category,
-      customerName: session.customerName,
+      customerName: session.customerName || null,
       recommendations: recommendationsWithLabels,
       answeredFeatures,
       generatedAt: new Date(),
@@ -407,6 +409,12 @@ export class RecommendationsAdapterService {
       benefitScores: recommendationResult.benefitScores,
       fourLensOutput,
     };
+
+    // OPTIMIZATION: Cache the result (5 minutes TTL for session-specific data)
+    // cacheKey is already defined at the top of the function
+    cacheService.set(cacheKey, result, CACHE_TTL.SESSION_DATA);
+
+    return result;
   }
 
   /**

@@ -208,6 +208,9 @@ model BenefitFeature {
   @@index([isActive])
   @@index([category])
   @@index([displayOrder])
+  // PERFORMANCE: Composite indexes for common query patterns
+  @@index([type, organizationId, isActive])
+  @@index([organizationId, type, isActive])
 }
 
 // Legacy Benefit model - deprecated, use BenefitFeature with type='BENEFIT'
@@ -535,6 +538,11 @@ model LensProduct {
   @@index([isActive])
   @@index([yopoEligible])
   @@index([comboAllowed])
+  // PERFORMANCE: Composite indexes for common query patterns
+  @@index([visionType, isActive])
+  @@index([category, isActive])
+  @@index([brandLine, visionType, isActive])
+  @@index([itCode, isActive])
 }
 
 model LensRxRange {
@@ -893,6 +901,8 @@ model SessionAnswer {
 
   @@index([sessionId])
   @@index([questionId])
+  // PERFORMANCE: Composite index for common query pattern (session + question lookup)
+  @@index([sessionId, questionId])
 }
 
 model SessionRecommendation {
@@ -957,6 +967,8 @@ model StoreProduct {
   @@index([storeId])
   @@index([productId])
   @@index([isAvailable])
+  // PERFORMANCE: Composite index for common query pattern (store + product lookup)
+  @@index([storeId, productId, isAvailable])
 }
 
 model User {

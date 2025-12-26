@@ -308,10 +308,15 @@ export async function generateRecommendations(
     throw new Error('Session not found');
   }
 
-  // 2. Get store and organization separately (no relations in schema)
-  const store = await prisma.store.findUnique({
-    where: { id: session.storeId },
-  });
+  // OPTIMIZATION: Fetch store and organization in parallel
+  const [store, sessionAnswers] = await Promise.all([
+    prisma.store.findUnique({
+      where: { id: session.storeId },
+    }),
+    prisma.sessionAnswer.findMany({
+      where: { sessionId },
+    }),
+  ]);
 
   if (!store) {
     throw new Error('Store not found');
@@ -328,12 +333,7 @@ export async function generateRecommendations(
   const organizationId = store.organizationId;
   const baseLensPrice = organization.baseLensPrice || 0;
 
-  // 3. Get all answers for this session
-  const sessionAnswers = await prisma.sessionAnswer.findMany({
-    where: { sessionId },
-  });
-
-  // 4. Get option IDs from answers
+  // 4. Get option IDs from answers (already fetched above)
   const optionIds = sessionAnswers.map((a) => a.optionId);
 
   // Check if we have any selected options

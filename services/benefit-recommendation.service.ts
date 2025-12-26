@@ -6,6 +6,7 @@
 import { prisma } from '@/lib/prisma';
 import { RxValidationService, RxInput } from './rx-validation.service';
 import { IndexRecommendationService, FrameInput } from './index-recommendation.service';
+import { cacheService, CACHE_TTL, CacheService } from '@/lib/cache.service';
 
 // VisionType enum from Prisma schema
 type VisionType = 'SINGLE_VISION' | 'PROGRESSIVE' | 'BIFOCAL' | 'ANTI_FATIGUE' | 'MYOPIA_CONTROL';
@@ -221,6 +222,15 @@ export class BenefitRecommendationService {
       return {};
     }
 
+    // OPTIMIZATION: Check cache for benefit mappings (24 hour TTL)
+    const sortedAnswerIds = [...answerIds].sort();
+    const cacheKey = CacheService.generateKey('benefit-scores', organizationId, sortedAnswerIds.join(','));
+    const cached = cacheService.get<BenefitScores>(cacheKey);
+    if (cached) {
+      console.log('[BenefitRecommendationService] Cache hit for benefit scores');
+      return cached;
+    }
+
     // Get all answer-benefit mappings
     const answerBenefits = await (prisma.answerBenefit.findMany as any)({
       where: {
@@ -281,6 +291,9 @@ export class BenefitRecommendationService {
       console.error('[BenefitRecommendationService] ❌ NO BENEFIT SCORES CALCULATED! This will cause matchPercent = 0');
     }
 
+    // OPTIMIZATION: Cache the result (use same key as above)
+    cacheService.set(cacheKey, benefitScores, CACHE_TTL.BENEFIT_MAPPINGS);
+
     return benefitScores;
   }
 
@@ -332,56 +345,74 @@ export class BenefitRecommendationService {
       where.visionType = 'SINGLE_VISION';
     }
 
-    // Get lens products matching vision type and tint (if sunglasses)
-    const products = await (prisma as any).lensProduct.findMany({
-      where,
-      include: {
-        rxRanges: true,
-      },
-    });
-    
-    console.log(`[BenefitRecommendationService] Found ${products.length} products matching initial criteria:`, {
+    // OPTIMIZATION: Check cache for products (1 hour TTL)
+    const productCacheKey = CacheService.generateKey(
+      'products',
       visionType,
-      category,
-      whereClause: JSON.stringify(where),
-    });
+      category || 'ALL',
+      organizationId
+    );
+    let products: any[] | null = cacheService.get<any[]>(productCacheKey);
 
-    // Manually fetch benefits and answer scores for all products
+    if (!products) {
+      // Get lens products matching vision type and tint (if sunglasses)
+      products = await (prisma as any).lensProduct.findMany({
+        where,
+        include: {
+          rxRanges: true,
+        },
+      });
+
+      // Cache the products
+      if (products) {
+        cacheService.set(productCacheKey, products, CACHE_TTL.PRODUCT_DETAILS);
+        
+        console.log(`[BenefitRecommendationService] Found ${products.length} products matching initial criteria:`, {
+          visionType,
+          category,
+        });
+      }
+    } else {
+      console.log('[BenefitRecommendationService] Cache hit for products');
+    }
+    
+    // Ensure products is not null
+    if (!products) {
+      products = [];
+    }
+
+    // OPTIMIZATION: Batch fetch all related data in parallel
     const productIds = products.map((p: any) => p.id);
-    // Get product benefits (Answer Boosts removed - all scoring via Benefits only)
+    
+    // Fetch product benefits
     const productBenefits = await (prisma.productBenefit.findMany as any)({
       where: { productId: { in: productIds } },
     });
 
-    // Map old Benefit IDs to BenefitFeature IDs
-    // ProductBenefit uses old Benefit IDs, but we need BenefitFeature IDs
+    // Get unique old benefit IDs
     const oldBenefitIds = [...new Set(productBenefits.map((pb: any) => String(pb.benefitId)))];
     
-    // Get old Benefit records to get their codes
-    const oldBenefits = oldBenefitIds.length > 0
-      ? await prisma.benefit.findMany({
-          where: { id: { in: oldBenefitIds as string[] } },
-        })
-      : [];
-    
-    // Create mapping: old Benefit.id -> BenefitFeature.id (by code and organizationId)
-    const oldBenefitIdToCodeMap = new Map(oldBenefits.map(b => [b.id, b.code]));
-    const benefitCodeToFeatureIdMap = new Map<string, string>();
-    
-    if (oldBenefits.length > 0) {
-      const benefitCodes = [...new Set(oldBenefits.map(b => b.code))];
-      const benefitFeatures = await (prisma as any).benefitFeature.findMany({
+    // OPTIMIZATION: Batch fetch old benefits and benefit features in parallel
+    const [oldBenefits, benefitFeaturesByCode] = await Promise.all([
+      oldBenefitIds.length > 0
+        ? prisma.benefit.findMany({
+            where: { id: { in: oldBenefitIds as string[] } },
+          })
+        : Promise.resolve([]),
+      // Pre-fetch all benefit features for this organization to avoid multiple queries
+      (prisma as any).benefitFeature.findMany({
         where: {
           type: 'BENEFIT',
-          code: { in: benefitCodes },
           organizationId,
         },
-      });
-      
-      benefitFeatures.forEach((bf: any) => {
-        benefitCodeToFeatureIdMap.set(bf.code, bf.id);
-      });
-    }
+      }) as Promise<any[]>,
+    ]);
+    
+    // Create mappings efficiently
+    const oldBenefitIdToCodeMap = new Map(oldBenefits.map(b => [b.id, b.code]));
+    const benefitCodeToFeatureIdMap = new Map(
+      benefitFeaturesByCode.map((bf: any) => [bf.code, bf.id])
+    );
     
     // Create final mapping: old Benefit.id -> BenefitFeature.id
     const oldIdToNewIdMap = new Map<string, string>();
@@ -392,17 +423,11 @@ export class BenefitRecommendationService {
       }
     });
 
-    // Fetch benefit details from BenefitFeature using mapped IDs
+    // Use pre-fetched benefit features instead of querying again
     const benefitFeatureIds = [...oldIdToNewIdMap.values()];
-    const benefits = benefitFeatureIds.length > 0
-      ? await (prisma as any).benefitFeature.findMany({
-          where: {
-            type: 'BENEFIT',
-            id: { in: benefitFeatureIds },
-            organizationId,
-          },
-        })
-      : [];
+    const benefits = benefitFeaturesByCode.filter((bf: any) => 
+      benefitFeatureIds.includes(bf.id)
+    );
     
     // Create map: BenefitFeature.id -> BenefitFeature object
     const benefitMap = new Map(benefits.map((b: any) => [b.id, b]));

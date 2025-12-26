@@ -87,7 +87,9 @@ export default function AccessoriesPage() {
       }
 
       // Fallback: Try admin API with token
-      const token = localStorage.getItem('lenstrack_token');
+      // SECURITY: Get token from httpOnly cookie
+      const { getTokenForAPI } = await import('@/lib/auth-helper');
+      const token = await getTokenForAPI();
       if (token) {
         const adminResponse = await fetch('/api/admin/products?type=ACCESSORY', {
           headers: {
