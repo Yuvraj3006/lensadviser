@@ -71,27 +71,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.ok) {
         // Handle different error response formats
         let errorMessage = 'Login failed';
-        
-        if (data.error) {
+
+        // Log detailed error information for debugging
+        console.error('Login failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          hasData: !!data,
+          dataKeys: data ? Object.keys(data) : [],
+          error: data?.error,
+          message: data?.message,
+          success: data?.success,
+          fullResponse: data,
+        });
+
+        if (data?.error) {
           if (typeof data.error === 'string') {
             errorMessage = data.error;
           } else if (data.error.message) {
             errorMessage = data.error.message;
           } else if (data.error.code) {
-            errorMessage = `Error: ${data.error.code}`;
+            // Special handling for rate limiting
+            if (data.error.code === 'RATE_LIMIT_EXCEEDED') {
+              errorMessage = `${data.error.message}${data.error.retryAfter ? ` (${data.error.retryAfter}s)` : ''}`;
+            } else {
+              errorMessage = `Error: ${data.error.code}`;
+            }
           }
-        } else if (data.message) {
+        } else if (data?.message) {
           errorMessage = data.message;
+        } else if (response.status === 429) {
+          errorMessage = 'Too many login attempts. Please wait and try again.';
         }
-        
-        console.error('Login error:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: data.error,
-          message: data.message,
-          fullResponse: data,
-        });
-        
+
         throw new Error(errorMessage);
       }
 

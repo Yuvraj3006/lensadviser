@@ -36,10 +36,26 @@ export interface RateLimitConfig {
  * Default rate limit configurations
  */
 export const RATE_LIMITS = {
-  LOGIN: { maxRequests: 5, windowMs: 15 * 60 * 1000 }, // 5 attempts per 15 minutes
-  PUBLIC_API: { maxRequests: 100, windowMs: 60 * 1000 }, // 100 requests per minute
-  ADMIN_API: { maxRequests: 1000, windowMs: 60 * 1000 }, // 1000 requests per minute
-  DEFAULT: { maxRequests: 100, windowMs: 60 * 1000 }, // 100 requests per minute
+  LOGIN: {
+    maxRequests: 5,
+    windowMs: 15 * 60 * 1000,
+    message: 'Too many login attempts. Please wait 15 minutes before trying again.'
+  }, // 5 attempts per 15 minutes
+  PUBLIC_API: {
+    maxRequests: 100,
+    windowMs: 60 * 1000,
+    message: 'Too many requests. Please slow down.'
+  }, // 100 requests per minute
+  ADMIN_API: {
+    maxRequests: 1000,
+    windowMs: 60 * 1000,
+    message: 'Rate limit exceeded. Please try again later.'
+  }, // 1000 requests per minute
+  DEFAULT: {
+    maxRequests: 100,
+    windowMs: 60 * 1000,
+    message: 'Too many requests. Please try again later.'
+  }, // 100 requests per minute
 } as const;
 
 /**
