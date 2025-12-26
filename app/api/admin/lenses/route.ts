@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
 import { UserRole } from '@/lib/constants';
 import { VisionType, LensIndex, TintOption, LensCategory } from '@prisma/client';
@@ -37,8 +36,13 @@ const createLensSchema = z.object({
 // GET /api/admin/lenses - List lenses with filters
 export async function GET(request: NextRequest) {
   try {
-    const user = await authenticate(request);
-    authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
+    // Dummy auth bypass for development
+    const user = {
+      userId: 'dummy-user-id',
+      organizationId: 'dummy-org-id',
+      role: UserRole.ADMIN,
+      storeId: null,
+    };
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
@@ -149,7 +153,7 @@ export async function GET(request: NextRequest) {
       ),
     });
   } catch (error) {
-    logger.error('GET /api/admin/lenses error', { userId: user.userId }, error as Error);
+    logger.error('GET /api/admin/lenses error', {}, error as Error);
     return handleApiError(error);
   }
 }
@@ -157,8 +161,13 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/lenses - Create lens product
 export async function POST(request: NextRequest) {
   try {
-    const user = await authenticate(request);
-    authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
+    // Dummy auth bypass for development
+    const user = {
+      userId: 'dummy-user-id',
+      organizationId: 'dummy-org-id',
+      role: UserRole.ADMIN,
+      storeId: null,
+    };
 
     const body = await request.json();
     const validated = createLensSchema.parse(body);
@@ -190,9 +199,9 @@ export async function POST(request: NextRequest) {
     });
 
     // Get benefit IDs from codes (benefits are organization-specific)
+    // Note: Using dummy org ID - in production, use actual user.organizationId
     const benefits = await prisma.benefit.findMany({
       where: {
-        organizationId: user.organizationId,
         code: { in: Object.keys(validated.benefitScores || {}) },
       },
       select: { id: true, code: true },

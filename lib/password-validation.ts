@@ -104,7 +104,7 @@ export function validatePassword(password: string): { valid: boolean; error?: st
     if (error instanceof z.ZodError) {
       return {
         valid: false,
-        error: error.errors[0]?.message || 'Password does not meet requirements',
+        error: error.issues[0]?.message || 'Password does not meet requirements',
       };
     }
     return {

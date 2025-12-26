@@ -47,7 +47,7 @@ export function getEnv(): Env {
     return validatedEnv;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const missingVars = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('\n');
+      const missingVars = error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join('\n');
       throw new Error(
         `Environment variable validation failed:\n${missingVars}\n\n` +
         'Please check your .env file and ensure all required variables are set.'

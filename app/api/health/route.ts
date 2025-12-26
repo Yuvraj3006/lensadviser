@@ -13,9 +13,9 @@ export async function GET(request: NextRequest) {
     checks: {} as Record<string, 'ok' | 'error' | { status: 'ok' | 'error'; message?: string }>,
   };
 
-  // Check database connectivity
+  // Check database connectivity (MongoDB-compatible)
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await prisma.user.count();
     health.checks.database = 'ok';
   } catch (error: any) {
     health.checks.database = {
