@@ -774,9 +774,13 @@ export default function LensProductsPage() {
               <Input
                 type="number"
                 min="1"
-                value={formData.deliveryDays}
-                onChange={(e) => setFormData({ ...formData, deliveryDays: parseInt(e.target.value) || 4 })}
-                placeholder="4"
+                value={formData.deliveryDays || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const newFormData = { ...formData, deliveryDays: value === '' ? 4 : (parseInt(value) || 4) };
+                  setFormData(newFormData);
+                }}
+                placeholder="Enter delivery days"
               />
             </div>
           </div>
@@ -883,9 +887,13 @@ export default function LensProductsPage() {
               </label>
               <Input
                 type="number"
-                value={formData.mrp}
-                onChange={(e) => setFormData({ ...formData, mrp: parseFloat(e.target.value) || 0 })}
-                placeholder="0"
+                value={formData.mrp || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const newFormData = { ...formData, mrp: value === '' ? 0 : (parseFloat(value) || 0) };
+                  setFormData(newFormData);
+                }}
+                placeholder="Enter MRP"
                 required
               />
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Maximum Retail Price (shown to customers)</p>
@@ -896,9 +904,13 @@ export default function LensProductsPage() {
               </label>
               <Input
                 type="number"
-                value={formData.baseOfferPrice}
-                onChange={(e) => setFormData({ ...formData, baseOfferPrice: parseFloat(e.target.value) || 0 })}
-                placeholder="0"
+                value={formData.baseOfferPrice || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const newFormData = { ...formData, baseOfferPrice: value === '' ? 0 : (parseFloat(value) || 0) };
+                  setFormData(newFormData);
+                }}
+                placeholder="Enter base offer price"
                 required
               />
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Actual selling price (offer price)</p>
@@ -909,9 +921,13 @@ export default function LensProductsPage() {
               </label>
               <Input
                 type="number"
-                value={formData.addOnPrice}
-                onChange={(e) => setFormData({ ...formData, addOnPrice: parseFloat(e.target.value) || 0 })}
-                placeholder="0"
+                value={formData.addOnPrice ?? ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const newFormData = { ...formData, addOnPrice: value === '' ? null : (parseFloat(value) || 0) };
+                  setFormData(newFormData);
+                }}
+                placeholder="Enter add-on price"
               />
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Additional price for add-on features</p>
             </div>
