@@ -205,8 +205,7 @@ export default function LensProductsPage() {
       if (filterType) params.append('type', filterType);
       if (filterIndex) params.append('index', filterIndex);
 
-      // NOTE: lens-products API is deprecated, using lenses API instead
-      const response = await fetch(`/api/admin/lenses?${params.toString()}`, {
+      const response = await fetch(`/api/admin/lens-products?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
