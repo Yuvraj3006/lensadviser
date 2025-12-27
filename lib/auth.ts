@@ -6,7 +6,7 @@ import { getEnv } from '@/lib/env-validation';
 
 // Use validated environment variables
 const env = getEnv();
-const JWT_SECRET: Secret = env.JWT_SECRET as Secret;
+const JWT_SECRET = env.JWT_SECRET;
 const JWT_EXPIRY = env.JWT_EXPIRY;
 
 export interface TokenPayload {
@@ -36,7 +36,9 @@ export function generateToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): strin
     const expiresIn = JWT_EXPIRY && typeof JWT_EXPIRY === 'string' ? JWT_EXPIRY : '7d';
     console.log('[AUTH] Generating token with expiresIn:', expiresIn);
 
-    return jwt.sign(payload, JWT_SECRET, { expiresIn });
+    // Explicitly type the options to avoid TypeScript overload confusion
+    const options = { expiresIn } as jwt.SignOptions;
+    return jwt.sign(payload, JWT_SECRET as string, options);
   } catch (error) {
     console.error('[AUTH] JWT generation error:', error);
     throw new Error('Failed to generate authentication token');
