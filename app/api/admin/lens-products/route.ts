@@ -261,8 +261,6 @@ export async function POST(request: NextRequest) {
             sphMax: range.sphMax,
             cylMin: range.cylMin,
             cylMax: range.cylMax,
-            addMin: range.addMin ?? null,
-            addMax: range.addMax ?? null,
             addOnPrice: range.addOnPrice,
           })),
         } : undefined,
