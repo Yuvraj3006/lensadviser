@@ -211,7 +211,6 @@ export function LensRecommendations() {
               matchPercent: rec.matchPercent,
               matchScore: rec.matchScore,
               features: rec.features || [],
-              pricing: rec.pricing,
               itCode: rec.itCode || rec.sku,
               price: rec.pricing?.finalPrice || rec.price || rec.offerPrice,
               roleTag: rec.roleTag,
