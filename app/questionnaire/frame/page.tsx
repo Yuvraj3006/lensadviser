@@ -393,10 +393,14 @@ export default function FramePage() {
             // Redirect to tint color selection (mandatory step for Power Sunglasses)
             router.push(`/questionnaire/${sessionId}/tint-color-selection`);
             return;
+          } else {
+            // Tint selection already done, go directly to recommendations (skip questionnaire)
+            router.push(`/questionnaire/${sessionId}/recommendations`);
+            return;
           }
         }
-        
-        // Continue to questionnaire
+
+        // Continue to questionnaire for other lens types
         router.push(`/questionnaire/${sessionId}`);
       } else {
         // Handle various error formats
