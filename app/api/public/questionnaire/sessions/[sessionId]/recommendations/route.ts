@@ -93,7 +93,11 @@ export async function GET(
       });
     }
 
-    if (answerCount === 0) {
+    // For SUNGLASSES, allow recommendations even without questionnaire answers
+    // SUNGLASSES flow: Prescription → Frame → Tint Selection → Recommendations (skip questionnaire)
+    const isSunglasses = sessionCategory === 'SUNGLASSES';
+
+    if (answerCount === 0 && !isSunglasses) {
       return Response.json({
         success: false,
         error: {

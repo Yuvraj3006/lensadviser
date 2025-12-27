@@ -75,24 +75,37 @@ export class RecommendationsAdapterService {
       where: { sessionId },
     });
 
-    if (sessionAnswers.length === 0) {
+    // For SUNGLASSES, allow recommendations even without questionnaire answers
+    // SUNGLASSES flow: Prescription → Frame → Tint Selection → Recommendations (skip questionnaire)
+    const isSunglasses = session.category === 'SUNGLASSES';
+
+    if (sessionAnswers.length === 0 && !isSunglasses) {
       throw new Error('No answers found for session');
     }
 
     // Convert session answers to AnswerSelection format
-    const answerMap = new Map<string, string[]>();
-    sessionAnswers.forEach((sa) => {
-      const questionId = sa.questionId;
-      if (!answerMap.has(questionId)) {
-        answerMap.set(questionId, []);
-      }
-      answerMap.get(questionId)!.push(sa.optionId);
-    });
+    let answerSelections: { questionId: string; answerIds: string[] }[] = [];
 
-    const answerSelections = Array.from(answerMap.entries()).map(([questionId, answerIds]) => ({
-      questionId,
-      answerIds,
-    }));
+    if (sessionAnswers.length > 0) {
+      const answerMap = new Map<string, string[]>();
+      sessionAnswers.forEach((sa) => {
+        const questionId = sa.questionId;
+        if (!answerMap.has(questionId)) {
+          answerMap.set(questionId, []);
+        }
+        answerMap.get(questionId)!.push(sa.optionId);
+      });
+
+      answerSelections = Array.from(answerMap.entries()).map(([questionId, answerIds]) => ({
+        questionId,
+        answerIds,
+      }));
+    } else if (isSunglasses) {
+      // For SUNGLASSES without questionnaire answers, provide default/broad preferences
+      // This allows recommendations to work based on prescription and frame data only
+      answerSelections = [];
+      console.log('[RecommendationsAdapter] SUNGLASSES session without questionnaire answers - using defaults');
+    }
 
     // Get prescription from session (stored in customerEmail field as JSON)
     const sessionData = session.customerEmail as any;
