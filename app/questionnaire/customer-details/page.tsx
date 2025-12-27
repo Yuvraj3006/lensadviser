@@ -18,6 +18,7 @@ export default function CustomerDetailsPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [errors, setErrors] = useState<{
     name?: string;
     phone?: string;
@@ -134,18 +135,36 @@ export default function CustomerDetailsPage() {
     // Clear errors
     setErrors({});
 
-    // Save to localStorage (without category - will be selected at offer summary)
-    const data = {
-      name: customerName.trim(),
-      phone: customerPhone.trim(),
-      email: customerEmail.trim() || undefined,
-    };
-    // SECURITY: Store customer details encrypted
-    const { setCustomerDetails } = await import('@/lib/secure-storage');
-    setCustomerDetails(data);
-    
-    // Navigate to mode selection (after customer details)
-    router.push('/questionnaire/mode-selection');
+    try {
+      // Save customer details to a temporary session in database
+      const customerData = {
+        name: customerName.trim(),
+        phone: customerPhone.trim(),
+        email: customerEmail.trim() || undefined,
+        storeId: storeId,
+        storeCode: storeCode,
+      };
+
+      const response = await fetch('/api/customer-details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customerData),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Store the customer details session ID for later use
+        localStorage.setItem('lenstrack_customer_session_id', result.data.sessionId);
+        showToast('success', 'Customer details saved securely');
+        router.push('/questionnaire/mode-selection');
+      } else {
+        showToast('error', result.error?.message || 'Failed to save customer details');
+      }
+    } catch (error) {
+      console.error('Failed to save customer details:', error);
+      showToast('error', 'Failed to save customer details. Please try again.');
+    }
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {

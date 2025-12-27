@@ -874,6 +874,27 @@ model RetailProduct {
   @@index([sku])
 }
 
+model CustomerDetailSession {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  storeId       String   @db.ObjectId
+  storeCode     String
+  customerName  String
+  customerPhone String
+  customerEmail String?
+  status        String   @default("ACTIVE")
+  createdAt     DateTime @default(now()) @db.Date
+  updatedAt     DateTime @updatedAt @db.Date
+  expiresAt     DateTime @db.Date
+
+  // Relations
+  store         Store    @relation(fields: [storeId], references: [id])
+
+  @@index([storeId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([storeCode])
+}
+
 model Session {
   id                String        @id @default(auto()) @map("_id") @db.ObjectId
   category          String
@@ -958,6 +979,9 @@ model Store {
   pincode        String
   state          String
   updatedAt      DateTime @db.Date
+
+  // Relations
+  customerDetailSessions CustomerDetailSession[]
 
   @@unique([organizationId, code])
   @@index([organizationId])

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     // Dummy auth bypass for development
     const user = {
       userId: 'dummy-user-id',
-      organizationId: 'dummy-org-id',
+      organizationId: '507f1f77bcf86cd799439011', // Valid MongoDB ObjectId
       role: UserRole.ADMIN,
       storeId: null,
     };
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     // Dummy auth bypass for development
     const user = {
       userId: 'dummy-user-id',
-      organizationId: 'dummy-org-id',
+      organizationId: '507f1f77bcf86cd799439011', // Valid MongoDB ObjectId
       role: UserRole.ADMIN,
       storeId: null,
     };
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
         phone: validatedData.phone || '',
         email: validatedData.email || '',
         gstNumber: validatedData.gstNumber || '',
-        organizationId: 'dummy-org-id',
+        organizationId: '507f1f77bcf86cd799439011', // Valid MongoDB ObjectId
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),

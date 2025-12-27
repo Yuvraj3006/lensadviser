@@ -102,18 +102,58 @@ export default function CheckoutPage() {
   const [loadingStaff, setLoadingStaff] = useState(false);
 
   useEffect(() => {
-    // Load customer details from localStorage
-    const savedCustomerDetails = localStorage.getItem('lenstrack_customer_details');
-    if (savedCustomerDetails) {
+    // Load customer details from database session
+    const loadCustomerDetails = async () => {
       try {
-        const data = JSON.parse(savedCustomerDetails);
-        if (data.name) setCustomerName(data.name);
-        if (data.phone) setCustomerPhone(data.phone);
+        // First try to get from the questionnaire session itself
+        const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          if (sessionData.success && sessionData.data?.session) {
+            const session = sessionData.data.session;
+            if (session.customerName) setCustomerName(session.customerName);
+            if (session.customerPhone) setCustomerPhone(session.customerPhone);
+            console.log('[Checkout] ✅ Loaded customer details from questionnaire session');
+            return;
+          }
+        }
+
+        // Fallback: Try to get from customer details session
+        const customerSessionId = localStorage.getItem('lenstrack_customer_session_id');
+        if (customerSessionId) {
+          const customerResponse = await fetch(`/api/customer-details/${customerSessionId}`);
+          if (customerResponse.ok) {
+            const customerData = await customerResponse.json();
+            if (customerData.success && customerData.data?.customerDetails) {
+              const details = customerData.data.customerDetails;
+              if (details.name) setCustomerName(details.name);
+              if (details.phone) setCustomerPhone(details.phone);
+              console.log('[Checkout] ✅ Loaded customer details from customer session');
+              return;
+            }
+          }
+        }
+
+        console.log('[Checkout] No customer details found in database');
       } catch (error) {
-        console.error('[Checkout] Failed to parse customer details:', error);
+        console.error('[Checkout] Failed to load customer details from database:', error);
+        // Fallback to localStorage for backward compatibility
+        try {
+          const { getCustomerDetails } = await import('@/lib/secure-storage');
+          const customerDetails = getCustomerDetails();
+          if (customerDetails) {
+            if (customerDetails.name) setCustomerName(customerDetails.name);
+            if (customerDetails.phone) setCustomerPhone(customerDetails.phone);
+            console.log('[Checkout] ⚠️ Fallback: Loaded from localStorage');
+          }
+        } catch (fallbackError) {
+          console.error('[Checkout] Fallback also failed:', fallbackError);
+        }
       }
-    }
-  }, []);
+    };
+
+    loadCustomerDetails();
+  }, [sessionId]);
 
   useEffect(() => {
     if (sessionId && productId) {
