@@ -1119,17 +1119,17 @@ export default function LensProductsPage() {
                     )}
                     <div className="col-span-2">
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        Add-on Price (₹) *
+                        Add-on Price (₹)
                       </label>
                       <Input
                         type="number"
                         min="0"
                         step="0.01"
-                        value={rxRange.addOnPrice ?? ''}
+                        value={rxRange.addOnPrice ?? 0}
                         onChange={(e) => {
                           const value = e.target.value;
                           const newRanges = [...formData.rxRanges];
-                          newRanges[index].addOnPrice = value === '' ? null : (parseFloat(value) || 0);
+                          newRanges[index].addOnPrice = value === '' ? 0 : (parseFloat(value) || 0);
                           setFormData({ ...formData, rxRanges: newRanges });
                         }}
                         placeholder="Enter add-on price (₹)"

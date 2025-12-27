@@ -152,7 +152,11 @@ const createLensProductSchema = z.object({
     cylMax: z.number(),
     addMin: z.number().nullable().optional(),
     addMax: z.number().nullable().optional(),
-    addOnPrice: z.number().min(0),
+    addOnPrice: z.union([z.number().min(0), z.string(), z.null()]).optional().default(0).transform(val => {
+      if (val === null || val === undefined || val === '') return 0;
+      if (typeof val === 'string') return parseFloat(val) || 0;
+      return val;
+    }),
   })).optional(),
   yopoEligible: z.boolean().optional().default(false),
   comboAllowed: z.boolean().optional().default(false),

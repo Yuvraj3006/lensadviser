@@ -7,6 +7,7 @@
 import { BenefitRecommendationService, RecommendedProduct } from './benefit-recommendation.service';
 import { bandPricingService } from './band-pricing.service';
 import { offerEngineService } from './offer-engine.service';
+import { rxAddOnPricingService } from './rx-addon-pricing.service';
 import { prisma } from '@/lib/prisma';
 import { RxInput } from './rx-validation.service';
 import { FrameInput } from './index-recommendation.service';
@@ -206,7 +207,26 @@ export class RecommendationsAdapterService {
 
         // Calculate final price with band pricing
         const basePrice = product.offerPrice || fullProduct.baseOfferPrice || 0;
-        const finalLensPrice = basePrice + bandPricing.bandExtra;
+        let finalLensPrice = basePrice + bandPricing.bandExtra;
+        let rxAddOnBreakdown: any = null;
+
+        // Add RX add-on pricing if applicable
+        try {
+          const rxAddOnResult = await rxAddOnPricingService.calculateRxAddOnPricing(
+            fullProduct.id,
+            prescription,
+            'HIGHEST_ONLY' // Business rule: Apply only highest matching band
+          );
+
+          if (rxAddOnResult.addOnApplied) {
+            finalLensPrice += rxAddOnResult.totalAddOn;
+            rxAddOnBreakdown = rxAddOnResult.breakdown;
+            console.log(`[RX Add-on] Added ₹${rxAddOnResult.totalAddOn} to lens ${fullProduct.itCode}`);
+          }
+        } catch (rxError) {
+          console.warn(`[RX Add-on] Failed to calculate for lens ${fullProduct.itCode}:`, rxError);
+          // Continue without RX add-on pricing
+        }
 
         // Get store product pricing from map
         const storeProduct = storeProductMap.get(fullProduct.id);
@@ -297,6 +317,7 @@ export class RecommendationsAdapterService {
             lensPrice: {
               baseLensPrice: basePrice,
               featureAddons: [],
+              rxAddOnBreakdown: rxAddOnBreakdown,
               totalLensPrice: finalPrice,
               bandPricing: bandPricing.bandExtra,
             },
