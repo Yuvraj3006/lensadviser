@@ -35,39 +35,39 @@ export async function GET(request: NextRequest) {
         try {
           return await measureQuery('features.findMany', () =>
             prisma.feature.findMany({
-              where,
-              orderBy: {
+        where,
+        orderBy: {
                 displayOrder: 'asc',
-              },
+        },
             })
           );
-        } catch (error: any) {
-          if (error.code === 'P2032' && error.meta?.field === 'displayOrder') {
+    } catch (error: any) {
+      if (error.code === 'P2032' && error.meta?.field === 'displayOrder') {
             console.warn('[Features API] Null displayOrder detected, falling back to raw driver');
-            const { MongoClient } = await import('mongodb');
-            const databaseUrl = process.env.DATABASE_URL;
+        const { MongoClient } = await import('mongodb');
+        const databaseUrl = process.env.DATABASE_URL;
             if (!databaseUrl) {
               throw error;
             }
-            const mongoClient = new MongoClient(databaseUrl);
-            await mongoClient.connect();
-            const db = mongoClient.db();
-            const featuresCollection = db.collection('Feature');
-
-            const featuresArray = await featuresCollection.find(where).toArray();
+          const mongoClient = new MongoClient(databaseUrl);
+          await mongoClient.connect();
+          const db = mongoClient.db();
+          const featuresCollection = db.collection('Feature');
+          
+          const featuresArray = await featuresCollection.find(where).toArray();
             await mongoClient.close();
 
             return featuresArray
               .map((f: any) => ({
-                id: f._id.toString(),
-                code: f.code,
-                name: f.name,
-                description: f.description,
-                category: f.category,
-                displayOrder: f.displayOrder || 999,
-                isActive: f.isActive,
-                createdAt: f.createdAt,
-                updatedAt: f.updatedAt,
+            id: f._id.toString(),
+            code: f.code,
+            name: f.name,
+            description: f.description,
+            category: f.category,
+            displayOrder: f.displayOrder || 999,
+            isActive: f.isActive,
+            createdAt: f.createdAt,
+            updatedAt: f.updatedAt,
               }))
               .sort((a, b) => (a.displayOrder || 999) - (b.displayOrder || 999));
           }
@@ -83,9 +83,9 @@ export async function GET(request: NextRequest) {
     const featureIds = allFeatures.map(f => f.id);
     const productFeatureCounts = await measureQuery('productFeature.groupBy', () =>
       prisma.productFeature.groupBy({
-        by: ['featureId'],
-        where: { featureId: { in: featureIds } },
-        _count: true,
+      by: ['featureId'],
+      where: { featureId: { in: featureIds } },
+      _count: true,
       })
     );
 

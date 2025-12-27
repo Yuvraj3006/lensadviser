@@ -64,12 +64,12 @@ export async function recomputeBenefitStats(organizationId: string): Promise<voi
     for (const benefitId of benefitIds) {
       await prisma.benefitStat.create({
         data: {
-          organizationId,
-          benefitId,
-          questionMappingCount: stats[benefitId]?.question || 0,
-          productMappingCount: stats[benefitId]?.product || 0,
+        organizationId,
+        benefitId,
+        questionMappingCount: stats[benefitId]?.question || 0,
+        productMappingCount: stats[benefitId]?.product || 0,
         },
-      });
+    });
     }
   }
 

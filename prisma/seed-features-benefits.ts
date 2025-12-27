@@ -42,7 +42,7 @@ const prisma = new PrismaClient();
 // DISABLED: Features are now managed manually
 // async function seedFeatures() {
 //   console.log('🌱 Seeding Features (F01-F11)...');
-
+  
 //   for (const feature of FEATURES) {
 //     await prisma.feature.upsert({
 //       where: { code: feature.code },
@@ -62,14 +62,14 @@ const prisma = new PrismaClient();
 //     });
 //     console.log(`  ✅ ${feature.code} - ${feature.name}`);
 //   }
-
+  
 //   console.log('✅ Features seeded successfully!\n');
 // }
 
 // DISABLED: Benefits are now managed manually
 // async function seedBenefits(organizationId: string) {
 //   console.log('🌱 Seeding Benefits (B01-B12)...');
-
+  
 //   for (const benefit of BENEFITS) {
 //     // Check if benefit exists for this organization
 //     const existing = await prisma.benefit.findFirst({
@@ -106,7 +106,7 @@ const prisma = new PrismaClient();
 //       console.log(`  ✅ Created ${benefit.code} - ${benefit.name}`);
 //     }
 //   }
-
+  
 //   console.log('✅ Benefits seeded successfully!\n');
 // }
 

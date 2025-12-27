@@ -46,26 +46,26 @@ export async function GET(request: NextRequest) {
 
     const products = await measureQuery('lensProduct.findMany', () =>
       prisma.lensProduct.findMany({
-        where,
-        include: {
-          rxRanges: {
-            orderBy: { createdAt: 'asc' },
-          },
-          features: {
-            include: {
-              feature: {
-                select: {
-                  code: true,
-                  name: true,
-                },
+      where,
+      include: {
+        rxRanges: {
+          orderBy: { createdAt: 'asc' },
+        },
+        features: {
+          include: {
+            feature: {
+              select: {
+                code: true,
+                name: true,
               },
             },
           },
         },
-        orderBy: [
-          { brandLine: 'asc' },
-          { name: 'asc' },
-        ],
+      },
+      orderBy: [
+        { brandLine: 'asc' },
+        { name: 'asc' },
+      ],
       })
     );
 

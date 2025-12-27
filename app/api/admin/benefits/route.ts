@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const user = await authenticate(request);
 
     const where = {
-      organizationId: user.organizationId,
+        organizationId: user.organizationId,
       isActive: true,
     };
 
@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
             description: true,
             pointWeight: true,
             maxScore: true,
-            isActive: true,
-          },
+        isActive: true,
+      },
           skip: (page - 1) * pageSize,
           take: pageSize,
         })

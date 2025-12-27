@@ -68,7 +68,7 @@ function getClientIP(request: NextRequest): string {
   if (forwarded) {
     return forwarded.split(',')[0].trim();
   }
-
+  
   const realIP = request.headers.get('x-real-ip');
   if (realIP) {
     return realIP;
@@ -79,7 +79,7 @@ function getClientIP(request: NextRequest): string {
   if (host && (host.includes('localhost') || host.includes('127.0.0.1'))) {
     return '127.0.0.1';
   }
-
+  
   // Fallback (NextRequest doesn't have direct IP access)
   return 'unknown';
 }
