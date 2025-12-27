@@ -16,13 +16,13 @@ const CustomerDetailsSchema = z.object({
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const sessionId = params.sessionId;
+    const { sessionId } = await params;
 
     // Check if session exists
-    const session = await prisma.questionnaireSession.findUnique({
+    const session = await prisma.session.findUnique({
       where: { id: sessionId },
       select: { id: true, status: true },
     });
@@ -39,14 +39,13 @@ export async function POST(
     const customerDetails = CustomerDetailsSchema.parse(body);
 
     // Update session with customer details
-    const updatedSession = await prisma.questionnaireSession.update({
+    const updatedSession = await prisma.session.update({
       where: { id: sessionId },
       data: {
         customerName: customerDetails.name,
         customerPhone: customerDetails.phone,
         customerEmail: customerDetails.email || null,
         customerCategory: customerDetails.category || null,
-        updatedAt: new Date(),
       },
       select: {
         id: true,
@@ -90,12 +89,12 @@ export async function POST(
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const sessionId = params.sessionId;
+    const { sessionId } = await params;
 
-    const session = await prisma.questionnaireSession.findUnique({
+    const session = await prisma.session.findUnique({
       where: { id: sessionId },
       select: {
         id: true,

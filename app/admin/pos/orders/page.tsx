@@ -96,9 +96,8 @@ export default function POSOrdersPage() {
         setOrders(data.data);
       } else {
         console.error('Invalid orders API response:', data);
-        setOrders([]);
-      } else {
         showToast('error', data.error?.message || 'Failed to load orders');
+        setOrders([]);
       }
     } catch (error) {
       showToast('error', 'Failed to load orders');

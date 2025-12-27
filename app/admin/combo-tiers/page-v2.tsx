@@ -54,10 +54,8 @@ export default function ComboTiersPageV2() {
         setTiers(sorted);
       } else {
         console.error('Invalid API response:', data);
+        showToast('error', data.error?.message || 'Failed to load combo tiers');
         setTiers([]);
-      }
-      } else {
-        showToast('error', 'Failed to load combo tiers');
       }
     } catch (error) {
       console.error('Failed to fetch tiers:', error);

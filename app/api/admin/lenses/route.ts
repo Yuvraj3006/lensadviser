@@ -139,12 +139,7 @@ export async function GET(request: NextRequest) {
       isActive: lens.isActive,
       rxRanges: lens.rxRanges,
       featureCodes: lens.features?.map((f) => f.feature?.code).filter(Boolean) || [],
-      benefitScores: lens.benefits?.reduce((acc, b) => {
-        if (b.benefit) { // Only include if benefit exists
-          acc[b.benefit.code] = b.score;
-        }
-        return acc;
-      }, {} as Record<string, number>) || {},
+      benefitScores: {}, // Temporarily disabled due to benefits relationship issues
       createdAt: lens.createdAt,
       updatedAt: lens.updatedAt,
     })),
@@ -294,10 +289,7 @@ export async function POST(request: NextRequest) {
         isActive: lens.isActive,
         rxRanges: lens.rxRanges,
         featureCodes: lens.features?.map((f) => f.feature?.code).filter(Boolean) || [],
-        benefitScores: lens.benefits.reduce((acc, b) => {
-          acc[b.benefit.code] = b.score;
-          return acc;
-        }, {} as Record<string, number>),
+        benefitScores: {}, // Temporarily disabled due to benefits relationship issues
         createdAt: lens.createdAt,
         updatedAt: lens.updatedAt,
       },
