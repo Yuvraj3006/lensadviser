@@ -28,6 +28,15 @@ interface RecommendedLens {
     strength: number;
     price: number;
   }>;
+  pricing?: {
+    lensPrice: {
+      rxAddOnBreakdown?: Array<{
+        label: string;
+        charge: number;
+        matchedBand: any;
+      }>;
+    };
+  };
   itCode?: string;
   price?: number;
   roleTag?: 'BEST_MATCH' | 'RECOMMENDED_INDEX' | 'PREMIUM' | 'BUDGET' | 'OTHER';
@@ -198,6 +207,17 @@ export function LensRecommendationCard({ lens, isSelected, onSelect, recommended
           <div className="text-lg font-bold text-slate-900">
             ₹{(lens.offerPrice || lens.price || 0).toLocaleString()}
           </div>
+          {/* RX Add-on breakdown */}
+          {lens.pricing?.lensPrice?.rxAddOnBreakdown && lens.pricing.lensPrice.rxAddOnBreakdown.length > 0 && (
+            <div className="text-xs text-slate-600 mt-1">
+              {lens.pricing.lensPrice.rxAddOnBreakdown.map((addon, idx) => (
+                <div key={idx} className="flex justify-between">
+                  <span>{addon.label}</span>
+                  <span>+₹{addon.charge}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
