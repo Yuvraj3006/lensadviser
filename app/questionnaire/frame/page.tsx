@@ -165,7 +165,8 @@ export default function FramePage() {
       localStorage.setItem('lenstrack_frame', JSON.stringify(frame));
 
       // Get all collected data
-      const customerDetails = JSON.parse(localStorage.getItem('lenstrack_customer_details') || '{}');
+      const { getCustomerDetails } = await import('@/lib/secure-storage');
+      const customerDetails = getCustomerDetails() || {};
       const lensType = localStorage.getItem('lenstrack_lens_type') || localStorage.getItem('lenstrack_category') || 'EYEGLASSES';
       // SECURITY: Load prescription data from encrypted storage
       const { getPrescriptionData } = await import('@/lib/secure-storage');
