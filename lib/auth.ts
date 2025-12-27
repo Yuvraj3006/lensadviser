@@ -31,8 +31,16 @@ export async function verifyPassword(
 }
 
 export function generateToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): string {
-  // @ts-ignore - JWT type compatibility
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+  try {
+    // Ensure JWT_EXPIRY is a valid string for JWT library
+    const expiresIn = JWT_EXPIRY && typeof JWT_EXPIRY === 'string' ? JWT_EXPIRY : '7d';
+    console.log('[AUTH] Generating token with expiresIn:', expiresIn);
+
+    return jwt.sign(payload, JWT_SECRET, { expiresIn });
+  } catch (error) {
+    console.error('[AUTH] JWT generation error:', error);
+    throw new Error('Failed to generate authentication token');
+  }
 }
 
 export function verifyToken(token: string): TokenPayload {
