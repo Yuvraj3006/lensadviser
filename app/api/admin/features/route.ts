@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
     const isActive = searchParams.get('isActive');
+    const includeInactive = searchParams.get('includeInactive') === 'true';
 
     const where: any = {}; // Features are global (no organizationId)
 
@@ -23,11 +24,14 @@ export async function GET(request: NextRequest) {
       where.category = category;
     }
 
-    if (isActive !== null && isActive !== undefined) {
+    // By default, only show active features unless explicitly requested to include inactive
+    if (!includeInactive) {
+      where.isActive = true;
+    } else if (isActive !== null && isActive !== undefined) {
       where.isActive = isActive === 'true';
     }
 
-    const cacheKey = `features:${category || 'all'}:${isActive ?? 'all'}`;
+    const cacheKey = `features:${category || 'all'}:${includeInactive ? 'with-inactive' : 'active-only'}`;
     let allFeatures = getCachedValue<any[]>(cacheKey);
 
     if (!allFeatures) {
@@ -133,20 +137,10 @@ export async function POST(request: NextRequest) {
       description: z.string().optional(),
       category: z.enum(['DURABILITY', 'COATING', 'PROTECTION', 'LIFESTYLE', 'VISION']),
       displayOrder: z.number().int().min(1).optional(),
-      iconUrl: z.preprocess(
-        (val) => {
-          if (val === '' || val === undefined || val === null) return null;
-          return val;
-        },
-        z.union([
-          z.string().url(), // Full URL (http://, https://)
-          z.string().regex(/^\/[^\/].*/, 'Relative URL must start with /'), // Relative URL (/feature-icons/...)
-          z.null()
-        ]).nullable().optional()
-      ),
+      iconUrl: z.string().optional().nullable(),
     });
 
-    let validatedData;
+    let validatedData: z.infer<typeof createFeatureSchema>;
     try {
       validatedData = createFeatureSchema.parse(body);
       console.log('[POST /api/admin/features] Validated data:', validatedData);

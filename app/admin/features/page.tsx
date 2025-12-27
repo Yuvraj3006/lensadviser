@@ -125,7 +125,7 @@ export default function FeaturesPage() {
       iconUrl: feature.iconUrl || '',
     });
     setIconFile(null);
-    setIconPreview(feature.iconUrl || null);
+    setIconPreview(null); // Don't set preview for existing icons, use formData.iconUrl instead
     setEditingFeature(feature);
     setIsCreateOpen(true);
   };
@@ -217,20 +217,15 @@ export default function FeaturesPage() {
         const formDataUpload = new FormData();
         formDataUpload.append('icon', iconFile);
         formDataUpload.append('featureCode', formData.code);
-        
-        // SECURITY: Get token for FormData upload (can't use api-client for FormData)
-        const { getTokenForAPI } = await import('@/lib/auth-helper');
-        const token = await getTokenForAPI();
-        const uploadResponse = await fetch('/api/admin/features/upload-icon', {
+
+        // Use authenticated fetch for icon upload
+        const uploadResponse = await authenticatedFetch('/api/admin/features/upload-icon', {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          credentials: 'include',
           body: formDataUpload,
         });
-        
+
         const uploadData = await uploadResponse.json();
+
         if (uploadData.success) {
           iconUrl = uploadData.data.iconUrl;
           console.log('[FeatureForm] Icon uploaded successfully:', iconUrl);
@@ -335,6 +330,26 @@ export default function FeaturesPage() {
       header: 'Code',
       render: (feature) => (
         <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{feature.code}</span>
+      ),
+    },
+    {
+      key: 'icon',
+      header: 'Icon',
+      render: (feature) => (
+        feature.iconUrl ? (
+          <img
+            src={feature.iconUrl.startsWith('http') ? feature.iconUrl : `${window.location.origin}${feature.iconUrl}?t=${Date.now()}`}
+            alt={`${feature.name} icon`}
+            className="w-8 h-8 object-contain border border-slate-200 dark:border-slate-700 rounded"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className="w-8 h-8 border border-slate-200 dark:border-slate-700 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+            <span className="text-xs text-slate-400">No icon</span>
+          </div>
+        )
       ),
     },
     {
@@ -462,18 +477,16 @@ export default function FeaturesPage() {
                     <span className="hidden sm:inline">Edit</span>
                     <span className="sm:hidden">E</span>
                   </Button>
-                  {!isCoreFeature(feature.code) && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      icon={<Trash2 size={14} />}
-                      onClick={() => setDeleteConfirm(feature)}
-                      className="text-xs sm:text-sm px-2 sm:px-3"
-                    >
-                      <span className="hidden sm:inline">Delete</span>
-                      <span className="sm:hidden">D</span>
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={<Trash2 size={14} />}
+                    onClick={() => setDeleteConfirm(feature)}
+                    className="text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    <span className="hidden sm:inline">Deactivate</span>
+                    <span className="sm:hidden">D</span>
+                  </Button>
                 </div>
               )}
             />
@@ -504,10 +517,8 @@ export default function FeaturesPage() {
             value={formData.code}
             onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
             required
-            disabled={!!(editingFeature?.code && isCoreFeature(editingFeature.code))}
-            hint={editingFeature?.code && isCoreFeature(editingFeature.code) 
-              ? "Core features (F01-F11) cannot be modified" 
-              : "Must be F followed by 2+ digits (e.g., F12, F13)"}
+            disabled={false}
+            hint="Must be F followed by 2+ digits (e.g., F12, F13)"
           />
 
           <Input
@@ -516,7 +527,7 @@ export default function FeaturesPage() {
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
-            disabled={!!(editingFeature?.code && isCoreFeature(editingFeature.code))}
+            disabled={false}
           />
 
           <Input
@@ -591,11 +602,19 @@ export default function FeaturesPage() {
             </div>
             {(iconPreview || formData.iconUrl) && (
               <div className="mt-3">
-                <img
-                  src={iconPreview || formData.iconUrl || ''}
-                  alt="Icon preview"
-                  className="w-16 h-16 object-contain border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-white dark:bg-slate-800"
-                />
+                {(() => {
+                  const imageSrc = iconPreview || formData.iconUrl || '';
+                  const fullImageSrc = imageSrc.startsWith('http') ? imageSrc : `${window.location.origin}${imageSrc}`;
+                  // Add cache busting parameter to prevent browser caching
+                  const finalImageSrc = fullImageSrc ? `${fullImageSrc}?t=${Date.now()}` : '';
+                  return (
+                    <img
+                      src={finalImageSrc}
+                      alt="Icon preview"
+                      className="w-16 h-16 object-contain border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-white dark:bg-slate-800"
+                    />
+                  );
+                })()}
               </div>
             )}
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">

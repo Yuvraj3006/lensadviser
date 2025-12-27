@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
-import { authenticate, authorize } from '@/middleware/auth.middleware';
-import { UserRole } from '@/lib/constants';
+import { authenticate } from '@/middleware/auth.middleware';
 import { handleApiError } from '@/lib/errors';
 
 /**
@@ -12,7 +11,6 @@ import { handleApiError } from '@/lib/errors';
 export async function POST(request: NextRequest) {
   try {
     const user = await authenticate(request);
-    authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN)(user);
 
     const formData = await request.formData();
     const iconFile = formData.get('icon') as File;

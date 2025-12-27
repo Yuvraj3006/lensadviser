@@ -59,12 +59,10 @@ export default function BenefitsPage() {
   const fetchBenefits = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch('/api/admin/benefits', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // SECURITY: Use authenticated fetch with httpOnly cookie
+      const { authenticatedFetch } = await import('@/lib/api-client');
+
+      const response = await authenticatedFetch('/api/admin/benefits');
 
       const data = await response.json();
       if (data.success && Array.isArray(data.data)) {
@@ -115,20 +113,15 @@ export default function BenefitsPage() {
     setSubmitting(true);
 
     try {
-      const token = localStorage.getItem('lenstrack_token');
+      // SECURITY: Use authenticated API client
+      const { apiPost, apiPut } = await import('@/lib/api-client');
       const url = editingBenefit
         ? `/api/admin/benefits/${editingBenefit.id}`
         : '/api/admin/benefits';
-      const method = editingBenefit ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
+      const response = editingBenefit
+        ? await apiPut(url, formData)
+        : await apiPost(url, formData);
 
       const data = await response.json();
 
@@ -150,13 +143,9 @@ export default function BenefitsPage() {
     if (!deleteConfirm) return;
 
     try {
-      const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/benefits/${deleteConfirm.id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // SECURITY: Use authenticated API client
+      const { apiDelete } = await import('@/lib/api-client');
+      const response = await apiDelete(`/api/admin/benefits/${deleteConfirm.id}`);
 
       const data = await response.json();
 
@@ -268,16 +257,16 @@ export default function BenefitsPage() {
                 >
                   Edit
                 </Button>
-                {!isCoreBenefit(benefit.code) && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    icon={<Trash2 size={14} />}
-                    onClick={() => setDeleteConfirm(benefit)}
-                  >
-                    Delete
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={<Trash2 size={14} />}
+                  onClick={() => setDeleteConfirm(benefit)}
+                  className="text-xs sm:text-sm px-2 sm:px-3"
+                >
+                  <span className="hidden sm:inline">Deactivate</span>
+                  <span className="sm:hidden">D</span>
+                </Button>
               </div>
             )}
           />

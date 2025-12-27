@@ -20,6 +20,14 @@ interface RecommendedLens {
   matchScore?: number;
   matchPercent?: number;
   benefits?: string[];
+  features?: Array<{
+    id: string;
+    name: string;
+    key: string;
+    iconUrl?: string | null;
+    strength: number;
+    price: number;
+  }>;
   itCode?: string;
   price?: number;
   roleTag?: 'BEST_MATCH' | 'RECOMMENDED_INDEX' | 'PREMIUM' | 'BUDGET' | 'OTHER';
@@ -193,16 +201,27 @@ export function LensRecommendationCard({ lens, isSelected, onSelect, recommended
         </div>
       </div>
 
-      {lens.benefits && lens.benefits.length > 0 && (
+      {lens.features && lens.features.length > 0 && (
         <div className="mt-3">
-          <ul className="space-y-1 mb-3">
-            {lens.benefits.slice(0, 4).map((benefit, idx) => (
-              <li key={idx} className="text-sm text-slate-600 flex items-start gap-2">
-                <span className="text-blue-600 mt-1">•</span>
-                <span>{benefit}</span>
-              </li>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {lens.features.slice(0, 6).map((feature, idx) => (
+              <div key={feature.id || idx} className="flex items-center gap-2 bg-blue-50 text-blue-800 px-2 py-1 rounded-lg text-xs">
+                {feature.iconUrl ? (
+                  <img
+                    src={feature.iconUrl.startsWith('http') ? feature.iconUrl : `${window.location.origin}${feature.iconUrl}?t=${Date.now()}`}
+                    alt={feature.name}
+                    className="w-4 h-4 object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-4 h-4 bg-slate-300 rounded"></div>
+                )}
+                <span className="font-medium">{feature.name}</span>
+              </div>
             ))}
-          </ul>
+          </div>
           {/* WF-05: Know more link */}
           <button
             onClick={(e) => {

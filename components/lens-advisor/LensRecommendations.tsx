@@ -210,7 +210,7 @@ export function LensRecommendations() {
               yopoEligible: rec.yopoEligible,
               matchPercent: rec.matchPercent,
               matchScore: rec.matchScore,
-              benefits: rec.features?.map((f: any) => f?.name).filter(Boolean) || rec.benefits || [],
+              features: rec.features || [],
               itCode: rec.itCode || rec.sku,
               price: rec.pricing?.finalPrice || rec.price || rec.offerPrice,
               roleTag: rec.roleTag,

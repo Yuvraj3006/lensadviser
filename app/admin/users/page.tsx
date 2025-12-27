@@ -67,18 +67,15 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('lenstrack_token');
+      // SECURITY: Use authenticated fetch with httpOnly cookie
+      const { authenticatedFetch } = await import('@/lib/api-client');
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (roleFilter) params.append('role', roleFilter);
       // Filter by active/deactivated status
       params.append('isActive', showDeactivated ? 'false' : 'true');
 
-      const response = await fetch(`/api/admin/users?${params}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await authenticatedFetch(`/api/admin/users?${params}`);
 
       const data = await response.json();
       if (data.success && Array.isArray(data.data)) {
@@ -96,12 +93,9 @@ export default function UsersPage() {
 
   const fetchStores = async () => {
     try {
-      const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch('/api/admin/stores', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // SECURITY: Use authenticated fetch with httpOnly cookie
+      const { authenticatedFetch } = await import('@/lib/api-client');
+      const response = await authenticatedFetch('/api/admin/stores');
 
       const data = await response.json();
       if (data.success && Array.isArray(data.data)) {
@@ -159,11 +153,11 @@ export default function UsersPage() {
     setSubmitting(true);
 
     try {
-      const token = localStorage.getItem('lenstrack_token');
+      // SECURITY: Use authenticated API client
+      const { apiPost, apiPut } = await import('@/lib/api-client');
       const url = editingUser
         ? `/api/admin/users/${editingUser.id}`
         : '/api/admin/users';
-      const method = editingUser ? 'PUT' : 'POST';
 
       // Don't send empty password on update
       const payload: any = { ...formData };
@@ -171,14 +165,9 @@ export default function UsersPage() {
         delete payload.password;
       }
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const response = editingUser
+        ? await apiPut(url, payload)
+        : await apiPost(url, payload);
 
       const data = await response.json();
 
@@ -200,13 +189,9 @@ export default function UsersPage() {
     if (!deleteConfirm) return;
 
     try {
-      const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/users/${deleteConfirm.id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // SECURITY: Use authenticated API client
+      const { apiDelete } = await import('@/lib/api-client');
+      const response = await apiDelete(`/api/admin/users/${deleteConfirm.id}`);
 
       const data = await response.json();
 
@@ -224,12 +209,10 @@ export default function UsersPage() {
 
   const handleReactivate = async (user: User) => {
     try {
-      const token = localStorage.getItem('lenstrack_token');
-      const response = await fetch(`/api/admin/users/${user.id}`, {
+      // SECURITY: Use authenticated fetch with httpOnly cookie
+      const { authenticatedFetch } = await import('@/lib/api-client');
+      const response = await authenticatedFetch(`/api/admin/users/${user.id}`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       const data = await response.json();
