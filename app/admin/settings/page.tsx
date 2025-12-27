@@ -44,9 +44,8 @@ export default function SettingsPage() {
         setConfigs(data.data);
       } else {
         console.error('Invalid configs API response:', data);
+        showToast('error', data.error?.message || 'Failed to load settings');
         setConfigs([]);
-      } else {
-        showToast('error', 'Failed to load settings');
       }
     } catch (error) {
       console.error('Failed to fetch configs:', error);
