@@ -76,8 +76,11 @@ export default function CategoryDiscountsPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setDiscounts(data.data);
+      } else {
+        console.error('Invalid discounts API response:', data);
+        setDiscounts([]);
       }
     } catch (error) {
       showToast('error', 'Failed to load category discounts');

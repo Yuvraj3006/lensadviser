@@ -84,8 +84,11 @@ export default function SessionsPage() {
       });
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setSessions(data.data);
+      } else {
+        console.error('Invalid sessions API response:', data);
+        setSessions([]);
       }
     } catch (error) {
       console.error('Failed to load sessions');

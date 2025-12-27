@@ -81,8 +81,11 @@ export default function UsersPage() {
       });
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setUsers(data.data);
+      } else {
+        console.error('Invalid users API response:', data);
+        setUsers([]);
       }
     } catch (error) {
       console.error('Failed to load users');
@@ -101,8 +104,11 @@ export default function UsersPage() {
       });
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setStores(data.data);
+      } else {
+        console.error('Invalid stores API response:', data);
+        setStores([]); // Set empty array to prevent crashes
       }
     } catch (error) {
       console.error('Failed to load stores');

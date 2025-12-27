@@ -205,7 +205,8 @@ export default function LensProductsPage() {
       if (filterType) params.append('type', filterType);
       if (filterIndex) params.append('index', filterIndex);
 
-      const response = await fetch(`/api/admin/lens-products?${params.toString()}`, {
+      // NOTE: lens-products API is deprecated, using lenses API instead
+      const response = await fetch(`/api/admin/lenses?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -270,11 +271,13 @@ export default function LensProductsPage() {
       });
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.data) {
+        if (data.success && Array.isArray(data.data)) {
           // Convert array to object: { B01: 3, B02: 2, ... }
           data.data.forEach((item: any) => {
             benefitScores[item.benefitCode] = item.score || 0;
           });
+        } else {
+          console.error('Invalid benefit scores API response:', data);
         }
       }
     } catch (error) {

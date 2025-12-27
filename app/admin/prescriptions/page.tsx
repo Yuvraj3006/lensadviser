@@ -70,8 +70,11 @@ export default function PrescriptionsPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setPrescriptions(data.data);
+      } else {
+        console.error('Invalid prescriptions API response:', data);
+        setPrescriptions([]);
       }
     } catch (error) {
       showToast('error', 'Failed to load prescriptions');

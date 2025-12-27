@@ -40,8 +40,11 @@ export default function SettingsPage() {
       });
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setConfigs(data.data);
+      } else {
+        console.error('Invalid configs API response:', data);
+        setConfigs([]);
       } else {
         showToast('error', 'Failed to load settings');
       }

@@ -89,10 +89,12 @@ export default function StoresPage() {
       });
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setStores(data.data);
       } else {
+        console.error('Invalid stores API response:', data);
         showToast('error', data.error?.message || 'Failed to load stores');
+        setStores([]); // Set empty array to prevent DataTable crash
       }
     } catch (error) {
       showToast('error', 'Failed to load stores');

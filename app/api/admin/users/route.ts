@@ -106,9 +106,12 @@ export async function GET(request: NextRequest) {
       returned: formattedUsers.length 
     });
 
+    const paginationResult = createPaginationResponse(formattedUsers, total, page, pageSize);
+
     return Response.json({
       success: true,
-      data: createPaginationResponse(formattedUsers, total, page, pageSize),
+      data: paginationResult.data,
+      pagination: paginationResult.pagination,
     });
   } catch (error) {
     return handleApiError(error);

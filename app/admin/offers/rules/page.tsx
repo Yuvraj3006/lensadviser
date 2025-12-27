@@ -152,8 +152,11 @@ export default function OfferRulesPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setRules(data.data);
+      } else {
+        console.error('Invalid rules API response:', data);
+        setRules([]);
       }
     } catch (error) {
       showToast('error', 'Failed to load offer rules');

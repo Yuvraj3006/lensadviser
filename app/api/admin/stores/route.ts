@@ -112,9 +112,12 @@ export async function GET(request: NextRequest) {
       returned: formattedStores.length 
     });
 
+    const paginationResult = createPaginationResponse(formattedStores, total, page, pageSize);
+
     return Response.json({
       success: true,
-      data: createPaginationResponse(formattedStores, total, page, pageSize),
+      data: paginationResult.data,
+      pagination: paginationResult.pagination,
     });
   } catch (error) {
     logger.error('GET /api/admin/stores error', {}, error as Error);

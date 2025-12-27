@@ -66,8 +66,11 @@ export default function POSOrdersPage() {
       });
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setStores(data.data.map((store: any) => ({ id: store.id, name: store.name, code: store.code })));
+      } else {
+        console.error('Invalid stores API response:', data);
+        setStores([]);
       }
     } catch (error) {
       console.error('Failed to load stores');
@@ -89,8 +92,11 @@ export default function POSOrdersPage() {
       });
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setOrders(data.data);
+      } else {
+        console.error('Invalid orders API response:', data);
+        setOrders([]);
       } else {
         showToast('error', data.error?.message || 'Failed to load orders');
       }

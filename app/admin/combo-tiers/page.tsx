@@ -47,12 +47,16 @@ export default function ComboTiersPage() {
       });
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         // Sort by sortOrder
-        const sorted = data.data.sort((a: ComboTier, b: ComboTier) => 
+        const sorted = [...data.data].sort((a: ComboTier, b: ComboTier) =>
           (a.sortOrder || 0) - (b.sortOrder || 0)
         );
         setTiers(sorted);
+      } else {
+        console.error('Invalid API response:', data);
+        setTiers([]);
+      }
       } else {
         showToast('error', 'Failed to load combo tiers');
       }

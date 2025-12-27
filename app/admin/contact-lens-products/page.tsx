@@ -104,7 +104,7 @@ export default function ContactLensProductsPage() {
 
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.data) {
+        if (data.success && Array.isArray(data.data)) {
           setBenefits(data.data);
           // Initialize benefit scores
           const initialScores: Record<string, number> = {};
@@ -112,6 +112,10 @@ export default function ContactLensProductsPage() {
             initialScores[b.code] = 0;
           });
           setBenefitScores(initialScores);
+        } else {
+          console.error('Invalid benefits API response:', data);
+          setBenefits([]);
+          setBenefitScores({});
         }
       }
     } catch (error) {

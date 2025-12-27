@@ -75,8 +75,11 @@ export default function BenefitFeaturesPage() {
       });
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setBenefitFeatures(data.data);
+      } else {
+        console.error('Invalid benefit-features API response:', data);
+        setBenefitFeatures([]);
       }
     } catch (error) {
       console.error('Failed to load benefit-features');

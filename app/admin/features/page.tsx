@@ -82,12 +82,15 @@ export default function FeaturesPage() {
       const response = await authenticatedFetch(`/api/admin/features?${params}`);
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         // Sort by displayOrder
-        const sorted = data.data.sort((a: Feature, b: Feature) => 
+        const sorted = [...data.data].sort((a: Feature, b: Feature) =>
           (a.displayOrder || 0) - (b.displayOrder || 0)
         );
         setFeatures(sorted);
+      } else {
+        console.error('Invalid API response:', data);
+        setFeatures([]);
       }
     } catch (error) {
       console.error('Failed to load features');

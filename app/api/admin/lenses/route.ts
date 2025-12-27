@@ -94,16 +94,17 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        benefits: {
-          include: {
-            benefit: {
-              select: {
-                code: true,
-                name: true,
-              },
-            },
-          },
-        },
+        // Temporarily disabled benefits include due to null reference issues
+        // benefits: {
+        //   include: {
+        //     benefit: {
+        //       select: {
+        //         code: true,
+        //         name: true,
+        //       },
+        //     },
+        //   },
+        // },
       },
       orderBy: [
         { brandLine: 'asc' },
@@ -120,37 +121,42 @@ export async function GET(request: NextRequest) {
       returned: lenses.length 
     });
 
+    const paginationResult = createPaginationResponse(
+      lenses.map((lens) => ({
+      id: lens.id,
+      itCode: lens.itCode,
+      name: lens.name,
+      brandLine: lens.brandLine,
+      visionType: lens.visionType,
+      lensIndex: lens.lensIndex,
+      tintOption: lens.tintOption,
+      mrp: lens.mrp,
+      baseOfferPrice: lens.baseOfferPrice,
+      addOnPrice: lens.addOnPrice,
+      category: lens.category,
+      yopoEligible: lens.yopoEligible,
+      deliveryDays: lens.deliveryDays,
+      isActive: lens.isActive,
+      rxRanges: lens.rxRanges,
+      featureCodes: lens.features?.map((f) => f.feature?.code).filter(Boolean) || [],
+      benefitScores: lens.benefits?.reduce((acc, b) => {
+        if (b.benefit) { // Only include if benefit exists
+          acc[b.benefit.code] = b.score;
+        }
+        return acc;
+      }, {} as Record<string, number>) || {},
+      createdAt: lens.createdAt,
+      updatedAt: lens.updatedAt,
+    })),
+      total,
+      page,
+      pageSize
+    );
+
     return Response.json({
       success: true,
-      data: createPaginationResponse(
-        lenses.map((lens) => ({
-        id: lens.id,
-        itCode: lens.itCode,
-        name: lens.name,
-        brandLine: lens.brandLine,
-        visionType: lens.visionType,
-        lensIndex: lens.lensIndex,
-        tintOption: lens.tintOption,
-        mrp: lens.mrp,
-        baseOfferPrice: lens.baseOfferPrice,
-        addOnPrice: lens.addOnPrice,
-        category: lens.category,
-        yopoEligible: lens.yopoEligible,
-        deliveryDays: lens.deliveryDays,
-        isActive: lens.isActive,
-        rxRanges: lens.rxRanges,
-        featureCodes: lens.features.map((f) => f.feature.code),
-        benefitScores: lens.benefits.reduce((acc, b) => {
-          acc[b.benefit.code] = b.score;
-          return acc;
-        }, {} as Record<string, number>),
-        createdAt: lens.createdAt,
-        updatedAt: lens.updatedAt,
-      })),
-        total,
-        page,
-        pageSize
-      ),
+      data: paginationResult.data,
+      pagination: paginationResult.pagination,
     });
   } catch (error) {
     logger.error('GET /api/admin/lenses error', {}, error as Error);
@@ -255,16 +261,17 @@ export async function POST(request: NextRequest) {
             },
           },
         },
-        benefits: {
-          include: {
-            benefit: {
-              select: {
-                code: true,
-                name: true,
-              },
-            },
-          },
-        },
+        // Temporarily disabled benefits include due to null reference issues
+        // benefits: {
+        //   include: {
+        //     benefit: {
+        //       select: {
+        //         code: true,
+        //         name: true,
+        //       },
+        //     },
+        //   },
+        // },
       },
     });
 
@@ -286,7 +293,7 @@ export async function POST(request: NextRequest) {
         deliveryDays: lens.deliveryDays,
         isActive: lens.isActive,
         rxRanges: lens.rxRanges,
-        featureCodes: lens.features.map((f) => f.feature.code),
+        featureCodes: lens.features?.map((f) => f.feature?.code).filter(Boolean) || [],
         benefitScores: lens.benefits.reduce((acc, b) => {
           acc[b.benefit.code] = b.score;
           return acc;

@@ -67,12 +67,16 @@ export default function BenefitsPage() {
       });
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         // Sort by code (B01, B02, ...)
-        const sorted = data.data.sort((a: Benefit, b: Benefit) => 
+        const sorted = [...data.data].sort((a: Benefit, b: Benefit) =>
           a.code.localeCompare(b.code)
         );
         setBenefits(sorted);
+      } else {
+        console.error('Invalid API response:', data);
+        showToast('error', 'Invalid response from server');
+        setBenefits([]);
       }
     } catch (error) {
       console.error('Failed to load benefits');
