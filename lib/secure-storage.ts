@@ -51,14 +51,14 @@ export function removePrescriptionData(): void {
 /**
  * Store customer details (encrypted)
  */
-export function setCustomerDetails(data: { name?: string; phone?: string; email?: string }): void {
+export function setCustomerDetails(data: { name?: string; phone?: string; email?: string; category?: string }): void {
   setEncryptedItem('lenstrack_customer_details', data);
 }
 
 /**
  * Get customer details (decrypted)
  */
-export function getCustomerDetails(): { name?: string; phone?: string; email?: string } | null {
+export function getCustomerDetails(): { name?: string; phone?: string; email?: string; category?: string } | null {
   return getEncryptedItem('lenstrack_customer_details');
 }
 
