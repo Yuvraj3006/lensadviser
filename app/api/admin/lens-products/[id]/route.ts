@@ -54,6 +54,7 @@ export async function GET(
         deliveryDays: product.deliveryDays,
         mrp: product.mrp,
         baseOfferPrice: product.baseOfferPrice,
+        onlyLensPrice: product.onlyLensPrice,
         addOnPrice: product.addOnPrice,
         yopoEligible: product.yopoEligible,
         comboAllowed: product.comboAllowed,
@@ -89,6 +90,7 @@ const updateLensProductSchema = z.object({
   mrp: z.number().min(0).optional(),
   offerPrice: z.number().min(0).optional(),
   baseOfferPrice: z.number().min(0).optional(),
+  onlyLensPrice: z.number().min(0).optional().nullable(),
   addOnPrice: z.number().min(0).optional().nullable(),
   featureCodes: z.array(z.string()).optional(), // Feature codes for mapping
   benefitScores: z.record(z.string(), z.number().min(0).max(3)).optional(), // Benefit code -> score (0-3)

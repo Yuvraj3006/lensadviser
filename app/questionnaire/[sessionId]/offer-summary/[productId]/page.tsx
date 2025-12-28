@@ -84,6 +84,7 @@ export default function OfferSummaryPage() {
   const [frameBrands, setFrameBrands] = useState<any[]>([]);
   const [availableSubBrands, setAvailableSubBrands] = useState<string[]>([]);
   const [selectedOfferType, setSelectedOfferType] = useState<string | null>(null);
+  const [isOnlyLensFlow, setIsOnlyLensFlow] = useState(false);
 
   useEffect(() => {
     if (sessionId && productId) {
@@ -177,54 +178,50 @@ export default function OfferSummaryPage() {
     try {
       console.log('[OfferSummary] Fetching categories...');
       
-      // Method 1: Try to get organizationId from store verification (most reliable)
-      const storeCode = localStorage.getItem('lenstrack_store_code');
+      // Method 1: Try to get organizationId from session (database) - NOT from localStorage
       let organizationId: string | null = null;
+      let storeCode: string | null = null;
       
-      if (storeCode) {
-        try {
-          console.log('[OfferSummary] Trying store verification with code:', storeCode);
-          const verifyResponse = await fetch(`/api/public/verify-store?code=${storeCode}`);
-          if (verifyResponse.ok) {
-            const verifyData = await verifyResponse.json();
-            console.log('[OfferSummary] Store verification response:', verifyData);
-            if (verifyData.success && verifyData.data?.organizationId) {
-              organizationId = verifyData.data.organizationId;
-              console.log('[OfferSummary] Got organizationId from store verification:', organizationId);
-            }
-          } else {
-            const errorText = await verifyResponse.text();
-            console.warn('[OfferSummary] Store verification failed:', verifyResponse.status, errorText);
-          }
-        } catch (e) {
-          console.warn('[OfferSummary] Store verification error:', e);
-        }
-      }
-      
-      // Method 2: Get from session -> store
-      if (!organizationId) {
-        try {
-          console.log('[OfferSummary] Trying to get organizationId from session');
-          const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
-          if (sessionResponse.ok) {
-            const sessionData = await sessionResponse.json();
-            if (sessionData.success && sessionData.data?.session?.storeId) {
-              const storeId = sessionData.data.session.storeId;
-              // Get store details from verify-store or use storeCode
-              if (storeCode) {
-                const verifyResponse = await fetch(`/api/public/verify-store?code=${storeCode}`);
-                if (verifyResponse.ok) {
-                  const verifyData = await verifyResponse.json();
-                  if (verifyData.success && verifyData.data?.organizationId) {
-                    organizationId = verifyData.data.organizationId;
-                    console.log('[OfferSummary] Got organizationId from session->store:', organizationId);
-                  }
-                }
+      // Get store code from session
+      try {
+        const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          if (sessionData.success && sessionData.data?.session?.storeId) {
+            // Get store details to get organizationId
+            const storeResponse = await fetch(`/api/public/verify-store?storeId=${sessionData.data.session.storeId}`);
+            if (storeResponse.ok) {
+              const storeData = await storeResponse.json();
+              if (storeData.success && storeData.data?.organizationId) {
+                organizationId = storeData.data.organizationId;
+                storeCode = storeData.data.code;
+                console.log('[OfferSummary] ✅ Got organizationId from session->store:', organizationId);
               }
             }
           }
-        } catch (e) {
-          console.warn('[OfferSummary] Session fetch error:', e);
+        }
+      } catch (e) {
+        console.warn('[OfferSummary] Could not get organizationId from session:', e);
+      }
+      
+      // Fallback: Try store verification with localStorage store code (only if session method failed)
+      if (!organizationId) {
+        const fallbackStoreCode = localStorage.getItem('lenstrack_store_code');
+        if (fallbackStoreCode) {
+          try {
+            console.log('[OfferSummary] Fallback: Trying store verification with localStorage code:', fallbackStoreCode);
+            const verifyResponse = await fetch(`/api/public/verify-store?code=${fallbackStoreCode}`);
+            if (verifyResponse.ok) {
+              const verifyData = await verifyResponse.json();
+              if (verifyData.success && verifyData.data?.organizationId) {
+                organizationId = verifyData.data.organizationId;
+                storeCode = verifyData.data.code;
+                console.log('[OfferSummary] ✅ Got organizationId from localStorage fallback:', organizationId);
+              }
+            }
+          } catch (e) {
+            console.warn('[OfferSummary] Fallback store verification error:', e);
+          }
         }
       }
       
@@ -277,9 +274,11 @@ export default function OfferSummaryPage() {
   const fetchOfferSummary = async () => {
     setLoading(true);
     try {
-      // ✅ IMPORTANT: Load category discount ONLY from session (database), NOT from localStorage
-      // This ensures that if category was removed, it won't be fetched from stale localStorage
+      // ✅ IMPORTANT: Load ALL data from session (database) ONLY - NO localStorage
+      // This ensures that stale data from previous sessions is not used
       let customerCategoryToUse: string | null = null;
+      let isOnlyLensFlowCheck = false; // Local variable to check synchronously
+      let sessionNotes: any = null; // Store session notes for frame/tint data
       
       // Get from session (database) ONLY - no localStorage fallback
       try {
@@ -287,16 +286,31 @@ export default function OfferSummaryPage() {
           `/api/public/questionnaire/sessions/${sessionId}`
         );
         if (sessionResponse.ok) {
-          const sessionData = await sessionResponse.json();
-          if (sessionData.success && sessionData.data?.session?.customerCategory) {
-            customerCategoryToUse = sessionData.data.session.customerCategory;
-            console.log('[OfferSummary] ✅ Loaded category discount from session (database):', customerCategoryToUse);
-            // Sync appliedCategory state with session data
-            setAppliedCategory(customerCategoryToUse);
-          } else {
-            console.log('[OfferSummary] No category discount in session (database)');
-            // Clear appliedCategory if session doesn't have it
-            setAppliedCategory(null);
+          const sessionDataResponse = await sessionResponse.json();
+          if (sessionDataResponse.success && sessionDataResponse.data?.session) {
+            const session = sessionDataResponse.data.session;
+            
+            // Extract session notes (frame, tint, prescription data stored in customerEmail)
+            sessionNotes = session.customerEmail as any;
+            
+            // Check if it's an only lens flow - store in local variable for immediate use
+            isOnlyLensFlowCheck = session.category === 'ONLY_LENS';
+            setIsOnlyLensFlow(isOnlyLensFlowCheck);
+            
+            if (isOnlyLensFlowCheck) {
+              console.log('[OfferSummary] ✅ Detected ONLY_LENS flow - will not load frame data');
+            }
+            
+            if (session.customerCategory) {
+              customerCategoryToUse = session.customerCategory;
+              console.log('[OfferSummary] ✅ Loaded category discount from session (database):', customerCategoryToUse);
+              // Sync appliedCategory state with session data
+              setAppliedCategory(customerCategoryToUse);
+            } else {
+              console.log('[OfferSummary] No category discount in session (database)');
+              // Clear appliedCategory if session doesn't have it
+              setAppliedCategory(null);
+            }
           }
         }
       } catch (sessionError) {
@@ -329,14 +343,22 @@ export default function OfferSummaryPage() {
         throw new Error('Selected product not found');
       }
 
-      // Get frame data from localStorage
-      const frameData = JSON.parse(localStorage.getItem('lenstrack_frame') || '{}');
+      // ✅ Get frame data from session (database) - NOT from localStorage
+      // Frame data is stored in session.customerEmail as JSON
+      let frameData: any = {};
+      if (sessionNotes?.frame && !isOnlyLensFlowCheck) {
+        frameData = sessionNotes.frame;
+        console.log('[OfferSummary] ✅ Loaded frame data from session (database):', frameData);
+      } else {
+        frameData = {}; // Use empty object for only lens flow or when no frame data
+        console.log('[OfferSummary] No frame data in session (database) or only lens flow');
+      }
       
-      // Get tint selection if available (for Power Sunglasses)
-      const tintSelection = localStorage.getItem(`lenstrack_tint_selection_${sessionId}`);
-      const tintData = tintSelection ? JSON.parse(tintSelection) : null;
+      // ✅ Get tint selection from session (database) - NOT from localStorage
+      // Tint selection should be stored in session if needed, otherwise null
+      const tintData = sessionNotes?.tintSelection || null;
       
-      // Calculate offers using offer engine (include category discount from localStorage)
+      // Calculate offers using offer engine (all data from session/database)
       const offersResponse = await fetch(
         `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
         {
@@ -421,15 +443,18 @@ export default function OfferSummaryPage() {
       const lensIndex = selectedRec.name.match(/\d+\.\d+/)?.[0] || '1.50';
 
       // Build offer summary data
-      const frameBrand = frameData.brand || 'Unknown';
-      const frameSubBrand = frameData.subCategory || null;
+      // For only lens flow, use empty/default frame data
+      const frameBrand = isOnlyLensFlowCheck ? '' : (frameData.brand || 'Unknown');
+      const frameSubBrand = isOnlyLensFlowCheck ? null : (frameData.subCategory || null);
       
-      console.log('[OfferSummary] Frame data from localStorage:', {
+      console.log('[OfferSummary] Frame data:', {
+        isOnlyLensFlow: isOnlyLensFlowCheck,
         brand: frameBrand,
         subCategory: frameSubBrand,
         mrp: frameData.mrp,
         frameType: frameData.frameType,
         fullFrameData: frameData,
+        offerResultFrameMRP: offerResult.frameMRP,
       });
       
       const summaryData: OfferSummaryData = {
@@ -444,8 +469,8 @@ export default function OfferSummaryPage() {
         selectedFrame: {
           brand: frameBrand,
           subBrand: frameSubBrand,
-          mrp: offerResult.frameMRP,
-          frameType: frameData.frameType,
+          mrp: offerResult.frameMRP, // This should be 0 for only lens flow
+          frameType: isOnlyLensFlowCheck ? undefined : frameData.frameType,
         },
         offerResult,
         allApplicableOffers: selectedRec.offers || [], // Store all applicable offers
@@ -692,7 +717,28 @@ export default function OfferSummaryPage() {
 
   const fetchFrameBrands = async () => {
     try {
-      const storeCode = localStorage.getItem('lenstrack_store_code');
+      // ✅ Get store code from session (database) - NOT from localStorage
+      let storeCode: string | null = null;
+      
+      try {
+        const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          if (sessionData.success && sessionData.data?.session?.storeId) {
+            const storeResponse = await fetch(`/api/public/verify-store?storeId=${sessionData.data.session.storeId}`);
+            if (storeResponse.ok) {
+              const storeData = await storeResponse.json();
+              if (storeData.success && storeData.data?.code) {
+                storeCode = storeData.data.code;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[OfferSummary] Could not get store code from session, using localStorage fallback');
+        storeCode = localStorage.getItem('lenstrack_store_code');
+      }
+      
       if (storeCode) {
         const response = await fetch(`/api/public/frame-brands?storeCode=${storeCode}`);
         if (response.ok) {
@@ -1082,7 +1128,7 @@ export default function OfferSummaryPage() {
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Top Summary: Selected Lens + Frame */}
         <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6 mb-6">
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className={`grid gap-6 ${isOnlyLensFlow || data.selectedFrame.mrp === 0 ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}>
             {/* Selected Lens */}
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-500/10 dark:to-indigo-500/10 rounded-lg p-5 border-2 border-blue-200 dark:border-blue-500/30">
               <div className="flex items-center justify-between mb-3">
@@ -1106,30 +1152,32 @@ export default function OfferSummaryPage() {
               </div>
             </div>
 
-            {/* Selected Frame */}
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-500/10 dark:to-pink-500/10 rounded-lg p-5 border-2 border-purple-200 dark:border-purple-500/30">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-purple-700 dark:text-purple-300 uppercase tracking-wide">Selected Frame</h3>
-                <Eye className="text-purple-600 dark:text-purple-400" size={18} />
-              </div>
-              <div className="mb-2">
-                <p className="text-xl font-bold text-slate-900 dark:text-white">{data.selectedFrame.brand}</p>
-                {data.selectedFrame.subBrand && (
-                  <p className="text-purple-700 dark:text-purple-200 text-sm font-medium mt-1">{data.selectedFrame.subBrand}</p>
-                )}
-              </div>
-              {data.selectedFrame.frameType && (
-                <div className="mb-4">
-                  <span className="text-slate-700 dark:text-slate-300 text-sm bg-purple-100 dark:bg-purple-500/20 px-3 py-1 rounded-lg border border-purple-300 dark:border-purple-500/30 inline-block">
-                    {data.selectedFrame.frameType.replace('_', ' ')}
-                  </span>
+            {/* Selected Frame - Hide entire card in only lens flow or when MRP is 0 */}
+            {!isOnlyLensFlow && data.selectedFrame.mrp > 0 && (
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-500/10 dark:to-pink-500/10 rounded-lg p-5 border-2 border-purple-200 dark:border-purple-500/30">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-purple-700 dark:text-purple-300 uppercase tracking-wide">Selected Frame</h3>
+                  <Eye className="text-purple-600 dark:text-purple-400" size={18} />
                 </div>
-              )}
-              <div className="flex items-baseline gap-1 mt-4">
-                <span className="text-slate-600 dark:text-slate-400 text-sm">MRP: ₹</span>
-                <span className="text-2xl font-bold text-slate-900 dark:text-white">{Math.round(data.selectedFrame.mrp).toLocaleString()}</span>
+                <div className="mb-2">
+                  <p className="text-xl font-bold text-slate-900 dark:text-white">{data.selectedFrame.brand}</p>
+                  {data.selectedFrame.subBrand && (
+                    <p className="text-purple-700 dark:text-purple-200 text-sm font-medium mt-1">{data.selectedFrame.subBrand}</p>
+                  )}
+                </div>
+                {data.selectedFrame.frameType && (
+                  <div className="mb-4">
+                    <span className="text-slate-700 dark:text-slate-300 text-sm bg-purple-100 dark:bg-purple-500/20 px-3 py-1 rounded-lg border border-purple-300 dark:border-purple-500/30 inline-block">
+                      {data.selectedFrame.frameType.replace('_', ' ')}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-baseline gap-1 mt-4">
+                  <span className="text-slate-600 dark:text-slate-400 text-sm">MRP: ₹</span>
+                  <span className="text-2xl font-bold text-slate-900 dark:text-white">{Math.round(data.selectedFrame.mrp).toLocaleString()}</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -1409,10 +1457,8 @@ export default function OfferSummaryPage() {
                         setSelectedCategory('');
                         setCategoryIdImage(null);
                         setCategoryIdImagePreview(null);
-                        // Remove from localStorage FIRST
-                        localStorage.removeItem('lenstrack_category_discount');
-                        
                         // ✅ IMPORTANT: Update session in database to remove category discount
+                        // No need to remove from localStorage - we don't use it anymore
                         // This ensures checkout page doesn't show the removed discount
                         try {
                           const sessionUpdateResponse = await fetch(
@@ -1813,6 +1859,12 @@ export default function OfferSummaryPage() {
                       return false; // Hide category discount if it's been removed
                     }
                     
+                    // Filter out Frame MRP if it's 0 or if it's an only lens flow
+                    const isFrameMRP = labelLower.includes('frame') && (labelLower.includes('mrp') || labelLower.includes('price'));
+                    if (isFrameMRP && (isOnlyLensFlow || component.amount === 0)) {
+                      return false; // Hide Frame MRP in only lens flow or when it's 0
+                    }
+                    
                     // Filter out any component with 0 discount amount
                     const hasZeroDiscount = component.amount < 0 && Math.abs(component.amount) === 0;
                     
@@ -1854,7 +1906,8 @@ export default function OfferSummaryPage() {
             ) : (
               <>
                 {/* Fallback to original display if priceComponents not available */}
-                {data.offerResult.frameMRP > 0 && (
+                {/* Hide Frame MRP if it's 0 or if it's an only lens flow */}
+                {!isOnlyLensFlow && data.offerResult.frameMRP > 0 && (
                   <div className="flex justify-between items-center py-3 px-4 bg-slate-100 dark:bg-slate-700/50 rounded-lg border border-slate-300 dark:border-slate-600">
                     <span className="text-slate-700 dark:text-slate-300 font-medium">Frame MRP</span>
                     <span className="text-lg font-semibold text-slate-900 dark:text-white">₹{Math.round(data.offerResult.frameMRP).toLocaleString()}</span>

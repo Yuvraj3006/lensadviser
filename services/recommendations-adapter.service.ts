@@ -219,7 +219,11 @@ export class RecommendationsAdapterService {
         const bandPricing = (bandPricingMap.get(fullProduct.id) || { bandExtra: 0 }) as any;
 
         // Calculate final price with band pricing
-        const basePrice = product.offerPrice || fullProduct.baseOfferPrice || 0;
+        // For ONLY_LENS category, use onlyLensPrice if available, otherwise fallback to baseOfferPrice
+        let basePrice = product.offerPrice || fullProduct.baseOfferPrice || 0;
+        if (session.category === 'ONLY_LENS' && fullProduct.onlyLensPrice !== null && fullProduct.onlyLensPrice !== undefined) {
+          basePrice = fullProduct.onlyLensPrice;
+        }
         let finalLensPrice = basePrice + bandPricing.bandExtra;
         let rxAddOnBreakdown: any = null;
 

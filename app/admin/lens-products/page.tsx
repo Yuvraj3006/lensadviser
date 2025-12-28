@@ -46,6 +46,7 @@ interface LensProduct {
   deliveryDays?: number;
   mrp: number;
   baseOfferPrice: number;
+  onlyLensPrice: number | null;
   addOnPrice: number | null;
   sphMin: number;
   sphMax: number;
@@ -84,6 +85,7 @@ export default function LensProductsPage() {
     deliveryDays: number;
     mrp: number;
     baseOfferPrice: number;
+    onlyLensPrice: number | null;
     addOnPrice: number | null;
     rxRanges: Array<{
       sphMin: number;
@@ -109,6 +111,7 @@ export default function LensProductsPage() {
     deliveryDays: 4,
     mrp: 0,
     baseOfferPrice: 0,
+    onlyLensPrice: null,
     addOnPrice: null,
     rxRanges: [
       {
@@ -239,6 +242,7 @@ export default function LensProductsPage() {
       deliveryDays: 4,
       mrp: 0,
       baseOfferPrice: 0,
+      onlyLensPrice: null,
       addOnPrice: null,
       rxRanges: [
         {
@@ -351,6 +355,7 @@ export default function LensProductsPage() {
       deliveryDays: (product as any).deliveryDays || 4,
       mrp: product.mrp || product.baseOfferPrice || 0,
       baseOfferPrice: product.baseOfferPrice || (product as any).offerPrice || 0,
+      onlyLensPrice: (product as any).onlyLensPrice ?? null,
       addOnPrice: product.addOnPrice || null,
       rxRanges,
       yopoEligible: product.yopoEligible,
@@ -414,6 +419,7 @@ export default function LensProductsPage() {
           deliveryDays: 4,
           mrp: 0,
           baseOfferPrice: 0,
+          onlyLensPrice: null,
           addOnPrice: null,
           rxRanges: [
             {
@@ -670,6 +676,7 @@ export default function LensProductsPage() {
             deliveryDays: 4,
             mrp: 0,
             baseOfferPrice: 0,
+            onlyLensPrice: null,
             addOnPrice: null,
             rxRanges: [
               {
@@ -942,6 +949,24 @@ export default function LensProductsPage() {
               />
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Actual selling price (offer price)</p>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Only Lens Price
+              </label>
+              <Input
+                type="number"
+                value={formData.onlyLensPrice !== null && formData.onlyLensPrice !== undefined ? formData.onlyLensPrice : ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const newFormData = { ...formData, onlyLensPrice: value === '' ? null : (parseFloat(value) || null) };
+                  setFormData(newFormData);
+                }}
+                placeholder="Enter only lens price (optional)"
+              />
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Special price for "Only Lens" flow (if not set, base offer price will be used)</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Add-On Price

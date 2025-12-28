@@ -14,7 +14,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { DataTable, Column } from '@/components/data-display/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Plus, Edit2, Trash2, TrendingUp } from 'lucide-react';
+import { Plus, Edit2, Trash2, TrendingUp, FileSpreadsheet } from 'lucide-react';
 
 interface Benefit {
   id: string;
@@ -51,6 +51,18 @@ export default function BenefitsPage() {
     maxScore: 3.0,
   });
   const [submitting, setSubmitting] = useState(false);
+  
+  // Excel upload state
+  const [isExcelUploadOpen, setIsExcelUploadOpen] = useState(false);
+  const [excelFile, setExcelFile] = useState<File | null>(null);
+  const [uploadingExcel, setUploadingExcel] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: Array<{ code: string; error: string }>;
+    validationErrors: Array<{ row: number; error: string }>;
+  } | null>(null);
 
   useEffect(() => {
     fetchBenefits();
@@ -165,6 +177,62 @@ export default function BenefitsPage() {
     return /^B\d{2}$/.test(code) && parseInt(code.substring(1)) <= 12;
   };
 
+  const handleExcelUpload = async () => {
+    if (!excelFile) {
+      showToast('error', 'Please select an Excel file');
+      return;
+    }
+
+    setUploadingExcel(true);
+    setUploadResult(null);
+
+    try {
+      // SECURITY: Use authenticated fetch with httpOnly cookie
+      const { authenticatedFetch } = await import('@/lib/api-client');
+      
+      const formData = new FormData();
+      formData.append('file', excelFile);
+
+      const response = await authenticatedFetch('/api/admin/benefits/upload-excel', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setUploadResult(data.data);
+        showToast('success', `Successfully processed ${data.data.created + data.data.updated} benefits`);
+        setExcelFile(null);
+        fetchBenefits(); // Refresh the benefits list
+        
+        // Auto-close modal after 3 seconds if successful
+        if (data.data.errors.length === 0 && data.data.validationErrors.length === 0) {
+          setTimeout(() => {
+            setIsExcelUploadOpen(false);
+            setUploadResult(null);
+          }, 3000);
+        }
+      } else {
+        showToast('error', data.error?.message || 'Failed to upload Excel file');
+        if (data.error?.errors) {
+          setUploadResult({
+            created: 0,
+            updated: 0,
+            skipped: 0,
+            errors: [],
+            validationErrors: data.error.errors,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Excel upload error:', error);
+      showToast('error', 'An error occurred while uploading the file');
+    } finally {
+      setUploadingExcel(false);
+    }
+  };
+
   const columns: Column<Benefit>[] = [
     {
       key: 'code',
@@ -225,9 +293,20 @@ export default function BenefitsPage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Benefits</h1>
           <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1">Manage benefits used in questionnaire and lens scoring</p>
         </div>
-        <Button icon={<Plus size={18} />} onClick={handleCreate} className="w-full sm:w-auto">
-          Add Benefit
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button 
+            icon={<FileSpreadsheet size={18} />} 
+            onClick={() => setIsExcelUploadOpen(true)} 
+            variant="outline"
+            className="w-full sm:w-auto"
+          >
+            <span className="hidden sm:inline">Upload Excel</span>
+            <span className="sm:hidden">Excel</span>
+          </Button>
+          <Button icon={<Plus size={18} />} onClick={handleCreate} className="w-full sm:w-auto">
+            Add Benefit
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
@@ -367,6 +446,159 @@ export default function BenefitsPage() {
           Are you sure you want to deactivate <strong className="text-slate-900 dark:text-white">{deleteConfirm?.name}</strong> ({deleteConfirm?.code})?
           This will not affect existing mappings.
         </p>
+      </Modal>
+
+      {/* Excel Upload Modal */}
+      <Modal
+        isOpen={isExcelUploadOpen}
+        onClose={() => {
+          setIsExcelUploadOpen(false);
+          setExcelFile(null);
+          setUploadResult(null);
+        }}
+        title="Upload Benefits from Excel"
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsExcelUploadOpen(false);
+                setExcelFile(null);
+                setUploadResult(null);
+              }}
+            >
+              Close
+            </Button>
+            <Button onClick={handleExcelUpload} loading={uploadingExcel} disabled={!excelFile}>
+              Upload & Process
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              Upload an Excel file (.xlsx, .xls, or .csv) to create or update benefits in bulk.
+            </p>
+            
+            <div className="mb-4">
+              <a
+                href="/benefits-template.xlsx"
+                download
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 border border-blue-300 dark:border-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+              >
+                <FileSpreadsheet size={16} />
+                Download Template
+              </a>
+            </div>
+            
+            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                Required Columns:
+              </p>
+              <ul className="text-xs text-blue-800 dark:text-blue-300 space-y-1 list-disc list-inside">
+                <li><strong>code</strong> - Benefit code (e.g., B01, B13) - Must start with B followed by digits</li>
+                <li><strong>name</strong> - Benefit name</li>
+              </ul>
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mt-3 mb-2">
+                Optional Columns:
+              </p>
+              <ul className="text-xs text-blue-800 dark:text-blue-300 space-y-1 list-disc list-inside">
+                <li><strong>description</strong> - Benefit description</li>
+                <li><strong>pointWeight</strong> - Point weight (0-10, default: 1.0)</li>
+                <li><strong>maxScore</strong> - Maximum score (0-10, default: 3.0)</li>
+              </ul>
+            </div>
+
+            <label className="block cursor-pointer">
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setExcelFile(file);
+                    setUploadResult(null);
+                  }
+                }}
+              />
+              <div className="flex items-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 hover:border-blue-500 dark:hover:border-blue-500 transition-colors">
+                <FileSpreadsheet size={20} className="text-slate-500 dark:text-slate-400" />
+                <span className="text-sm text-slate-700 dark:text-slate-300">
+                  {excelFile ? excelFile.name : 'Click to select Excel file'}
+                </span>
+              </div>
+            </label>
+          </div>
+
+          {uploadResult && (
+            <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">
+                Upload Results:
+              </h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-600 dark:text-slate-400">Total Processed:</span>
+                  <span className="font-medium text-slate-900 dark:text-white">
+                    {uploadResult.created + uploadResult.updated + uploadResult.skipped}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-green-600 dark:text-green-400">Created:</span>
+                  <span className="font-medium text-green-600 dark:text-green-400">
+                    {uploadResult.created}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-600 dark:text-blue-400">Updated:</span>
+                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                    {uploadResult.updated}
+                  </span>
+                </div>
+                {uploadResult.skipped > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-yellow-600 dark:text-yellow-400">Skipped:</span>
+                    <span className="font-medium text-yellow-600 dark:text-yellow-400">
+                      {uploadResult.skipped}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {uploadResult.errors.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-600">
+                  <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-2">
+                    Errors ({uploadResult.errors.length}):
+                  </p>
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {uploadResult.errors.map((err, idx) => (
+                      <p key={idx} className="text-xs text-red-600 dark:text-red-400">
+                        {err.code}: {err.error}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {uploadResult.validationErrors.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-600">
+                  <p className="text-sm font-semibold text-yellow-600 dark:text-yellow-400 mb-2">
+                    Validation Errors ({uploadResult.validationErrors.length}):
+                  </p>
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {uploadResult.validationErrors.map((err, idx) => (
+                      <p key={idx} className="text-xs text-yellow-600 dark:text-yellow-400">
+                        Row {err.row}: {err.error}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );

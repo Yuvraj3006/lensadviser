@@ -217,8 +217,29 @@ export default function QuestionnaireSessionPage() {
             analyticsService.questionnaireCompleted(sessionId);
           });
           
-          // All questions done - redirect directly to path choice
-          router.push(`/questionnaire/${sessionId}/path-choice`);
+          // All questions done - check if ONLY_LENS flow, skip path-choice
+          const isOnlyLens = typeof window !== 'undefined' && 
+            localStorage.getItem(`lenstrack_session_${sessionId}_only_lens`) === 'true';
+          
+          // Also check session category
+          let sessionCategory = null;
+          try {
+            const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+            if (sessionResponse.ok) {
+              const sessionData = await sessionResponse.json();
+              sessionCategory = sessionData.data?.session?.category;
+            }
+          } catch (e) {
+            console.error('Failed to check session category:', e);
+          }
+          
+          if (isOnlyLens || sessionCategory === 'ONLY_LENS') {
+            // For ONLY_LENS, skip combo offers and go directly to recommendations
+            router.push(`/questionnaire/${sessionId}/recommendations`);
+          } else {
+            // For other flows, show path choice (REGULAR vs COMBO)
+            router.push(`/questionnaire/${sessionId}/path-choice`);
+          }
         } else {
           // Move to next question
           setCurrentQuestionIndex((prev) => prev + 1);

@@ -492,9 +492,12 @@ export function PrescriptionForm({ hideNextButton = false, onNext, onSkip }: Pre
         {/* Navigation - Primary CTA: Next, Secondary CTA: Skip */}
         {!hideNextButton && (
           <div className="flex justify-between pt-4 border-t border-slate-200 dark:border-slate-700">
-            <Button variant="outline" onClick={handleSkip}>
-              Skip
-            </Button>
+            {onSkip && (
+              <Button variant="outline" onClick={handleSkip}>
+                Skip
+              </Button>
+            )}
+            {!onSkip && <div />}
             <Button 
               onClick={handleNext} 
               size="lg"

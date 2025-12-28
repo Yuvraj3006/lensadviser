@@ -61,6 +61,7 @@ export default function OrderSuccessPage() {
 
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isOnlyLens, setIsOnlyLens] = useState(false);
   const storeName = useSessionStore((state) => state.storeName);
 
   useEffect(() => {
@@ -115,6 +116,21 @@ export default function OrderSuccessPage() {
   const fetchOrderData = async () => {
     setLoading(true);
     try {
+      // Check session category for ONLY_LENS flow
+      if (sessionId) {
+        try {
+          const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+          if (sessionResponse.ok) {
+            const sessionData = await sessionResponse.json();
+            if (sessionData.success && sessionData.data?.session?.category === 'ONLY_LENS') {
+              setIsOnlyLens(true);
+            }
+          }
+        } catch (e) {
+          console.warn('[OrderSuccess] Failed to check session category:', e);
+        }
+      }
+      
       // ✅ Fetch second pair data from session database
       let secondPairData: OrderData['secondPairData'] = null;
       if (sessionId) {
@@ -169,64 +185,13 @@ export default function OrderSuccessPage() {
           }
         }
       } catch (apiError) {
-        console.log('[OrderSuccess] API fetch failed, using localStorage fallback');
-      }
-
-      // Fallback: get order data from localStorage
-      const frameData = JSON.parse(localStorage.getItem('lenstrack_frame') || '{}');
-      const orderInfo = JSON.parse(localStorage.getItem(`lenstrack_order_${orderId}`) || '{}');
-      const currentStoreName = storeName || localStorage.getItem('lenstrack_store_name') || undefined;
-      
-      // ✅ Fetch second pair data from session if not already fetched
-      if (!secondPairData && sessionId) {
-        try {
-          const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
-          if (sessionResponse.ok) {
-            const sessionData = await sessionResponse.json();
-            if (sessionData.success && sessionData.data?.session?.secondPairData) {
-              const parsed = sessionData.data.session.secondPairData as any;
-              if (parsed && parsed.frameMRP && parsed.lensId && parsed.lensPrice > 0) {
-                secondPairData = {
-                  frameMRP: parsed.frameMRP,
-                  brand: parsed.brand || 'Unknown',
-                  subBrand: parsed.subBrand || undefined,
-                  lensId: parsed.lensId,
-                  lensName: parsed.lensName || 'Lens',
-                  lensPrice: parsed.lensPrice,
-                };
-              }
-            }
-          }
-        } catch (sessionError) {
-          console.warn('[OrderSuccess] Failed to fetch second pair data from session (fallback):', sessionError);
-        }
+        console.error('[OrderSuccess] API fetch failed:', apiError);
+        // ✅ No localStorage fallback - show error if API fails
+        throw new Error('Failed to load order from API. Please refresh the page.');
       }
       
-      if (orderInfo.id) {
-        setOrderData({
-          ...orderInfo,
-          storeName: orderInfo.storeName || currentStoreName || undefined,
-          frameData: orderInfo.frameData || frameData,
-          lensData: orderInfo.lensData || { name: 'Unknown', price: 0 },
-          offerData: orderInfo.offerData || null,
-          secondPairData: secondPairData,
-        });
-      } else {
-        // Fallback: reconstruct from available data
-        setOrderData({
-          id: orderId,
-          storeId: '',
-          storeName: currentStoreName || undefined,
-          salesMode: orderInfo.salesMode || 'SELF_SERVICE',
-          finalPrice: orderInfo.finalPrice || 0,
-          status: 'DRAFT',
-          createdAt: new Date().toISOString(),
-          frameData: frameData,
-          lensData: orderInfo.lensData || { name: 'Unknown', price: 0 },
-          offerData: orderInfo.offerData || null,
-          secondPairData: secondPairData,
-        });
-      }
+      // ✅ If we reach here, API fetch succeeded and orderData was set above
+      // No need for localStorage fallback
     } catch (error: any) {
       console.error('[OrderSuccess] Error:', error);
       showToast('error', 'Failed to load order details');
@@ -245,7 +210,7 @@ export default function OrderSuccessPage() {
       return;
     }
 
-    const receiptHTML = generateReceiptHTML(orderData, true); // true for print mode
+    const receiptHTML = generateReceiptHTML(orderData, true, isOnlyLens); // true for print mode
     
     // SECURITY: Sanitize HTML to prevent XSS attacks
     const DOMPurify = (await import('dompurify')).default;
@@ -268,7 +233,7 @@ export default function OrderSuccessPage() {
     
     try {
       // Create a temporary container for the receipt
-      const receiptHTML = generateReceiptHTML(orderData, true); // true for print mode
+      const receiptHTML = generateReceiptHTML(orderData, true, isOnlyLens); // true for print mode
       
       // Create a temporary div to hold the receipt content
       const tempDiv = document.createElement('div');
@@ -346,7 +311,7 @@ export default function OrderSuccessPage() {
     return description || 'Discount applied';
   };
 
-  const generateReceiptHTML = (order: OrderData, isPrintMode: boolean = false): string => {
+  const generateReceiptHTML = (order: OrderData, isPrintMode: boolean = false, onlyLens: boolean = false): string => {
     const orderDate = new Date(order.createdAt);
     const formattedDate = orderDate.toLocaleDateString('en-IN', {
       year: 'numeric',
@@ -361,7 +326,7 @@ export default function OrderSuccessPage() {
 
     // Extract offer breakdown if available
     const offerResult = order.offerData;
-    const frameMRP = offerResult?.frameMRP || order.frameData.mrp;
+    const frameMRP = onlyLens ? 0 : (offerResult?.frameMRP || order.frameData.mrp);
     const lensPrice = offerResult?.lensPrice || order.lensData.price;
     const firstPairTotal = offerResult?.baseTotal || (frameMRP + lensPrice);
     const secondPairTotal = order.secondPairData ? (order.secondPairData.frameMRP + order.secondPairData.lensPrice) : 0;
@@ -464,212 +429,396 @@ export default function OrderSuccessPage() {
       width: ${isPrintMode ? '210mm' : '100%'};
       min-height: ${isPrintMode ? '297mm' : 'auto'};
       margin: 0 auto;
-      border: ${isPrintMode ? 'none' : '1px solid #ddd'};
+      border: ${isPrintMode ? 'none' : '2px solid #e2e8f0'};
       padding: ${isPrintMode ? '15mm' : '30px'};
       background: white;
       box-sizing: border-box;
       overflow: visible;
+      box-shadow: ${isPrintMode ? 'none' : '0 4px 12px rgba(0,0,0,0.1)'};
+      border-radius: ${isPrintMode ? '0' : '8px'};
     }
     .header {
       text-align: center;
-      border-bottom: 2px solid #000;
-      padding-bottom: 12px;
-      margin-bottom: 18px;
+      border: 3px solid #1e293b;
+      border-radius: 8px;
+      padding: 25px 20px;
+      margin-bottom: 25px;
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 50%, #ffffff 100%);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    .logo-section {
+      text-align: center;
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 5px;
+      background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #3b82f6 100%);
+    }
+    .logo-section {
+      margin-bottom: 15px;
+    }
+    .logo-box {
+      display: inline-block;
+      padding: 15px 30px;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      margin-bottom: 12px;
     }
     .header h1 {
-      font-size: 24px;
-      font-weight: bold;
-      margin-bottom: 4px;
-      color: #000;
-      letter-spacing: 1.5px;
+      font-size: 32px;
+      font-weight: 900;
+      margin: 0;
+      color: #ffffff;
+      letter-spacing: 3px;
       text-transform: uppercase;
       line-height: 1.2;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
     }
     .header .subtitle {
-      font-size: 12px;
-      color: #333;
+      font-size: 14px;
+      color: #1e293b;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-top: 10px;
+      line-height: 1.4;
+      padding: 8px 20px;
+      background: #f1f5f9;
+      border-radius: 4px;
+      display: inline-block;
+      border: 1px solid #cbd5e1;
+    }
+    .store-badge {
+      margin-top: 15px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      border-radius: 6px;
+      display: inline-block;
+      box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+      text-align: center;
+    }
+    .store-label {
+      display: block;
+      font-size: 10px;
+      color: #ffffff;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 1px;
-      margin-top: 4px;
+      margin-bottom: 5px;
+      opacity: 0.95;
       line-height: 1.3;
     }
-    .header .store-info {
-      font-size: 10px;
-      color: #666;
-      margin-top: 6px;
-      line-height: 1.4;
+    .store-name {
+      display: block;
+      font-size: 16px;
+      color: #ffffff;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      line-height: 1.3;
     }
     .order-info {
-      margin-bottom: 18px;
-      padding: 10px 12px;
-      background: #f8f8f8;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
+      margin-bottom: 25px;
+      padding: 20px;
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
-    .order-info-row {
-      display: table;
-      width: 100%;
-      margin: 5px 0;
-      font-size: 12px;
-      padding: 3px 0;
-      table-layout: fixed;
-      border-collapse: collapse;
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
     }
-    .order-info-label {
-      display: table-cell;
+    .info-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      border-left: 4px solid #3b82f6;
+      transition: all 0.2s;
+      min-height: 60px;
+    }
+    .info-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border-radius: 6px;
+      border: 1px solid #bfdbfe;
+    }
+    .info-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+    }
+    .info-label {
+      font-size: 10px;
       font-weight: 600;
-      color: #333;
-      width: 45%;
-      padding-right: 15px;
-      vertical-align: top;
-      white-space: nowrap;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      line-height: 1.3;
     }
-    .order-info-value {
-      display: table-cell;
-      color: #000;
-      text-align: left;
-      font-weight: 500;
-      width: 55%;
-      vertical-align: top;
+    .info-value {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1e293b;
       word-break: break-word;
+      line-height: 1.4;
+      overflow-wrap: break-word;
     }
     .items {
       margin-bottom: 20px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     .section-title {
-      font-size: 13px;
-      font-weight: bold;
-      margin-bottom: 10px;
-      padding-bottom: 5px;
-      border-bottom: 1.5px solid #000;
+      font-size: 15px;
+      font-weight: 800;
+      margin-bottom: 15px;
+      padding: 14px 18px;
+      border-left: 5px solid #3b82f6;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1.5px;
+      color: #1e293b;
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border-radius: 6px;
+      border-top: 2px solid #3b82f6;
+      border-right: 2px solid #3b82f6;
+      border-bottom: 2px solid #3b82f6;
+      box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+      text-align: left;
+      line-height: 1.4;
     }
     .item-row {
       display: table;
       width: 100%;
-      padding: 6px 0;
-      border-bottom: 1px dotted #ccc;
+      padding: 14px 16px;
+      border: 1px solid #e2e8f0;
       font-size: 12px;
       table-layout: fixed;
       border-collapse: collapse;
+      background: #ffffff;
+      margin: 6px 0;
+      border-radius: 6px;
+      transition: all 0.2s;
+      min-height: 45px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .item-row:hover {
+      background: #f8f9fa;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      transform: translateY(-1px);
     }
     .item-row:last-child {
-      border-bottom: none;
+      border-bottom: 1px solid #e2e8f0;
     }
     .item-row.discount {
       color: #059669;
+      background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+      border: 2px solid #10b981;
+      border-left: 5px solid #10b981;
+      box-shadow: 0 2px 4px rgba(16, 185, 129, 0.15);
     }
     .item-label {
       display: table-cell;
-      font-weight: 400;
-      color: #333;
+      font-weight: 500;
+      color: #1e293b;
       width: 65%;
-      padding-right: 20px;
-      vertical-align: top;
+      padding-right: 15px;
+      vertical-align: middle;
       word-wrap: break-word;
-      line-height: 1.4;
+      line-height: 1.5;
+      text-align: left;
     }
     .item-value {
       display: table-cell;
-      font-weight: 600;
+      font-weight: 700;
       color: #000;
       text-align: right;
       width: 35%;
       white-space: nowrap;
-      vertical-align: top;
+      vertical-align: middle;
       padding-left: 10px;
+      font-size: 13px;
     }
     .item-value.discount {
       color: #059669;
     }
     .total-section {
-      margin-top: 20px;
-      padding-top: 15px;
-      border-top: 2px solid #000;
+      margin-top: 25px;
+      padding: 20px;
+      background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+      border: 2px solid #cbd5e1;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
     .total-row {
       display: table;
       width: 100%;
-      padding: 6px 0;
+      padding: 12px 16px;
       font-size: 13px;
-      border-bottom: 1px solid #ddd;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
       table-layout: fixed;
       border-collapse: collapse;
+      min-height: 45px;
+      background: #ffffff;
+      margin: 8px 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .total-row .item-label {
+      vertical-align: middle;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .total-row .item-value {
+      vertical-align: middle;
+      font-weight: 800;
+      color: #000;
+      font-size: 14px;
     }
     .final-total {
-      font-size: 16px;
-      font-weight: bold;
-      margin-top: 15px;
-      padding-top: 15px;
-      border-top: 2px solid #000;
-      background: #f0f0f0;
-      padding: 15px 12px;
-      border-radius: 4px;
+      font-size: 18px;
+      font-weight: 900;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 3px solid #000;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: #ffffff;
+      padding: 20px 15px;
+      border-radius: 6px;
       display: table;
       width: 100%;
       table-layout: fixed;
       border-collapse: collapse;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     .final-total .item-label {
       display: table-cell;
-      font-size: 16px;
-      font-weight: bold;
+      font-size: 18px;
+      font-weight: 900;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
       width: 65%;
       padding-right: 20px;
       vertical-align: middle;
+      color: #ffffff;
+      text-align: left;
+      line-height: 1.3;
     }
     .final-total .item-value {
       display: table-cell;
-      font-size: 18px;
-      color: #000;
-      font-weight: bold;
+      font-size: 24px;
+      color: #ffffff;
+      font-weight: 900;
       text-align: right;
       width: 35%;
       vertical-align: middle;
       padding-left: 10px;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+      line-height: 1.2;
     }
     .footer {
-      margin-top: 30px;
-      padding-top: 15px;
-      border-top: 1px solid #ddd;
+      margin-top: 35px;
+      padding: 20px 15px;
+      border-top: 2px solid #ddd;
       text-align: center;
-      font-size: 10px;
-      color: #666;
+      font-size: 11px;
+      color: #555;
+      line-height: 1.8;
+      background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+      border-radius: 6px;
+    }
+    .footer p {
+      margin: 8px 0;
+      text-align: center;
       line-height: 1.6;
+    }
+    .footer p:first-child {
+      font-weight: 700;
+      color: #000;
+      font-size: 13px;
+      margin-bottom: 10px;
     }
     .price-breakdown {
       margin-top: 20px;
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
     .offer-details {
-      margin-top: 15px;
-      padding: 12px;
-      background: #f9f9f9;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
+      margin-top: 20px;
+      padding: 16px;
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border: 2px solid #f59e0b;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(245, 158, 11, 0.15);
     }
     .offer-details h4 {
-      font-size: 12px;
-      font-weight: bold;
-      margin-bottom: 8px;
-      color: #000;
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      color: #92400e;
       text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 2px solid #f59e0b;
+      padding-bottom: 8px;
     }
     .offer-detail {
-      margin: 4px 0;
+      margin: 8px 0;
       font-size: 11px;
-      color: #555;
-      padding-left: 12px;
-      line-height: 1.4;
+      color: #78350f;
+      padding-left: 16px;
+      line-height: 1.6;
+      position: relative;
+    }
+    .offer-detail::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #f59e0b;
+      font-weight: bold;
     }
     .divider {
-      border-top: 1px dashed #ccc;
-      margin: 8px 0;
+      border-top: 2px dashed #cbd5e1;
+      margin: 12px 0;
       width: 100%;
       display: block;
+      position: relative;
+    }
+    .divider::before {
+      content: '• • •';
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      padding: 0 10px;
+      color: #94a3b8;
+      font-size: 10px;
     }
     .item-row strong {
       font-weight: 600;
@@ -703,6 +852,19 @@ export default function OrderSuccessPage() {
         max-width: 210mm;
         width: 210mm;
         min-height: 297mm;
+        box-shadow: none;
+        border-radius: 0;
+      }
+      .info-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .info-item {
+        padding: 8px;
+        page-break-inside: avoid;
+      }
+      .item-row {
+        page-break-inside: avoid;
       }
       @page {
         size: A4;
@@ -713,53 +875,80 @@ export default function OrderSuccessPage() {
 </head>
 <body>
   <div class="receipt">
+    <!-- Header Section with Logo Area -->
     <div class="header">
-      <h1>LENSTRACK</h1>
-      <p class="subtitle">TAX INVOICE / RECEIPT</p>
-      ${order.storeName ? `<div class="store-info">${order.storeName}</div>` : ''}
-    </div>
-    
-    <div class="order-info">
-      <div class="order-info-row">
-        <span class="order-info-label">Invoice No.:</span>
-        <span class="order-info-value">${order.id}</span>
-      </div>
-      <div class="order-info-row">
-        <span class="order-info-label">Date:</span>
-        <span class="order-info-value">${formattedDate}</span>
-      </div>
-      <div class="order-info-row">
-        <span class="order-info-label">Time:</span>
-        <span class="order-info-value">${formattedTime}</span>
+      <div class="logo-section">
+        <div class="logo-box">
+          <h1>LENSTRACK</h1>
+        </div>
+        <p class="subtitle">TAX INVOICE / RECEIPT</p>
       </div>
       ${order.storeName ? `
-      <div class="order-info-row">
-        <span class="order-info-label">Store Name:</span>
-        <span class="order-info-value">${order.storeName}</span>
+      <div class="store-badge">
+        <span class="store-label">Store</span>
+        <span class="store-name">${order.storeName}</span>
       </div>` : ''}
-      ${order.customerName ? `
-      <div class="order-info-row">
-        <span class="order-info-label">Customer Name:</span>
-        <span class="order-info-value">${order.customerName}</span>
-      </div>` : ''}
-      ${order.customerPhone ? `
-      <div class="order-info-row">
-        <span class="order-info-label">Contact No.:</span>
-        <span class="order-info-value">${order.customerPhone}</span>
-      </div>` : ''}
-      <div class="order-info-row">
-        <span class="order-info-label">Sales Mode:</span>
-        <span class="order-info-value">${order.salesMode === 'STAFF_ASSISTED' ? 'POS Mode' : 'Self-Service'}</span>
+    </div>
+    
+    <!-- Invoice Details Card -->
+    <div class="order-info">
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="info-icon">📄</span>
+          <div class="info-content">
+            <span class="info-label">Invoice No.</span>
+            <span class="info-value">${order.id}</span>
+          </div>
+        </div>
+        <div class="info-item">
+          <span class="info-icon">📅</span>
+          <div class="info-content">
+            <span class="info-label">Date</span>
+            <span class="info-value">${formattedDate}</span>
+          </div>
+        </div>
+        <div class="info-item">
+          <span class="info-icon">🕐</span>
+          <div class="info-content">
+            <span class="info-label">Time</span>
+            <span class="info-value">${formattedTime}</span>
+          </div>
+        </div>
+        ${order.customerName ? `
+        <div class="info-item">
+          <span class="info-icon">👤</span>
+          <div class="info-content">
+            <span class="info-label">Customer Name</span>
+            <span class="info-value">${order.customerName}</span>
+          </div>
+        </div>` : ''}
+        ${order.customerPhone ? `
+        <div class="info-item">
+          <span class="info-icon">📱</span>
+          <div class="info-content">
+            <span class="info-label">Contact No.</span>
+            <span class="info-value">${order.customerPhone}</span>
+          </div>
+        </div>` : ''}
+        <div class="info-item">
+          <span class="info-icon">🏪</span>
+          <div class="info-content">
+            <span class="info-label">Sales Mode</span>
+            <span class="info-value">${order.salesMode === 'STAFF_ASSISTED' ? 'POS Mode' : 'Self-Service'}</span>
+          </div>
+        </div>
       </div>
     </div>
     
     <div class="price-breakdown">
       <div class="section-title">Item Details & Price Breakdown</div>
       <div class="items">
+        ${!onlyLens && order.frameData.mrp > 0 && frameMRP > 0 ? `
         <div class="item-row">
           <span class="item-label">Frame (${frameDisplayName}${order.frameData.frameType ? ` - ${order.frameData.frameType.replace('_', ' ')}` : ''})</span>
           <span class="item-value">₹${Math.round(frameMRP).toLocaleString('en-IN')}</span>
         </div>
+        ` : ''}
         <div class="item-row">
           <span class="item-label">Lens (${order.lensData.name}${order.lensData.index ? ` - Index ${order.lensData.index}` : ''}${order.lensData.brandLine ? ` - ${order.lensData.brandLine}` : ''})</span>
           <span class="item-value">₹${Math.round(lensPrice).toLocaleString('en-IN')}</span>
@@ -778,11 +967,11 @@ export default function OrderSuccessPage() {
           </div>
         ` : ''}
         <div class="divider"></div>
-        <div class="item-row">
-          <span class="item-label"><strong>1st Pair Total</strong></span>
-          <span class="item-value"><strong>₹${Math.round(firstPairTotal).toLocaleString('en-IN')}</strong></span>
+        <div class="item-row" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 2px solid #0ea5e9; border-left: 5px solid #0284c7; box-shadow: 0 2px 4px rgba(14, 165, 233, 0.15);">
+          <span class="item-label" style="font-weight: 700; color: #0c4a6e;"><strong>${onlyLens ? 'Lens Total' : '1st Pair Total'}</strong></span>
+          <span class="item-value" style="font-weight: 800; color: #0c4a6e; font-size: 14px;"><strong>₹${Math.round(firstPairTotal).toLocaleString('en-IN')}</strong></span>
         </div>
-        ${order.secondPairData ? `
+        ${!onlyLens && order.frameData.mrp > 0 && order.secondPairData ? `
         <div class="divider"></div>
         <div class="item-row">
           <span class="item-label">2nd Pair - Frame (${order.secondPairData.brand}${order.secondPairData.subBrand ? ` - ${order.secondPairData.subBrand}` : ''})</span>
@@ -794,9 +983,9 @@ export default function OrderSuccessPage() {
         </div>
         ` : ''}
         <div class="divider"></div>
-        <div class="item-row">
-          <span class="item-label"><strong>Subtotal</strong></span>
-          <span class="item-value"><strong>₹${Math.round(baseTotal).toLocaleString('en-IN')}</strong></span>
+        <div class="item-row" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-left: 5px solid #d97706;">
+          <span class="item-label" style="font-weight: 700; color: #78350f;"><strong>Subtotal</strong></span>
+          <span class="item-value" style="font-weight: 800; color: #78350f; font-size: 14px;"><strong>₹${Math.round(baseTotal).toLocaleString('en-IN')}</strong></span>
         </div>
         ${offersHTML}
         ${totalDiscount > 0 ? `
@@ -905,18 +1094,21 @@ export default function OrderSuccessPage() {
           )}
 
           {/* Frame + Lens Summary */}
-          <div className="grid md:grid-cols-2 gap-4 mb-6">
-            <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
-              <h3 className="text-sm font-semibold text-slate-600 mb-2">Frame</h3>
-              <p className="text-lg font-bold text-slate-900 mb-1">{orderData.frameData.brand}</p>
-              {orderData.frameData.subBrand && (
-                <p className="text-sm text-purple-600 font-medium mb-1">{orderData.frameData.subBrand}</p>
-              )}
-              {orderData.frameData.frameType && (
-                <p className="text-xs text-slate-500 mb-2">{orderData.frameData.frameType.replace('_', ' ')}</p>
-              )}
-              <p className="text-xl font-bold text-blue-600">₹{Math.round(orderData.frameData.mrp).toLocaleString()}</p>
-            </div>
+          <div className={isOnlyLens || orderData.frameData.mrp === 0 ? "grid md:grid-cols-1 gap-4 mb-6" : "grid md:grid-cols-2 gap-4 mb-6"}>
+            {/* Hide frame card if only lens flow OR if frame MRP is 0 */}
+            {!isOnlyLens && orderData.frameData.mrp > 0 && (
+              <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                <h3 className="text-sm font-semibold text-slate-600 mb-2">Frame</h3>
+                <p className="text-lg font-bold text-slate-900 mb-1">{orderData.frameData.brand}</p>
+                {orderData.frameData.subBrand && (
+                  <p className="text-sm text-purple-600 font-medium mb-1">{orderData.frameData.subBrand}</p>
+                )}
+                {orderData.frameData.frameType && (
+                  <p className="text-xs text-slate-500 mb-2">{orderData.frameData.frameType.replace('_', ' ')}</p>
+                )}
+                <p className="text-xl font-bold text-blue-600">₹{Math.round(orderData.frameData.mrp).toLocaleString()}</p>
+              </div>
+            )}
 
             <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-200">
               <h3 className="text-sm font-semibold text-slate-600 mb-2">Lens</h3>
@@ -932,7 +1124,8 @@ export default function OrderSuccessPage() {
           </div>
 
           {/* Second Pair - Frame + Lens Details (BOGO) */}
-          {orderData.secondPairData && (
+          {/* Hide second pair if only lens flow OR if frame MRP is 0 */}
+          {!isOnlyLens && orderData.frameData.mrp > 0 && orderData.secondPairData && (
             <div className="mb-6">
               <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
                 <Gift size={16} className="text-green-600 dark:text-green-400" />
@@ -966,15 +1159,17 @@ export default function OrderSuccessPage() {
               </h3>
               
               <div className="space-y-3">
-                {/* Frame MRP */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b border-slate-200">
-                  <span className="text-slate-700 text-sm sm:text-base flex-1 min-w-0">
-                    Frame MRP {orderData.frameData.subBrand && `(${orderData.frameData.brand} - ${orderData.frameData.subBrand})`}
-                  </span>
-                  <span className="font-semibold text-slate-900 text-sm sm:text-base flex-shrink-0 whitespace-nowrap">
-                    ₹{Math.round(orderData.offerData.frameMRP || orderData.frameData.mrp).toLocaleString()}
-                  </span>
-                </div>
+                {/* Frame MRP - Hide if only lens flow OR if frame MRP is 0 */}
+                {!isOnlyLens && orderData.frameData.mrp > 0 && (orderData.offerData.frameMRP || 0) > 0 && (
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b border-slate-200">
+                    <span className="text-slate-700 text-sm sm:text-base flex-1 min-w-0">
+                      Frame MRP {orderData.frameData.subBrand && `(${orderData.frameData.brand} - ${orderData.frameData.subBrand})`}
+                    </span>
+                    <span className="font-semibold text-slate-900 text-sm sm:text-base flex-shrink-0 whitespace-nowrap">
+                      ₹{Math.round(orderData.offerData.frameMRP || orderData.frameData.mrp).toLocaleString()}
+                    </span>
+                  </div>
+                )}
                 
                 {/* Lens Price */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 py-2 border-b border-slate-200">

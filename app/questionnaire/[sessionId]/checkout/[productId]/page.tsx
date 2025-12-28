@@ -90,6 +90,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [accessories, setAccessories] = useState<any[]>([]);
+  const [isOnlyLens, setIsOnlyLens] = useState(false);
   
   // Form fields
   const [customerName, setCustomerName] = useState('');
@@ -118,37 +119,11 @@ export default function CheckoutPage() {
           }
         }
 
-        // Fallback: Try to get from customer details session
-        const customerSessionId = localStorage.getItem('lenstrack_customer_session_id');
-        if (customerSessionId) {
-          const customerResponse = await fetch(`/api/customer-details/${customerSessionId}`);
-          if (customerResponse.ok) {
-            const customerData = await customerResponse.json();
-            if (customerData.success && customerData.data?.customerDetails) {
-              const details = customerData.data.customerDetails;
-              if (details.name) setCustomerName(details.name);
-              if (details.phone) setCustomerPhone(details.phone);
-              console.log('[Checkout] ✅ Loaded customer details from customer session');
-              return;
-            }
-          }
-        }
-
-        console.log('[Checkout] No customer details found in database');
+        // ✅ No localStorage fallback - all data from session (database) only
+        console.log('[Checkout] No customer details found in session database');
       } catch (error) {
         console.error('[Checkout] Failed to load customer details from database:', error);
-        // Fallback to localStorage for backward compatibility
-        try {
-          const { getCustomerDetails } = await import('@/lib/secure-storage');
-          const customerDetails = getCustomerDetails();
-          if (customerDetails) {
-            if (customerDetails.name) setCustomerName(customerDetails.name);
-            if (customerDetails.phone) setCustomerPhone(customerDetails.phone);
-            console.log('[Checkout] ⚠️ Fallback: Loaded from localStorage');
-          }
-        } catch (fallbackError) {
-          console.error('[Checkout] Fallback also failed:', fallbackError);
-        }
+        // ✅ No localStorage fallback - we only use session database
       }
     };
 
@@ -189,12 +164,41 @@ export default function CheckoutPage() {
         throw new Error('Selected product not found');
       }
 
-      // Get frame data from localStorage
-      const frameData = JSON.parse(localStorage.getItem('lenstrack_frame') || '{}');
+      // ✅ Get frame data from session (database) - NOT from localStorage
+      // Frame data is stored in session.customerEmail as JSON
+      let frameData: any = {};
+      let sessionNotes: any = null;
       
-      // Load accessories if any
-      const savedAccessories = localStorage.getItem(`lenstrack_accessories_${sessionId}`);
-      const accessoriesList = savedAccessories ? JSON.parse(savedAccessories) : [];
+      // Get session data to extract frame, accessories, and check if only lens flow
+      try {
+        const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+        if (sessionResponse.ok) {
+          const sessionDataResponse = await sessionResponse.json();
+          if (sessionDataResponse.success && sessionDataResponse.data?.session) {
+            const session = sessionDataResponse.data.session;
+            sessionNotes = session.customerEmail as any;
+            
+            // Check if it's an only lens flow
+            const isOnlyLensFlow = session.category === 'ONLY_LENS';
+            setIsOnlyLens(isOnlyLensFlow);
+            
+            // Get frame data from session (only if not only lens flow)
+            if (!isOnlyLensFlow && sessionNotes?.frame) {
+              frameData = sessionNotes.frame;
+              console.log('[Checkout] ✅ Loaded frame data from session (database):', frameData);
+            } else {
+              frameData = {};
+              console.log('[Checkout] No frame data in session (only lens flow or no frame)');
+            }
+          }
+        }
+      } catch (sessionError) {
+        console.warn('[Checkout] Could not load frame data from session:', sessionError);
+        frameData = {};
+      }
+      
+      // ✅ Load accessories from session (database) - NOT from localStorage
+      const accessoriesList = sessionNotes?.accessories || [];
       setAccessories(accessoriesList);
       
       // Prepare otherItems with accessories for offer calculation
@@ -346,13 +350,18 @@ export default function CheckoutPage() {
           price: offerResult.lensPrice,
           brandLine: selectedRec.brand || 'Premium',
         },
-        selectedFrame: {
+        selectedFrame: isOnlyLens || offerResult.frameMRP === 0 ? {
+          brand: '',
+          subBrand: null,
+          mrp: 0,
+          frameType: undefined,
+        } : {
           brand: frameData.brand || 'Unknown',
           subBrand: frameData.subCategory || null,
           mrp: offerResult.frameMRP,
           frameType: frameData.frameType,
         },
-        secondPair: secondPairDetails,
+        secondPair: isOnlyLens ? null : secondPairDetails,
         offerResult,
       });
       
@@ -452,21 +461,28 @@ export default function CheckoutPage() {
           data.data.finalPrice
         );
         
-        // Store order info in localStorage for order success page
-        localStorage.setItem(`lenstrack_order_${data.data.id}`, JSON.stringify({
-          id: data.data.id,
-          storeId: data.data.storeId,
-          salesMode: salesMode,
-          finalPrice: data.data.finalPrice,
-          status: data.data.status,
-          createdAt: data.data.createdAt,
-          frameData: checkoutData.selectedFrame,
-          lensData: lensDataWithAddOn,
-          offerData: checkoutData.offerResult, // Save complete offer data
-          customerName: customerName || null,
-          customerPhone: customerPhone || null,
-          voucherCode: data.data.voucherCode || null, // Include voucher if issued
-        }));
+        // ✅ Clear ALL localStorage data after successful order creation
+        // Order success page will fetch data from API, not localStorage
+        console.log('[Checkout] ✅ Order created successfully - clearing localStorage');
+        const keysToRemove = [
+          'lenstrack_frame',
+          'lenstrack_category',
+          'lenstrack_lens_type',
+          `lenstrack_accessories_${sessionId}`,
+          `lenstrack_tint_selection_${sessionId}`,
+          'lenstrack_category_discount',
+          'lenstrack_customer_session_id',
+          `lenstrack_order_${data.data.id}`, // Remove if exists
+        ];
+        
+        // Remove all lenstrack_* keys
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('lenstrack_')) {
+            localStorage.removeItem(key);
+          }
+        });
+        
+        console.log('[Checkout] ✅ Cleared all localStorage data');
         
         showToast('success', 'Order created successfully!');
         router.push(`/questionnaire/${sessionId}/order-success/${data.data.id}`);
@@ -549,19 +565,24 @@ export default function CheckoutPage() {
           <div className="space-y-4">
             {/* First Pair - Frame + Lens Details */}
             <div>
-              <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">1st Pair</h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
-                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Frame</h3>
-                  <p className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{checkoutData.selectedFrame.brand}</p>
-                  {checkoutData.selectedFrame.subBrand && (
-                    <p className="text-sm text-purple-700 dark:text-purple-300 font-medium mb-1">{checkoutData.selectedFrame.subBrand}</p>
-                  )}
-                  {checkoutData.selectedFrame.frameType && (
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{checkoutData.selectedFrame.frameType.replace('_', ' ')}</p>
-                  )}
-                  <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">₹{Math.round(checkoutData.selectedFrame.mrp).toLocaleString()}</p>
-                </div>
+              <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                {isOnlyLens || checkoutData.selectedFrame.mrp === 0 || checkoutData.offerResult.frameMRP === 0 ? 'Selected Lens' : '1st Pair'}
+              </h3>
+              <div className={isOnlyLens || checkoutData.selectedFrame.mrp === 0 || checkoutData.offerResult.frameMRP === 0 ? "grid md:grid-cols-1 gap-4" : "grid md:grid-cols-2 gap-4"}>
+                {/* Hide frame card if only lens flow OR if frame MRP is 0 */}
+                {!isOnlyLens && checkoutData.selectedFrame.mrp > 0 && checkoutData.offerResult.frameMRP > 0 && (
+                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+                    <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Frame</h3>
+                    <p className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{checkoutData.selectedFrame.brand}</p>
+                    {checkoutData.selectedFrame.subBrand && (
+                      <p className="text-sm text-purple-700 dark:text-purple-300 font-medium mb-1">{checkoutData.selectedFrame.subBrand}</p>
+                    )}
+                    {checkoutData.selectedFrame.frameType && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{checkoutData.selectedFrame.frameType.replace('_', ' ')}</p>
+                    )}
+                    <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">₹{Math.round(checkoutData.selectedFrame.mrp).toLocaleString()}</p>
+                  </div>
+                )}
 
                 <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
                   <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Lens</h3>
@@ -582,7 +603,8 @@ export default function CheckoutPage() {
               console.log('[Checkout] Rendering check - secondPair exists?', !!checkoutData.secondPair);
               return null;
             })()}
-            {checkoutData.secondPair && (
+            {/* Hide second pair if only lens flow OR if frame MRP is 0 */}
+            {!isOnlyLens && checkoutData.selectedFrame.mrp > 0 && checkoutData.offerResult.frameMRP > 0 && checkoutData.secondPair && (
               <div>
                 <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
                   <Gift size={16} className="text-green-600 dark:text-green-400" />
@@ -614,12 +636,15 @@ export default function CheckoutPage() {
                 Price Breakdown
               </h3>
               <div className="space-y-2">
+                {/* Hide Frame MRP in only lens flow */}
+                {!isOnlyLens && checkoutData.offerResult.frameMRP > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-400">Frame MRP</span>
+                    <span className="text-slate-900 dark:text-white font-medium">₹{Math.round(checkoutData.offerResult.frameMRP).toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-600 dark:text-slate-400">Frame MRP</span>
-                  <span className="text-slate-900 dark:text-white font-medium">₹{Math.round(checkoutData.offerResult.frameMRP).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600 dark:text-slate-400">Lens Price</span>
+                  <span className="text-slate-600 dark:text-slate-400">{isOnlyLens ? 'Lens Price' : 'Lens Price'}</span>
                   <span className="text-slate-900 dark:text-white font-medium">₹{Math.round(checkoutData.offerResult.lensPrice).toLocaleString()}</span>
                 </div>
                 {/* Accessories */}

@@ -82,6 +82,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // REQUIRED: Validate prescription is present (at least one SPH value)
+    const hasPrescription = prescription && 
+      ((prescription.odSphere !== undefined && prescription.odSphere !== null) || 
+       (prescription.osSphere !== undefined && prescription.osSphere !== null));
+    
+    if (!hasPrescription) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: 'MISSING_PRESCRIPTION',
+            message: 'Prescription is required. Please enter at least one eye power (SPH).',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     // Create prescription if provided
     // NOTE: Prescription model schema is incomplete, so we'll skip creating prescription for now
     // Prescription data will be stored in session notes or handled separately

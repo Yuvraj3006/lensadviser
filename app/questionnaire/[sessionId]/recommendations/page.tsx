@@ -919,8 +919,17 @@ export default function RecommendationsPage() {
                   {/* Primary CTA */}
                   <Button
                     fullWidth
-                    onClick={() => {
+                    onClick={async () => {
                       setSelectedProduct(rec.id);
+                      
+                      // Check if this is ONLY_LENS flow - skip offer summary
+                      const isOnlyLens = data?.category === 'ONLY_LENS';
+                      
+                      if (isOnlyLens) {
+                        // For ONLY_LENS, skip offer summary and go directly to checkout
+                        router.push(`/questionnaire/${sessionId}/checkout/${rec.id}`);
+                        return;
+                      }
                       
                       // Check if this is Power Sunglasses flow
                       const lensType = localStorage.getItem('lenstrack_lens_type');
@@ -1203,8 +1212,17 @@ export default function RecommendationsPage() {
                         {/* Primary CTA */}
                         <Button
                           fullWidth
-                          onClick={() => {
+                          onClick={async () => {
                             setSelectedProduct(rec.id);
+                            
+                            // Check if this is ONLY_LENS flow - skip offer summary
+                            const isOnlyLens = data?.category === 'ONLY_LENS';
+                            
+                            if (isOnlyLens) {
+                              // For ONLY_LENS, skip offer summary and go directly to checkout
+                              router.push(`/questionnaire/${sessionId}/checkout/${rec.id}`);
+                              return;
+                            }
                             
                             // Check if this is Power Sunglasses flow
                             const lensType = localStorage.getItem('lenstrack_lens_type');

@@ -23,6 +23,7 @@ export default function PathChoicePage() {
   const [selecting, setSelecting] = useState(false);
 
   useEffect(() => {
+    checkOnlyLensFlow();
     fetchConfig();
     
     // Track path selection viewed
@@ -32,6 +33,35 @@ export default function PathChoicePage() {
       });
     }
   }, [sessionId]);
+
+  const checkOnlyLensFlow = async () => {
+    try {
+      // Check localStorage first
+      const isOnlyLens = typeof window !== 'undefined' && 
+        localStorage.getItem(`lenstrack_session_${sessionId}_only_lens`) === 'true';
+      
+      if (isOnlyLens) {
+        // For ONLY_LENS, skip path-choice and go directly to recommendations
+        router.push(`/questionnaire/${sessionId}/recommendations`);
+        return;
+      }
+
+      // Also check session category from API
+      const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json();
+        const category = sessionData.data?.session?.category;
+        
+        if (category === 'ONLY_LENS') {
+          // For ONLY_LENS, skip path-choice and go directly to recommendations
+          router.push(`/questionnaire/${sessionId}/recommendations`);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check session category:', error);
+    }
+  };
 
   const fetchConfig = async () => {
     try {

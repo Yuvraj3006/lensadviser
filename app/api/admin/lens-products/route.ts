@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
           mrp: product.mrp || product.baseOfferPrice, // Use actual MRP if available
           offerPrice: product.baseOfferPrice,
           baseOfferPrice: product.baseOfferPrice,
+          onlyLensPrice: product.onlyLensPrice,
           addOnPrice: product.addOnPrice,
           sphMin: rxRange?.sphMin ?? -10, // Default values if no Rx range (backward compat)
           sphMax: rxRange?.sphMax ?? 10,
@@ -144,6 +145,7 @@ const createLensProductSchema = z.object({
   mrp: z.number().min(0).optional(),
   offerPrice: z.number().min(0).optional(),
   baseOfferPrice: z.number().min(0).optional(),
+  onlyLensPrice: z.number().min(0).optional().nullable(),
   addOnPrice: z.number().min(0).optional().nullable(),
   rxRanges: z.array(z.object({
     sphMin: z.number(),
@@ -243,6 +245,7 @@ export async function POST(request: NextRequest) {
     // Create lens product
     const baseOfferPrice = validated.baseOfferPrice || validated.offerPrice || 0;
     const mrp = validated.mrp || baseOfferPrice; // Use MRP if provided, otherwise use baseOfferPrice as MRP
+    const onlyLensPrice = validated.onlyLensPrice !== undefined ? validated.onlyLensPrice : null;
     const lens = await prisma.lensProduct.create({
       data: {
         itCode: validated.itCode,
@@ -253,6 +256,7 @@ export async function POST(request: NextRequest) {
         tintOption: validated.tintOption as any,
         mrp: mrp || null, // Save MRP
         baseOfferPrice: baseOfferPrice,
+        onlyLensPrice: onlyLensPrice,
         addOnPrice: validated.addOnPrice || null,
         category: validated.category as any || 'STANDARD',
         yopoEligible: validated.yopoEligible ?? false,

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLensAdvisorStore } from '@/stores/lens-advisor-store';
 import { useSessionStore } from '@/stores/session-store';
+import { useToast } from '@/contexts/ToastContext';
 import { PrescriptionForm } from '@/components/lens-advisor/PrescriptionForm';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -11,6 +12,7 @@ import { ArrowLeft } from 'lucide-react';
 
 export default function PrescriptionPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const rx = useLensAdvisorStore((state) => state.rx);
   const setRx = useLensAdvisorStore((state) => state.setRx);
   const language = useSessionStore((state) => state.language);
@@ -57,6 +59,17 @@ export default function PrescriptionPage() {
   }, [language, router, rx, setRx]); // Now safe to include rx and setRx since we use ref to prevent re-runs
 
   const handleNext = async () => {
+    // REQUIRED: Validate prescription is present (at least one SPH value)
+    const hasPrescription = (rx.odSphere !== undefined && rx.odSphere !== null) || 
+                           (rx.osSphere !== undefined && rx.osSphere !== null);
+    
+    if (!hasPrescription) {
+      const { useToast } = await import('@/contexts/ToastContext');
+      const { showToast } = useToast();
+      showToast('error', 'Prescription is required. Please enter at least one eye power (SPH).');
+      return;
+    }
+
     // Validation: SPH ±20 range, CYL negative only
     const isValid =
       (rx.odSphere === undefined || rx.odSphere === null || (rx.odSphere >= -20 && rx.odSphere <= 20)) &&
@@ -76,18 +89,13 @@ export default function PrescriptionPage() {
     router.push('/questionnaire/frame');
   };
 
-  const handleSkip = () => {
-    // Navigate to frame page even without prescription
-    router.push('/questionnaire/frame');
-  };
-
   return (
     <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl w-full mx-auto">
         <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl">
           {/* Use enhanced PrescriptionForm component */}
           <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 sm:p-6 border border-slate-200 dark:border-slate-700">
-            <PrescriptionForm hideNextButton={true} onNext={handleNext} onSkip={handleSkip} />
+            <PrescriptionForm hideNextButton={true} onNext={handleNext} />
           </div>
 
           {/* Custom Navigation */}
@@ -101,13 +109,6 @@ export default function PrescriptionPage() {
               Back
             </Button>
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-              <Button
-                variant="outline"
-                onClick={handleSkip}
-                className="w-full sm:w-auto"
-              >
-                Skip
-              </Button>
               <Button
                 onClick={handleNext}
                 className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 w-full sm:w-auto"

@@ -526,6 +526,7 @@ model LensProduct {
   tintOption        TintOption
   mrp               Float? // MRP (Maximum Retail Price) - optional for backward compatibility
   baseOfferPrice    Float
+  onlyLensPrice     Float? // Special price for "Only Lens" flow - if set, used instead of baseOfferPrice for ONLY_LENS category
   addOnPrice        Float?
   category          LensCategory
   yopoEligible      Boolean                    @default(true)
