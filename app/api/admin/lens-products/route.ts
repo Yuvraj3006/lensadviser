@@ -231,12 +231,13 @@ export async function POST(request: NextRequest) {
       ? Object.keys(validated.benefitScores).filter(code => (validated.benefitScores?.[code] || 0) > 0)
       : [];
     
+    // ProductBenefit references old Benefit model, not BenefitFeature
     const benefits = benefitCodes.length > 0
-      ? await (prisma as any).benefitFeature.findMany({
+      ? await prisma.benefit.findMany({
           where: {
             organizationId: user.organizationId,
-            type: 'BENEFIT',
             code: { in: benefitCodes },
+            isActive: true,
           },
           select: { id: true, code: true },
         })

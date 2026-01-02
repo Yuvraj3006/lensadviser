@@ -222,19 +222,33 @@ export async function PUT(
       );
 
       if (benefitCodes.length > 0) {
-        // Get benefit IDs from codes - use BenefitFeature model
-        const benefits = await (prisma as any).benefitFeature.findMany({
+        // Get benefit IDs from codes - ProductBenefit references old Benefit model
+        // So we need to fetch from Benefit model, not BenefitFeature
+        const benefits = await prisma.benefit.findMany({
           where: {
             organizationId: user.organizationId,
-            type: 'BENEFIT',
             code: { in: benefitCodes },
+            isActive: true,
           },
           select: { id: true, code: true },
         });
 
+        if (benefits.length === 0) {
+          return Response.json(
+            {
+              success: false,
+              error: {
+                code: 'BENEFITS_NOT_FOUND',
+                message: `No active benefits found for codes: ${benefitCodes.join(', ')}`,
+              },
+            },
+            { status: 404 }
+          );
+        }
+
         // Create new benefits
         await prisma.productBenefit.createMany({
-          data: benefits.map((b: any) => ({
+          data: benefits.map((b) => ({
             productId: id,
             benefitId: b.id,
             score: validated.benefitScores?.[b.code] || 0,
