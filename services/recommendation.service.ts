@@ -96,11 +96,38 @@ export class RecommendationService {
     ]);
 
     // Fetch feature details
-    const featureIds = [...new Set(productFeatures.map(pf => pf.featureId))];
-    const features = await (prisma as any).benefitFeature.findMany({ 
-      where: { id: { in: featureIds }, type: 'FEATURE' } 
+    // Note: ProductFeature.featureId references old Feature model, not BenefitFeature
+    const oldFeatureIds = [...new Set(productFeatures.map(pf => String(pf.featureId)))];
+    
+    // Fetch old features and map to BenefitFeature by code
+    const [oldFeatures, benefitFeatures] = await Promise.all([
+      oldFeatureIds.length > 0
+        ? (prisma as any).feature.findMany({
+            where: { id: { in: oldFeatureIds } },
+          })
+        : Promise.resolve([]),
+      // Pre-fetch all FEATURE type BenefitFeatures
+      (prisma as any).benefitFeature.findMany({
+        where: {
+          type: 'FEATURE',
+          isActive: true,
+        },
+      }) as Promise<any[]>,
+    ]);
+    
+    // Create mapping: old Feature.id -> BenefitFeature by code
+    const oldFeatureIdToCodeMap = new Map<string, string>(oldFeatures.map((f: any) => [String(f.id), String(f.code)]));
+    const featureCodeToBenefitFeatureMap = new Map<string, any>(
+      benefitFeatures.map((bf: any) => [String(bf.code), bf])
+    );
+    
+    const featureMap = new Map<string, any>();
+    oldFeatureIdToCodeMap.forEach((code, oldId) => {
+      const benefitFeature = featureCodeToBenefitFeatureMap.get(code);
+      if (benefitFeature) {
+        featureMap.set(String(oldId), benefitFeature);
+      }
     });
-    const featureMap = new Map(features.map((f: any) => [f.id, f]));
 
     // Attach features and storeProducts to products
     const productsWithRelations = products.map((p: any) => ({

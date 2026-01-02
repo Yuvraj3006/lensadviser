@@ -206,37 +206,80 @@ export function QuestionForm({ question, onSubmit, onCancel, loading }: Question
     setLoadingBenefits(true);
     try {
       const token = localStorage.getItem('lenstrack_token');
-      // Fetch from benefit-features endpoint (unified model)
-      const response = await fetch('/api/admin/benefit-features?type=BENEFIT', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          // Map BenefitFeature to Benefit format
-          const benefitsData = (data.data || []).map((bf: any) => ({
-            id: bf.id,
-            code: bf.code,
-            name: bf.name,
-            description: bf.description,
-          }));
-          setBenefits(benefitsData);
-        }
-      } else {
-        // Fallback to old endpoint
-        const fallbackResponse = await fetch('/api/admin/benefits', {
+      // Primary: Fetch from benefits endpoint (legacy Benefit model) - fetch all pages
+      let allBenefits: any[] = [];
+      let page = 1;
+      const pageSize = 100; // Large page size to get all benefits
+      let hasMore = true;
+      
+      while (hasMore) {
+        const response = await fetch(`/api/admin/benefits?page=${page}&pageSize=${pageSize}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (fallbackResponse.ok) {
-          const fallbackData = await fallbackResponse.json();
-          if (fallbackData.success) {
-            setBenefits(fallbackData.data || []);
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            // Filter only active benefits and map to required format
+            const activeBenefits = (data.data || [])
+              .filter((b: any) => b.isActive !== false)
+              .map((b: any) => ({
+                id: b.id,
+                code: b.code,
+                name: b.name || b.code,
+                description: b.description || '',
+              }));
+            allBenefits = [...allBenefits, ...activeBenefits];
+            
+            // Check if there are more pages
+            const pagination = data.pagination;
+            if (pagination && page < pagination.totalPages) {
+              page++;
+            } else {
+              hasMore = false;
+            }
+          } else {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      // If no benefits from legacy endpoint, try benefit-features endpoint
+      if (allBenefits.length === 0) {
+        const benefitFeaturesResponse = await fetch('/api/admin/benefit-features?type=BENEFIT&isActive=true', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (benefitFeaturesResponse.ok) {
+          const benefitFeaturesData = await benefitFeaturesResponse.json();
+          if (benefitFeaturesData.success && benefitFeaturesData.data) {
+            // Map BenefitFeature to Benefit format - filter only active ones
+            const benefitsData = (benefitFeaturesData.data || [])
+              .filter((bf: any) => bf.isActive !== false)
+              .map((bf: any) => ({
+                id: bf.id,
+                code: bf.code,
+                name: bf.name || bf.code,
+                description: bf.description || '',
+              }));
+            allBenefits = benefitsData;
           }
         }
       }
+      
+      if (allBenefits.length > 0) {
+        console.log(`[QuestionForm] Loaded ${allBenefits.length} benefits:`, allBenefits.map((b: any) => b.code));
+        setBenefits(allBenefits);
+      } else {
+        console.warn('[QuestionForm] No benefits found');
+        setBenefits([]);
+      }
     } catch (error) {
       console.error('Failed to fetch benefits:', error);
+      setBenefits([]);
     } finally {
       setLoadingBenefits(false);
     }

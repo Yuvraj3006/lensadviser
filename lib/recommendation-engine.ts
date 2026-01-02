@@ -352,21 +352,13 @@ export async function generateRecommendations(
     },
   });
 
-  // Get benefit codes from unified BenefitFeature model
-  const benefitIds = [...new Set(answerBenefits.map((ab: any) => ab.benefitId))];
-  const benefitFeatures = await (prisma as any).benefitFeature.findMany({
-    where: {
-      id: { in: benefitIds },
-      type: 'BENEFIT',
-    },
-  });
-  const benefitIdToCodeMap = new Map(benefitFeatures.map((bf: any) => [bf.id, bf.code]));
-
   // Build benefit scores map directly from AnswerBenefit
+  // Note: AnswerBenefit references old Benefit model, so we use ab.benefit.code directly
   const benefitScoresMap = new Map<string, number>();
   answerBenefits.forEach((ab: any) => {
     if (ab.benefitId && typeof ab.points === 'number') {
-      const code = benefitIdToCodeMap.get(ab.benefitId) || ab.benefit?.code;
+      // Use benefit code from included Benefit model (old model)
+      const code = ab.benefit?.code;
       if (code) {
         const existing = benefitScoresMap.get(code) || 0;
         benefitScoresMap.set(code, existing + ab.points);

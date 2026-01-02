@@ -244,34 +244,65 @@ export class BenefitRecommendationService {
       console.error('[BenefitRecommendationService] ❌ NO ANSWERBENEFIT MAPPINGS! This will cause matchPercent = 0');
     }
 
-    // Get benefit IDs and fetch benefits from unified BenefitFeature model
-    const benefitIds = [...new Set(answerBenefits.map((ab: any) => ab.benefitId))];
-    const benefits = await (prisma as any).benefitFeature.findMany({
-      where: {
-        id: { in: benefitIds },
-        type: 'BENEFIT',
-        organizationId,
-      },
+    // Get unique old benefit IDs (AnswerBenefit references old Benefit model)
+    const oldBenefitIds = [...new Set(answerBenefits.map((ab: any) => String(ab.benefitId)))] as string[];
+    
+    // OPTIMIZATION: Batch fetch old benefits and benefit features in parallel
+    const [oldBenefits, benefitFeaturesByCode] = await Promise.all([
+      oldBenefitIds.length > 0
+        ? prisma.benefit.findMany({
+            where: { id: { in: oldBenefitIds } },
+          })
+        : Promise.resolve([]),
+      // Pre-fetch all benefit features for this organization to avoid multiple queries
+      (prisma as any).benefitFeature.findMany({
+        where: {
+          type: 'BENEFIT',
+          organizationId,
+        },
+      }) as Promise<any[]>,
+    ]);
+    
+    // Create mappings efficiently
+    const oldBenefitIdToCodeMap = new Map(oldBenefits.map(b => [b.id, b.code]));
+    const benefitCodeToFeatureIdMap = new Map(
+      benefitFeaturesByCode.map((bf: any) => [bf.code, bf.id])
+    );
+    
+    // Create final mapping: old Benefit.id -> BenefitFeature object
+    const oldIdToBenefitFeatureMap = new Map<string, any>();
+    oldBenefitIdToCodeMap.forEach((code, oldId) => {
+      const benefitFeatureId = benefitCodeToFeatureIdMap.get(code);
+      if (benefitFeatureId) {
+        const benefitFeature = benefitFeaturesByCode.find((bf: any) => bf.id === benefitFeatureId);
+        if (benefitFeature) {
+          oldIdToBenefitFeatureMap.set(oldId, benefitFeature);
+        }
+      }
     });
 
     console.log('[BenefitRecommendationService] Benefits found:', {
-      benefitIdsCount: benefitIds.length,
-      benefitsFound: benefits.length,
-      benefitCodes: benefits.map((b: any) => b.code),
+      oldBenefitIdsCount: oldBenefitIds.length,
+      oldBenefitsFound: oldBenefits.length,
+      benefitFeaturesFound: benefitFeaturesByCode.length,
+      mappedCount: oldIdToBenefitFeatureMap.size,
+      benefitCodes: Array.from(oldIdToBenefitFeatureMap.values()).map((b: any) => b.code),
     });
 
-    if (benefits.length === 0) {
-      console.error('[BenefitRecommendationService] ❌ NO BENEFITS FOUND! Check organizationId:', organizationId);
+    if (oldIdToBenefitFeatureMap.size === 0) {
+      console.error('[BenefitRecommendationService] ❌ NO BENEFITS MAPPED! Check organizationId and benefit codes:', {
+        organizationId,
+        oldBenefitCodes: Array.from(oldBenefitIdToCodeMap.values()),
+        benefitFeatureCodes: Array.from(benefitCodeToFeatureIdMap.keys()),
+      });
     }
-
-    // Create a map of benefit ID to benefit object
-    const benefitMap = new Map(benefits.map((b: any) => [b.id, b]));
 
     // Aggregate benefit scores using points from AnswerBenefit
     const benefitScores: BenefitScores = {};
 
     for (const ab of answerBenefits) {
-      const benefit = benefitMap.get(ab.benefitId);
+      // Map old Benefit.id to BenefitFeature
+      const benefit = oldIdToBenefitFeatureMap.get(String(ab.benefitId));
       if (benefit && (benefit as any).code) {
         const code = String((benefit as any).code);
         // Use points from AnswerBenefit (can be fractional, e.g. +1.5, +2.0)
