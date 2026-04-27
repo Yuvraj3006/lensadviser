@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
@@ -19,9 +19,17 @@ import {
   X,
   Sparkles,
   Upload,
-  UserCheck
+  User,
+  UserCheck,
+  Users,
+  Glasses,
+  Sun,
+  Palette,
 } from 'lucide-react';
 import { OfferCalculationResult, OfferApplied } from '@/types/offer-engine';
+
+/** BOGO: what kind of 2nd product the customer wants (drives brand + lens catalog) */
+type SecondPairProductKind = 'EYEGLASS' | 'SUNGLASS' | 'POWER_SUNGLASS';
 
 interface OfferDetail {
   type: string;
@@ -40,6 +48,10 @@ interface OfferSummaryData {
     index: string;
     price: number;
     brandLine?: string;
+    /** Same as 1st-pair lens / recommendation (e.g. SINGLE_VISION) — used to filter 2nd-pair list */
+    visionType?: string;
+    /** Prisma lensIndex enum, e.g. INDEX_160 */
+    lensIndex?: string;
   };
   selectedFrame: {
     brand: string;
@@ -49,6 +61,150 @@ interface OfferSummaryData {
   };
   offerResult: OfferCalculationResult;
   allApplicableOffers?: any[]; // All offers from recommendations
+}
+
+/** First item in `offersApplied` is the primary price rule (YOPO, %, etc.); YOPO + BOGO/2nd pair are mutually exclusive */
+function isYOPOPrimaryOffer(offerResult: OfferCalculationResult | null | undefined): boolean {
+  const p = offerResult?.offersApplied?.[0];
+  if (!p) return false;
+  const s = ((p.ruleCode || '') + ' ' + (p.description || '')).toUpperCase();
+  return s.includes('YOPO');
+}
+
+/** Map stored `secondPairOtherRx` to `recalculate-offers` `secondPairPrescription` (must match `buildSecondPairPrescriptionForApi` shape) */
+function secondPairOtherRxToApiBody(
+  p: { odSphere?: string; osSphere?: string; odCylinder?: string; osCylinder?: string; odAdd?: string }
+) {
+  return {
+    odSphere: p.odSphere ? parseFloat(p.odSphere) : 0,
+    osSphere: p.osSphere ? parseFloat(p.osSphere) : 0,
+    odCylinder: p.odCylinder ? parseFloat(p.odCylinder) : 0,
+    osCylinder: p.osCylinder ? parseFloat(p.osCylinder) : 0,
+    rSph: p.odSphere ? parseFloat(p.odSphere) : 0,
+    lSph: p.osSphere ? parseFloat(p.osSphere) : 0,
+    rCyl: p.odCylinder ? parseFloat(p.odCylinder) : 0,
+    lCyl: p.osCylinder ? parseFloat(p.osCylinder) : 0,
+    add: p.odAdd != null && p.odAdd !== '' ? parseFloat(p.odAdd) : 0,
+  };
+}
+
+/**
+ * If session has merged 2nd-pair data (not in “other person questionnaire in progress”),
+ * returns payload for recalculate-offers; else null.
+ */
+function sessionSecondPairDataToRecalcInfo(spd: Record<string, unknown> | null | undefined):
+  | {
+      secondPair: {
+        enabled: boolean;
+        firstPairTotal: number;
+        secondPairFrameMRP: number;
+        secondPairLensPrice: number;
+        lensId?: string;
+      };
+      secondPairPrescription?: ReturnType<typeof secondPairOtherRxToApiBody>;
+    }
+  | null {
+  if (!spd || spd.enabled !== true) return null;
+  if (spd.bogoSecondPersonInProgress === true) return null;
+  const frameMRP = Number(spd.frameMRP) || 0;
+  if (frameMRP <= 0) return null;
+  const isReadySun = spd.readyMadeSunglasses === true || spd.secondPairProductKind === 'SUNGLASS';
+  if (isReadySun) {
+    return {
+      secondPair: {
+        enabled: true,
+        firstPairTotal: 0, // set by caller to first offer baseTotal
+        secondPairFrameMRP: frameMRP,
+        secondPairLensPrice: 0,
+      },
+    };
+  }
+  if (!spd.lensId) return null;
+  if (Number(spd.lensPrice ?? 0) < 0) return null;
+  let secondPairPrescription: ReturnType<typeof secondPairOtherRxToApiBody> | undefined;
+  if (spd.lensRecipient === 'other' && spd.secondPairOtherRx) {
+    secondPairPrescription = secondPairOtherRxToApiBody(
+      spd.secondPairOtherRx as {
+        odSphere?: string;
+        osSphere?: string;
+        odCylinder?: string;
+        osCylinder?: string;
+        odAdd?: string;
+      }
+    );
+  }
+  return {
+    secondPair: {
+      enabled: true,
+      firstPairTotal: 0,
+      secondPairFrameMRP: frameMRP,
+      secondPairLensPrice: Number(spd.lensPrice ?? 0),
+      lensId: String(spd.lensId),
+    },
+    secondPairPrescription,
+  };
+}
+
+/** Map Prisma `LensIndex` to display refraction index */
+function formatLensIndexDisplay(raw: string | undefined | null): string {
+  if (!raw) return '—';
+  const map: Record<string, string> = {
+    INDEX_156: '1.56',
+    INDEX_160: '1.60',
+    INDEX_167: '1.67',
+    INDEX_174: '1.74',
+  };
+  return map[raw] || String(raw).replace(/^INDEX_/, '').replace('_', '.');
+}
+
+function humanizeLensEnum(raw: string | undefined | null): string {
+  if (!raw) return '—';
+  return String(raw)
+    .split('_')
+    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
+type SecondPairLensRow = {
+  id: string;
+  itCode?: string;
+  name: string;
+  brandLine?: string;
+  index?: string;
+  price?: number;
+  yopoEligible?: boolean;
+  visionType?: string;
+  tintOption?: string;
+  category?: string;
+  deliveryDays?: number;
+};
+
+/** Full tint row for 2nd-pair power-sun chart (from /api/public/tint-colors) */
+type TintChartColor = {
+  id: string;
+  name: string;
+  code: string;
+  hexColor?: string | null;
+  imageUrl?: string | null;
+  category: string;
+  darknessPercent: number;
+  isPolarized: boolean;
+};
+
+const LENS_INDEX_ENUM_SET = new Set(['INDEX_156', 'INDEX_160', 'INDEX_167', 'INDEX_174']);
+
+function displayIndexStringToLensEnum(s: string | undefined | null): string | null {
+  if (!s) return null;
+  if (LENS_INDEX_ENUM_SET.has(s)) return s;
+  const norm = String(s).replace(/\s/g, '');
+  const map: Record<string, string> = {
+    '1.50': 'INDEX_156',
+    '1.56': 'INDEX_156',
+    '1.60': 'INDEX_160',
+    '1.67': 'INDEX_167',
+    '1.74': 'INDEX_174',
+  };
+  return map[norm] || null;
 }
 
 export default function OfferSummaryPage() {
@@ -85,25 +241,60 @@ export default function OfferSummaryPage() {
   const [availableSubBrands, setAvailableSubBrands] = useState<string[]>([]);
   const [selectedOfferType, setSelectedOfferType] = useState<string | null>(null);
   const [isOnlyLensFlow, setIsOnlyLensFlow] = useState(false);
+  /** BOGO: who the 2nd pair of lenses is for (shown before lens picker) */
+  const [secondPairLensRecipient, setSecondPairLensRecipient] = useState<'self' | 'other' | null>(null);
+  const [showSecondPairRecipientModal, setShowSecondPairRecipientModal] = useState(false);
+  /** Eyeglass + “someone else”: first pick recipient, then choose full merge flow vs catalog (only in modal) */
+  const [bogoSecondPairModalScreen, setBogoSecondPairModalScreen] = useState<'who' | 'eyeglassOtherHow'>('who');
+  /** BOGO: eyeglass vs sunglass vs power sunglasses for 2nd pair (frames + lens list) */
+  const [secondPairProductKind, setSecondPairProductKind] = useState<SecondPairProductKind>('EYEGLASS');
+  /** POWER_SUNGLASS: Rx when 2nd pair is for another person (maps to API secondPairPrescription) */
+  const [secondPairOtherRx, setSecondPairOtherRx] = useState<{
+    odSphere: string; osSphere: string; odCylinder: string; osCylinder: string; odAdd: string;
+  } | null>(null);
+  /** After lens pick for power sun — shade (tint + optional mirror) */
+  const [secondPairTintSelection, setSecondPairTintSelection] = useState<{
+    tintColorId: string; tintName: string; mirrorCoatingId: string | null; mirrorAddOn: number; tintAddOn?: number;
+  } | null>(null);
+  const [showSecondPairRxModal, setShowSecondPairRxModal] = useState(false);
+  const [showSecondPairTintModal, setShowSecondPairTintModal] = useState(false);
+  const [tintModalColors, setTintModalColors] = useState<TintChartColor[]>([]);
+  const [tintModalMirrors, setTintModalMirrors] = useState<
+    { id: string; name: string; addOnPrice: number; imageUrl?: string | null }[]
+  >([]);
+  const [pendingPowerSunLens, setPendingPowerSunLens] = useState<{
+    id: string; price: number; name: string; index?: string;
+  } | null>(null);
+  const [tintFormPick, setTintFormPick] = useState<{
+    tintId: string | null; mirrorId: string | null;
+  }>({ tintId: null, mirrorId: null });
+  const [tintColorPrices, setTintColorPrices] = useState<Record<string, number>>({});
+  const [tintPricesLoading, setTintPricesLoading] = useState(false);
+  /** Org override: 2nd-pair power-sun lens base (tint + mirror stack), when set; else 1st-pair lens price */
+  const [bogoPowerSunSecondPairLensBasePrice, setBogoPowerSunSecondPairLensBasePrice] = useState<
+    number | null
+  >(null);
+  const [startingBogoChildQuestionnaire, setStartingBogoChildQuestionnaire] = useState(false);
 
   useEffect(() => {
     if (sessionId && productId) {
       fetchOfferSummary();
       fetchAvailableCategories();
-      fetchFrameBrands();
-      
-      // Don't auto-load category - let user select it manually
-      // Category will only be applied when user explicitly selects and applies it
     }
   }, [sessionId, productId]);
 
-  // Auto-enable second pair if BOGO rule is available
+  // Auto-enable second pair when BOGO is available — but never when YOPO is the active primary or user picked a non-BOGO offer
   useEffect(() => {
-    if (data?.offerResult?.availableBOGORule && !secondPairEnabled) {
-      console.log('[OfferSummary] Auto-enabling second pair for BOGO offer');
-      setSecondPairEnabled(true);
+    if (!data?.offerResult?.availableBOGORule || secondPairEnabled) return;
+    if (isYOPOPrimaryOffer(data.offerResult)) {
+      return;
     }
-  }, [data?.offerResult?.availableBOGORule, secondPairEnabled]);
+    if (selectedOfferType && selectedOfferType !== 'BOGO' && selectedOfferType !== 'BOG50') {
+      return;
+    }
+    console.log('[OfferSummary] Auto-enabling second pair for BOGO offer');
+    setSecondPairEnabled(true);
+  }, [data?.offerResult, data?.offerResult?.availableBOGORule, secondPairEnabled, selectedOfferType]);
 
   // ✅ Save second pair data to session database whenever it changes (best practice)
   useEffect(() => {
@@ -111,21 +302,53 @@ export default function OfferSummaryPage() {
     if (!data || !data.offerResult) return;
     
     const saveSecondPairToDatabase = async () => {
-      if (secondPairEnabled && secondPairFrameMRP && secondPairLensId && secondPairLensPrice > 0) {
-        // Get lens name from availableLenses
-        const selectedLens = availableLenses.find(l => l.id === secondPairLensId);
-        const lensName = selectedLens?.name || 'Lens';
-        
-        const secondPairData = {
+      const mrp = parseFloat(secondPairFrameMRP) || 0;
+      const canSaveSunglass =
+        secondPairEnabled &&
+        secondPairProductKind === 'SUNGLASS' &&
+        mrp > 0 &&
+        !!secondPairBrand;
+      const canSaveEyeglass =
+        secondPairEnabled &&
+        secondPairProductKind === 'EYEGLASS' &&
+        mrp > 0 &&
+        !!secondPairBrand &&
+        !!secondPairLensId &&
+        secondPairLensPrice >= 0;
+      const canSavePower =
+        secondPairEnabled &&
+        secondPairProductKind === 'POWER_SUNGLASS' &&
+        mrp > 0 &&
+        !!secondPairBrand &&
+        !!secondPairLensId &&
+        secondPairLensPrice >= 0 &&
+        !!secondPairTintSelection;
+
+      if (canSaveSunglass || canSaveEyeglass || canSavePower) {
+        const selectedLens = availableLenses.find((l) => l.id === secondPairLensId);
+        const baseData: Record<string, unknown> = {
           enabled: true,
-          frameMRP: parseFloat(secondPairFrameMRP),
+          frameMRP: mrp,
           brand: secondPairBrand,
           subBrand: secondPairSubBrand,
-          lensId: secondPairLensId,
-          lensName: lensName,
-          lensPrice: secondPairLensPrice,
+          secondPairProductKind,
+          lensRecipient: secondPairLensRecipient,
         };
-        
+        if (secondPairProductKind === 'SUNGLASS') {
+          baseData.lensName = 'Ready-made sunglasses (no separate lens selection)';
+          baseData.lensId = '';
+          baseData.lensPrice = 0;
+          baseData.readyMadeSunglasses = true;
+        } else {
+          baseData.lensId = secondPairLensId;
+          baseData.lensName = selectedLens?.name || 'Lens';
+          baseData.lensPrice = secondPairLensPrice;
+        }
+        if (secondPairProductKind === 'POWER_SUNGLASS') {
+          if (secondPairOtherRx) baseData.secondPairOtherRx = secondPairOtherRx;
+          if (secondPairTintSelection) baseData.tintSelection = secondPairTintSelection;
+        }
+        const secondPairData = baseData as any;
         try {
           const response = await fetch(`/api/public/questionnaire/sessions/${sessionId}`, {
             method: 'PATCH',
@@ -172,7 +395,7 @@ export default function OfferSummaryPage() {
     // Debounce to avoid too many API calls
     const timeoutId = setTimeout(saveSecondPairToDatabase, 500);
     return () => clearTimeout(timeoutId);
-  }, [sessionId, secondPairEnabled, secondPairFrameMRP, secondPairBrand, secondPairSubBrand, secondPairLensId, secondPairLensPrice, availableLenses, data]);
+  }, [sessionId, secondPairEnabled, secondPairFrameMRP, secondPairBrand, secondPairSubBrand, secondPairLensId, secondPairLensPrice, secondPairLensRecipient, secondPairProductKind, secondPairOtherRx, secondPairTintSelection, availableLenses, data]);
 
   const fetchAvailableCategories = async () => {
     try {
@@ -279,6 +502,7 @@ export default function OfferSummaryPage() {
       let customerCategoryToUse: string | null = null;
       let isOnlyLensFlowCheck = false; // Local variable to check synchronously
       let sessionNotes: any = null; // Store session notes for frame/tint data
+      let sessionRow: { secondPairData?: unknown; category?: string } | null = null;
       
       // Get from session (database) ONLY - no localStorage fallback
       try {
@@ -289,7 +513,15 @@ export default function OfferSummaryPage() {
           const sessionDataResponse = await sessionResponse.json();
           if (sessionDataResponse.success && sessionDataResponse.data?.session) {
             const session = sessionDataResponse.data.session;
-            
+            sessionRow = session;
+            const orgBogo = sessionDataResponse.data
+              .bogoPowerSunSecondPairLensBasePrice as number | null | undefined;
+            if (typeof orgBogo === 'number' && orgBogo > 0) {
+              setBogoPowerSunSecondPairLensBasePrice(orgBogo);
+            } else {
+              setBogoPowerSunSecondPairLensBasePrice(null);
+            }
+
             // Extract session notes (frame, tint, prescription data stored in customerEmail)
             sessionNotes = session.customerEmail as any;
             
@@ -311,12 +543,17 @@ export default function OfferSummaryPage() {
               // Clear appliedCategory if session doesn't have it
               setAppliedCategory(null);
             }
+          } else {
+            setBogoPowerSunSecondPairLensBasePrice(null);
           }
+        } else {
+          setBogoPowerSunSecondPairLensBasePrice(null);
         }
       } catch (sessionError) {
         console.warn('[OfferSummary] Could not load from session:', sessionError);
         // Don't use localStorage as fallback - if session doesn't have it, it's not applied
         setAppliedCategory(null);
+        setBogoPowerSunSecondPairLensBasePrice(null);
       }
       
       // ✅ REMOVED: localStorage check - we only use session database to prevent stale data
@@ -384,8 +621,41 @@ export default function OfferSummaryPage() {
         throw new Error('Failed to load offer calculation');
       }
 
-      const offerResult: OfferCalculationResult = offersData.data;
-      
+      let offerResult: OfferCalculationResult = offersData.data;
+
+      // If session already has merged 2nd-pair (BOGO) data, recalc immediately so price breakdown + BOGO aren’t empty
+      const spd0 = sessionRow?.secondPairData as Record<string, unknown> | undefined;
+      const mergedRecalc = spd0 ? sessionSecondPairDataToRecalcInfo(spd0) : null;
+      if (mergedRecalc) {
+        mergedRecalc.secondPair.firstPairTotal = offerResult.baseTotal;
+        const bogoT = offerResult.availableBOGORule?.offerType || 'BOGO';
+        try {
+          const r2 = await fetch(`/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId: productId,
+              couponCode: null,
+              customerCategory: customerCategoryToUse,
+              secondPair: mergedRecalc.secondPair,
+              secondPairPrescription: mergedRecalc.secondPairPrescription,
+              selectedOfferType: bogoT,
+              tintSelection: tintData,
+            }),
+          });
+          const j2 = await r2.json();
+          if (j2.success && j2.data) {
+            offerResult = j2.data as OfferCalculationResult;
+            // Engine omits `availableBOGORule` when 2nd pair is on — still flag BOGO/BOG50 so offer cards + 2nd-pair block match
+            setSelectedOfferType(bogoT);
+            setSecondPairEnabled(true);
+            console.log('[OfferSummary] Applied merged second-pair on initial load');
+          }
+        } catch (e) {
+          console.warn('[OfferSummary] Initial merged second-pair recalc failed:', e);
+        }
+      }
+
       // Debug: Log offer result
       console.log('[OfferSummary] Offer Result:', {
         offersApplied: offerResult.offersApplied,
@@ -400,11 +670,7 @@ export default function OfferSummaryPage() {
         lensPrice: offerResult.lensPrice,
       });
       
-      // Auto-enable second pair if BOGO rule is available and frame is eligible
-      if (offerResult.availableBOGORule && !secondPairEnabled) {
-        console.log('[OfferSummary] BOGO rule available, auto-enabling second pair selection');
-        setSecondPairEnabled(true);
-      }
+      // Auto-enable is handled in useEffect (avoids fighting user choice when switching YOPO ↔ BOGO; stale secondPairEnabled in this closure)
       
       // Debug: Log each offer in detail
       if (offerResult.offersApplied && offerResult.offersApplied.length > 0) {
@@ -465,6 +731,8 @@ export default function OfferSummaryPage() {
           index: lensIndex,
           price: offerResult.lensPrice,
           brandLine: selectedRec.brand || 'Premium',
+          visionType: selectedRec.visionType,
+          lensIndex: selectedRec.lensIndex,
         },
         selectedFrame: {
           brand: frameBrand,
@@ -478,8 +746,7 @@ export default function OfferSummaryPage() {
 
       setData(summaryData);
       
-      // Fetch available lenses for second pair selection
-      fetchAvailableLenses();
+      // Second pair lenses + frame brands load via useEffect (session + secondPairProductKind)
       
       // Fetch all applicable offers (always fetch)
       fetchAllApplicableOffers(offerResult);
@@ -700,10 +967,50 @@ export default function OfferSummaryPage() {
     return categoryDiscount.description || 'Category Discount applied';
   };
 
+  const retailTypeParam = (kind: SecondPairProductKind) =>
+    kind === 'EYEGLASS' ? 'FRAME' : kind === 'SUNGLASS' ? 'SUNGLASS' : 'POWER_SUNGLASS';
+
+  const LENS_INDEX_ENUM = LENS_INDEX_ENUM_SET;
+
+  /** Power sun: require MRP, brand, and sub-brand when the brand has sub-brands (before "who is it for") */
+  const isPowerSunFrameComplete = (): boolean => {
+    if (secondPairProductKind !== 'POWER_SUNGLASS') return true;
+    const m = parseFloat(secondPairFrameMRP) || 0;
+    if (m <= 0) return false;
+    if (!String(secondPairBrand || '').trim()) return false;
+    if (availableSubBrands.length > 0 && !String(secondPairSubBrand || '').trim()) return false;
+    return true;
+  };
+
+  const onSecondPairProductKindChange = (kind: SecondPairProductKind) => {
+    if (kind === secondPairProductKind) return;
+    setSecondPairProductKind(kind);
+    setSecondPairBrand('');
+    setSecondPairSubBrand('');
+    setSecondPairLensId('');
+    setSecondPairLensPrice(0);
+    setSecondPairOtherRx(null);
+    setSecondPairTintSelection(null);
+    setSecondPairLensRecipient(null);
+    setPendingPowerSunLens(null);
+    setTintColorPrices({});
+    setTintPricesLoading(false);
+  };
+
   const fetchAvailableLenses = async () => {
+    if (data && data.selectedLens.id !== productId) {
+      setAvailableLenses([]);
+      return;
+    }
     setLoadingLenses(true);
     try {
-      const response = await fetch('/api/products/lenses');
+      const params = new URLSearchParams();
+      params.set('secondPairKind', secondPairProductKind);
+      const vt = data?.selectedLens?.visionType;
+      if (vt) {
+        params.set('visionType', String(vt).toUpperCase());
+      }
+      const response = await fetch(`/api/products/lenses?${params.toString()}`);
       const result = await response.json();
       if (result.success) {
         setAvailableLenses(result.data || []);
@@ -712,6 +1019,293 @@ export default function OfferSummaryPage() {
       console.error('Failed to fetch lenses:', error);
     } finally {
       setLoadingLenses(false);
+    }
+  };
+
+  /** BOGO: for eyeglass & power-sun. Ready-made sun skips lens (no modal). */
+  const openSecondPairRecipientStep = () => {
+    if (secondPairProductKind === 'SUNGLASS') return;
+    if (secondPairProductKind === 'POWER_SUNGLASS' && !isPowerSunFrameComplete()) {
+      showToast(
+        'error',
+        availableSubBrands.length > 0
+          ? 'Enter second pair frame MRP, brand, and sub-brand first.'
+          : 'Enter second pair frame MRP and brand first.'
+      );
+      return;
+    }
+    setBogoSecondPairModalScreen('who');
+    setShowSecondPairRecipientModal(true);
+  };
+
+  /** BOGO: full name → Q&A → recommendations for the other person; child session merges back here. */
+  const startBogoOtherPersonFullQuestionnaire = async () => {
+    if (secondPairProductKind !== 'EYEGLASS') {
+      showToast('error', 'Full other-person flow is only available when 2nd pair is Eyeglass.');
+      return;
+    }
+    const mrp = parseFloat(secondPairFrameMRP) || 0;
+    if (mrp <= 0 || !secondPairBrand.trim()) {
+      showToast(
+        'error',
+        'Enter 2nd pair frame MRP and brand first, then start the other-person questionnaire.'
+      );
+      return;
+    }
+    if (!secondPairEnabled) {
+      showToast('error', 'Enable the second pair section first.');
+      return;
+    }
+    setShowSecondPairRecipientModal(false);
+    setBogoSecondPairModalScreen('who');
+    setSecondPairLensRecipient('other');
+    setStartingBogoChildQuestionnaire(true);
+    try {
+      const sub = secondPairSubBrand?.trim() || null;
+      const secondPairDataPrime: Record<string, unknown> = {
+        enabled: true,
+        frameMRP: mrp,
+        brand: secondPairBrand.trim(),
+        subBrand: sub,
+        secondPairProductKind: 'EYEGLASS',
+        lensRecipient: 'other',
+        bogoSecondPersonInProgress: true,
+      };
+      const pr = await fetch(`/api/public/questionnaire/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secondPairData: secondPairDataPrime }),
+      });
+      if (!pr.ok) {
+        showToast('error', 'Could not save 2nd pair context. Try again.');
+        return;
+      }
+      const sres = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
+      const sj = await sres.json();
+      const stId = sj.data?.session?.storeId;
+      const category = sj.data?.session?.category as string | undefined;
+      if (!stId || !category) {
+        showToast('error', 'Session store or category is missing.');
+        return;
+      }
+      const vres = await fetch(`/api/public/verify-store?storeId=${stId}`);
+      const vj = await vres.json();
+      const sc = vj.data?.code as string | undefined;
+      if (!sc) {
+        showToast('error', 'Could not resolve store code.');
+        return;
+      }
+      const cres = await fetch('/api/public/questionnaire/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeCode: sc,
+          category,
+          parentSessionId: sessionId,
+          bogoParentFirstPairProductId: productId,
+          customerName: 'Second customer',
+          customerPhone: '0000000000',
+        }),
+      });
+      const cj = await cres.json();
+      if (!cj.success || !cj.data?.sessionId) {
+        showToast('error', cj.error?.message || 'Could not start the other-person session.');
+        return;
+      }
+      router.push(`/questionnaire/${cj.data.sessionId}/bogo-second-person-details`);
+    } catch {
+      showToast('error', 'Something went wrong. Try again.');
+    } finally {
+      setStartingBogoChildQuestionnaire(false);
+    }
+  };
+
+  /** Power sun 2nd pair: skip lens catalog — open tint chart using 1st-pair lens (same index / pricing). */
+  const openSecondPairPowerSunTintFromFirstPair = () => {
+    if (!data?.selectedLens?.id) {
+      showToast('error', 'First-pair lens is missing. Open this page from recommendations again.');
+      return;
+    }
+    const fromRec = data.selectedLens.lensIndex && LENS_INDEX_ENUM.has(data.selectedLens.lensIndex)
+      ? data.selectedLens.lensIndex
+      : null;
+    const li = fromRec || displayIndexStringToLensEnum(data.selectedLens.index);
+    if (!li) {
+      showToast('error', 'Could not determine lens index for tint prices.');
+      return;
+    }
+    const orgBase = bogoPowerSunSecondPairLensBasePrice;
+    const lensBase =
+      orgBase != null && orgBase > 0 ? orgBase : data.selectedLens.price;
+    openSecondPairTintForPowerSun({
+      id: data.selectedLens.id,
+      name: data.selectedLens.name,
+      price: lensBase,
+      index: li,
+    });
+  };
+
+  const applySecondPairRecipientAndOpenLenses = (recipient: 'self' | 'other') => {
+    setSecondPairLensRecipient(recipient);
+    if (secondPairProductKind === 'EYEGLASS') {
+      if (recipient === 'other') {
+        setBogoSecondPairModalScreen('eyeglassOtherHow');
+        return;
+      }
+      setShowSecondPairRecipientModal(false);
+      setBogoSecondPairModalScreen('who');
+      void fetchAvailableLenses();
+      setShowLensSelectionModal(true);
+      return;
+    }
+    setShowSecondPairRecipientModal(false);
+    setBogoSecondPairModalScreen('who');
+    if (secondPairProductKind === 'POWER_SUNGLASS') {
+      if (recipient === 'other') {
+        setSecondPairOtherRx({
+          odSphere: '',
+          osSphere: '',
+          odCylinder: '0',
+          osCylinder: '0',
+          odAdd: '',
+        });
+        setShowSecondPairRxModal(true);
+      } else {
+        setSecondPairOtherRx(null);
+        openSecondPairPowerSunTintFromFirstPair();
+      }
+    }
+  };
+
+  const openEyeglassSecondPairLensCatalogFromModal = () => {
+    setShowSecondPairRecipientModal(false);
+    setBogoSecondPairModalScreen('who');
+    void fetchAvailableLenses();
+    setShowLensSelectionModal(true);
+  };
+
+  const finishSecondPairRxForPowerSun = () => {
+    if (!secondPairOtherRx) return;
+    if (secondPairOtherRx.odSphere.trim() === '' || secondPairOtherRx.osSphere.trim() === '') {
+      showToast('error', 'Enter sphere for both eyes (use 0 if Plano).');
+      return;
+    }
+    setShowSecondPairRxModal(false);
+    openSecondPairPowerSunTintFromFirstPair();
+  };
+
+  const openSecondPairTintForPowerSun = (lens: { id: string; price: number; name: string; index: string }) => {
+    setSecondPairLensId(lens.id);
+    setPendingPowerSunLens({
+      id: lens.id,
+      price: lens.price,
+      name: lens.name,
+      index: lens.index,
+    });
+    setShowLensSelectionModal(false);
+    setShowSecondPairTintModal(true);
+    setTintFormPick({ tintId: null, mirrorId: null });
+    setTintColorPrices({});
+    setTintPricesLoading(true);
+    void (async () => {
+      try {
+        const [tc, mc] = await Promise.all([
+          fetch('/api/public/tint-colors'),
+          fetch('/api/public/mirror-coatings'),
+        ]);
+        let colors: TintChartColor[] = [];
+        if (tc.ok) {
+          const j = await tc.json();
+          if (j.success && j.data) {
+            colors = (j.data as Record<string, unknown>[]).map((t) => ({
+              id: String(t.id),
+              name: String(t.name ?? ''),
+              code: String(t.code ?? ''),
+              hexColor: (t.hexColor as string | null | undefined) ?? null,
+              imageUrl: (t.imageUrl as string | null | undefined) ?? null,
+              category: String(t.category ?? 'OTHER'),
+              darknessPercent: typeof t.darknessPercent === 'number' ? t.darknessPercent : 0,
+              isPolarized: Boolean(t.isPolarized),
+            }));
+            setTintModalColors(colors);
+          }
+        }
+        if (mc.ok) {
+          const j2 = await mc.json();
+          if (j2.success && j2.data) {
+            setTintModalMirrors(
+              (j2.data as { id: string; name: string; addOnPrice: number; imageUrl?: string | null }[]).map(
+                (m) => ({
+                id: m.id,
+                name: m.name,
+                addOnPrice: m.addOnPrice || 0,
+                imageUrl: m.imageUrl,
+              })
+              )
+            );
+          }
+        }
+        const li = lens.index && LENS_INDEX_ENUM.has(lens.index) ? lens.index : null;
+        if (li && colors.length) {
+          const priceEntries = await Promise.all(
+            colors.map(async (c) => {
+              try {
+                const r = await fetch(`/api/public/tint-colors/${c.id}/pricing?lensIndex=${li}`);
+                const data = await r.json();
+                if (data.success && data.data) {
+                  const p = data.data.finalPrice ?? data.data.finalTintPrice ?? 0;
+                  return [c.id, typeof p === 'number' ? p : 0] as const;
+                }
+              } catch {
+                /* skip */
+              }
+              return [c.id, 0] as const;
+            })
+          );
+          setTintColorPrices(Object.fromEntries(priceEntries));
+        } else {
+          setTintColorPrices({});
+        }
+      } catch (e) {
+        console.error('Tint modal load', e);
+      } finally {
+        setTintPricesLoading(false);
+      }
+    })();
+  };
+
+  const confirmPowerSunTint = () => {
+    if (!pendingPowerSunLens || !tintFormPick.tintId) {
+      showToast('error', 'Select a tint shade to continue.');
+      return;
+    }
+    const tint = tintModalColors.find((c) => c.id === tintFormPick.tintId);
+    const mirror = tintFormPick.mirrorId
+      ? tintModalMirrors.find((m) => m.id === tintFormPick.mirrorId)
+      : null;
+    const mirrorAdd = mirror?.addOnPrice || 0;
+    const base = pendingPowerSunLens.price || 0;
+    const tintAdd = tintFormPick.tintId ? (tintColorPrices[tintFormPick.tintId] ?? 0) : 0;
+    const total = base + tintAdd + mirrorAdd;
+    setSecondPairTintSelection({
+      tintColorId: tintFormPick.tintId!,
+      tintName: tint?.name || 'Tint',
+      mirrorCoatingId: tintFormPick.mirrorId,
+      mirrorAddOn: mirrorAdd,
+      tintAddOn: tintAdd,
+    });
+    setSecondPairLensId(pendingPowerSunLens.id);
+    setSecondPairLensPrice(total);
+    setShowSecondPairTintModal(false);
+    setPendingPowerSunLens(null);
+    if (secondPairFrameMRP && parseFloat(secondPairFrameMRP) > 0) {
+      void recalculateOffersWithSecondPair({
+        frameMRP: parseFloat(secondPairFrameMRP),
+        brand: secondPairBrand,
+        subBrand: secondPairSubBrand,
+        lensId: pendingPowerSunLens.id,
+        lensPrice: total,
+      });
     }
   };
 
@@ -738,9 +1332,14 @@ export default function OfferSummaryPage() {
         console.warn('[OfferSummary] Could not get store code from session, using localStorage fallback');
         storeCode = localStorage.getItem('lenstrack_store_code');
       }
+      if (!storeCode) {
+        storeCode = localStorage.getItem('lenstrack_store_code');
+      }
       
       if (storeCode) {
-        const response = await fetch(`/api/public/frame-brands?storeCode=${storeCode}`);
+        const response = await fetch(
+          `/api/public/frame-brands?storeCode=${storeCode}&retailType=${retailTypeParam(secondPairProductKind)}`
+        );
         if (response.ok) {
           const result = await response.json();
           if (result.success) {
@@ -752,6 +1351,18 @@ export default function OfferSummaryPage() {
       console.error('Failed to fetch frame brands:', error);
     }
   };
+
+  useEffect(() => {
+    if (!sessionId || !productId) return;
+    void fetchFrameBrands();
+    if (secondPairProductKind !== 'SUNGLASS') {
+      void fetchAvailableLenses();
+    } else {
+      setAvailableLenses([]);
+    }
+    // secondPairProductKind changes which frame brands + lens catalog to load for BOGO
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, productId, secondPairProductKind, data?.selectedLens?.visionType, data?.selectedLens?.id]);
 
   const fetchAllApplicableOffers = async (offerResult?: OfferCalculationResult) => {
     try {
@@ -849,11 +1460,17 @@ export default function OfferSummaryPage() {
     }
   }, [secondPairBrand, frameBrands]);
 
-  // ✅ Restore second pair data from session database when data and lenses are loaded (best practice)
+  // ✅ Restore second pair data from session (do not require lenses for ready-made sun)
   useEffect(() => {
-    if (!data || !data.offerResult || availableLenses.length === 0) return; // Wait for data and lenses to be loaded
-    
+    if (!data || !data.offerResult) return;
+
     const restoreSecondPairFromDatabase = async () => {
+      if (selectedOfferType && selectedOfferType !== 'BOGO' && selectedOfferType !== 'BOG50') {
+        return;
+      }
+      if (data && isYOPOPrimaryOffer(data.offerResult)) {
+        return;
+      }
       try {
         const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
         if (sessionResponse.ok) {
@@ -864,30 +1481,73 @@ export default function OfferSummaryPage() {
             const parsed = sessionData.data.session.secondPairData as any;
             console.log('[OfferSummary] Parsed secondPairData:', parsed);
             
-            if (parsed && parsed.enabled && parsed.frameMRP && parsed.lensId && parsed.lensPrice > 0) {
+            const isReadySun = parsed?.readyMadeSunglasses === true || parsed?.secondPairProductKind === 'SUNGLASS';
+            const bogoOtherInProgress = parsed?.bogoSecondPersonInProgress === true;
+            if (
+              parsed &&
+              parsed.enabled &&
+              parsed.frameMRP &&
+              (isReadySun || bogoOtherInProgress || (parsed.lensId && Number(parsed.lensPrice ?? 0) >= 0))
+            ) {
               console.log('[OfferSummary] ✅ Restoring second pair data from session database:', parsed);
               
               // Set all state first
               setSecondPairEnabled(true);
+              const bogoType =
+                (data?.offerResult as { availableBOGORule?: { offerType?: string } } | null)?.availableBOGORule
+                  ?.offerType || 'BOGO';
+              setSelectedOfferType(bogoType);
               setSecondPairFrameMRP(parsed.frameMRP.toString());
               setSecondPairBrand(parsed.brand || '');
               setSecondPairSubBrand(parsed.subBrand || '');
-              setSecondPairLensId(parsed.lensId);
-              setSecondPairLensPrice(parsed.lensPrice);
+              if (isReadySun) {
+                setSecondPairLensId('');
+                setSecondPairLensPrice(0);
+              } else if (bogoOtherInProgress) {
+                setSecondPairLensId('');
+                setSecondPairLensPrice(0);
+              } else {
+                setSecondPairLensId(parsed.lensId);
+                setSecondPairLensPrice(parsed.lensPrice);
+              }
+              if (parsed.lensRecipient === 'self' || parsed.lensRecipient === 'other') {
+                setSecondPairLensRecipient(parsed.lensRecipient);
+              }
+              if (parsed.secondPairOtherRx) setSecondPairOtherRx(parsed.secondPairOtherRx);
+              if (parsed.tintSelection) setSecondPairTintSelection(parsed.tintSelection);
+              if (
+                parsed.secondPairProductKind === 'EYEGLASS' ||
+                parsed.secondPairProductKind === 'SUNGLASS' ||
+                parsed.secondPairProductKind === 'POWER_SUNGLASS'
+              ) {
+                setSecondPairProductKind(parsed.secondPairProductKind);
+              }
               
-              // Recalculate offers with second pair data after a delay to ensure state is set
-              setTimeout(() => {
-                if (data && productId) {
-                  console.log('[OfferSummary] Recalculating offers with restored second pair data');
-                  recalculateOffersWithSecondPair({
-                    frameMRP: parsed.frameMRP,
-                    brand: parsed.brand || '',
-                    subBrand: parsed.subBrand || '',
-                    lensId: parsed.lensId,
-                    lensPrice: parsed.lensPrice,
-                  });
-                }
-              }, 1500); // Increased delay to ensure all state is set
+              if (!(bogoOtherInProgress && !isReadySun)) {
+                // Recalculate offers with second pair data after a delay to ensure state is set
+                setTimeout(() => {
+                  if (data && productId) {
+                    console.log('[OfferSummary] Recalculating offers with restored second pair data');
+                    const rs = isReadySun;
+                    const spRxFromSession =
+                      !rs &&
+                      parsed.lensRecipient === 'other' &&
+                      parsed.secondPairOtherRx
+                        ? secondPairOtherRxToApiBody(parsed.secondPairOtherRx)
+                        : undefined;
+                    void recalculateOffersWithSecondPair(
+                      {
+                        frameMRP: parsed.frameMRP,
+                        brand: parsed.brand || '',
+                        subBrand: parsed.subBrand || '',
+                        lensId: rs ? '' : (parsed.lensId || ''),
+                        lensPrice: rs ? 0 : (parsed.lensPrice || 0),
+                      },
+                      { secondPairPrescriptionOverride: spRxFromSession }
+                    );
+                  }
+                }, 1500);
+              }
             } else {
               console.log('[OfferSummary] Second pair data exists but is incomplete:', parsed);
             }
@@ -903,17 +1563,53 @@ export default function OfferSummaryPage() {
     };
     
     restoreSecondPairFromDatabase();
-  }, [data, sessionId, productId, availableLenses.length]); // Run when data and lenses are loaded
+  }, [data, sessionId, productId, selectedOfferType]);
 
-  const recalculateOffersWithSecondPair = async (secondPairData: {
-    frameMRP: number;
-    brand: string;
-    subBrand: string;
-    lensId: string;
-    lensPrice: number;
-  } | null) => {
+  const buildSecondPairPrescriptionForApi = () => {
+    if (secondPairLensRecipient !== 'other' || !secondPairOtherRx) {
+      return undefined;
+    }
+    if (
+      secondPairProductKind !== 'POWER_SUNGLASS' &&
+      secondPairProductKind !== 'EYEGLASS'
+    ) {
+      return undefined;
+    }
+    const p = secondPairOtherRx;
+    return {
+      odSphere: p.odSphere ? parseFloat(p.odSphere) : 0,
+      osSphere: p.osSphere ? parseFloat(p.osSphere) : 0,
+      odCylinder: p.odCylinder ? parseFloat(p.odCylinder) : 0,
+      osCylinder: p.osCylinder ? parseFloat(p.osCylinder) : 0,
+      rSph: p.odSphere ? parseFloat(p.odSphere) : 0,
+      lSph: p.osSphere ? parseFloat(p.osSphere) : 0,
+      rCyl: p.odCylinder ? parseFloat(p.odCylinder) : 0,
+      lCyl: p.osCylinder ? parseFloat(p.osCylinder) : 0,
+      add: p.odAdd ? parseFloat(p.odAdd) : 0,
+    };
+  };
+
+  const recalculateOffersWithSecondPair = async (
+    secondPairData: {
+      frameMRP: number;
+      brand: string;
+      subBrand: string;
+      lensId: string;
+      lensPrice: number;
+    } | null,
+    options?: { secondPairPrescriptionOverride?: ReturnType<typeof secondPairOtherRxToApiBody> | undefined }
+  ) => {
     if (!data || !productId) return;
-    
+    const spRx = options?.secondPairPrescriptionOverride ?? buildSecondPairPrescriptionForApi();
+    // When a 2nd pair is included, the engine must not pick YOPO as primary (YOPO blocks 2nd-pair BOGO).
+    // If the user has not picked a card yet, force BOGO/BOG50 from the available rule (default BOGO).
+    const bogoOrBog50 =
+      selectedOfferType ||
+      (data.offerResult as { availableBOGORule?: { offerType?: string } })?.availableBOGORule?.offerType ||
+      'BOGO';
+    const selectedOfferTypeForApi =
+      secondPairData != null ? bogoOrBog50 : selectedOfferType;
+
     try {
       const offersResponse = await fetch(
         `/api/public/questionnaire/sessions/${sessionId}/recalculate-offers`,
@@ -924,13 +1620,17 @@ export default function OfferSummaryPage() {
             productId: productId,
             couponCode: null,
             customerCategory: appliedCategory || null,
-            secondPair: secondPairData ? {
-              enabled: true,
-              firstPairTotal: data.offerResult.baseTotal,
-              secondPairFrameMRP: secondPairData.frameMRP,
-              secondPairLensPrice: secondPairData.lensPrice,
-              lensId: secondPairData.lensId, // Pass lensId so API can fetch IT code
-            } : null,
+            secondPair: secondPairData
+              ? {
+                  enabled: true,
+                  firstPairTotal: data.offerResult.baseTotal,
+                  secondPairFrameMRP: secondPairData.frameMRP,
+                  secondPairLensPrice: secondPairData.lensPrice,
+                  ...(secondPairData.lensId ? { lensId: secondPairData.lensId } : {}),
+                }
+              : null,
+            secondPairPrescription: spRx,
+            selectedOfferType: selectedOfferTypeForApi,
           }),
         }
       );
@@ -947,6 +1647,28 @@ export default function OfferSummaryPage() {
       console.error('Failed to recalculate offers with second pair:', error);
     }
   };
+
+  const groupedSecondPairLenses = useMemo(() => {
+    const rows = (availableLenses || []) as SecondPairLensRow[];
+    const byBrand = new Map<string, SecondPairLensRow[]>();
+    for (const l of rows) {
+      const key = (l.brandLine || 'Other').trim() || 'Other';
+      if (!byBrand.has(key)) byBrand.set(key, []);
+      byBrand.get(key)!.push(l);
+    }
+    const keys = [...byBrand.keys()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    return keys.map((brand) => ({ brand, lenses: byBrand.get(brand)! }));
+  }, [availableLenses]);
+
+  const tintChartGrouped = useMemo(() => {
+    const m = new Map<string, TintChartColor[]>();
+    for (const c of tintModalColors) {
+      const k = c.category || 'OTHER';
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(c);
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [tintModalColors]);
 
   const fetchEligibleProducts = async () => {
     if (!data) return;
@@ -1525,6 +2247,19 @@ export default function OfferSummaryPage() {
 
         {/* Second Pair Selection for BOGO Offers */}
         {(() => {
+          // User picked a non-BOGO primary (e.g. YOPO) — never show 2nd pair here
+          if (selectedOfferType && selectedOfferType !== 'BOGO' && selectedOfferType !== 'BOG50') {
+            return null;
+          }
+          // No card selected: if engine already applied YOPO and there is no BOGO second-pair discount, hide BOGO block
+          if (
+            selectedOfferType == null &&
+            isYOPOPrimaryOffer(data.offerResult) &&
+            !data.offerResult?.secondPairDiscount
+          ) {
+            return null;
+          }
+
           // Only show second pair section if BOGO/BOG50 is selected OR if second pair details are already entered
           const isBOGOSelected = selectedOfferType === 'BOGO' || selectedOfferType === 'BOG50';
           const hasSecondPairData = secondPairEnabled && (secondPairFrameMRP || secondPairBrand || secondPairLensId);
@@ -1573,7 +2308,7 @@ export default function OfferSummaryPage() {
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={secondPairEnabled || !!data.offerResult?.availableBOGORule}
+                    checked={secondPairEnabled}
                     onChange={(e) => {
                       setSecondPairEnabled(e.target.checked);
                       if (!e.target.checked) {
@@ -1583,6 +2318,10 @@ export default function OfferSummaryPage() {
                         setSecondPairSubBrand('');
                         setSecondPairLensId('');
                         setSecondPairLensPrice(0);
+                        setSecondPairLensRecipient(null);
+                        setSecondPairProductKind('EYEGLASS');
+                        setSecondPairOtherRx(null);
+                        setSecondPairTintSelection(null);
                         // Recalculate offers without second pair
                         recalculateOffersWithSecondPair(null);
                       }
@@ -1595,10 +2334,66 @@ export default function OfferSummaryPage() {
                   </span>
                 </label>
                 
-                {(secondPairEnabled || !!data.offerResult?.availableBOGORule) && (
+                {secondPairEnabled && (
                   <div className="mt-4 pt-4 border-t border-slate-700/50 space-y-4">
                     <p className="text-sm text-slate-300 font-medium">Enter Second Pair Details:</p>
                     
+                    {/* 2nd pair product type: eyeglass / sunglass / power sun — drives frame brands + lens list */}
+                    <div>
+                      <p className="text-sm font-medium text-slate-200 mb-2">What kind of second pair is this?</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onSecondPairProductKindChange('EYEGLASS')}
+                          className={`flex items-start gap-2 p-3 rounded-xl border-2 text-left transition-all ${
+                            secondPairProductKind === 'EYEGLASS'
+                              ? 'border-purple-500 bg-purple-500/15 text-white'
+                              : 'border-slate-600 bg-slate-800/50 text-slate-200 hover:border-slate-500'
+                          }`}
+                        >
+                          <Glasses className="shrink-0 mt-0.5 text-purple-400" size={20} />
+                          <span>
+                            <span className="block font-semibold">Eyeglasses</span>
+                            <span className="text-xs opacity-80">Clear pair (regular specs)</span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onSecondPairProductKindChange('SUNGLASS')}
+                          className={`flex items-start gap-2 p-3 rounded-xl border-2 text-left transition-all ${
+                            secondPairProductKind === 'SUNGLASS'
+                              ? 'border-amber-500 bg-amber-500/15 text-white'
+                              : 'border-slate-600 bg-slate-800/50 text-slate-200 hover:border-slate-500'
+                          }`}
+                        >
+                          <Sun className="shrink-0 mt-0.5 text-amber-400" size={20} />
+                          <span>
+                            <span className="block font-semibold">Sunglasses</span>
+                            <span className="text-xs opacity-80">Sun pair (fashion / plano sun)</span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onSecondPairProductKindChange('POWER_SUNGLASS')}
+                          className={`flex items-start gap-2 p-3 rounded-xl border-2 text-left transition-all ${
+                            secondPairProductKind === 'POWER_SUNGLASS'
+                              ? 'border-cyan-500 bg-cyan-500/15 text-white'
+                              : 'border-slate-600 bg-slate-800/50 text-slate-200 hover:border-slate-500'
+                          }`}
+                        >
+                          <Glasses className="shrink-0 mt-0.5 text-cyan-400" size={20} />
+                          <span>
+                            <span className="block font-semibold">Power sunglasses</span>
+                            <span className="text-xs opacity-80">Rx in sun (tinted + power)</span>
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {secondPairProductKind === 'POWER_SUNGLASS' && (
+                      <p className="text-xs text-cyan-200/90 font-medium uppercase tracking-wide">Step 1 — Frame: MRP &amp; brand</p>
+                    )}
+
                     {/* Frame Price */}
                     <Input
                       label="Second Pair Frame MRP"
@@ -1607,15 +2402,25 @@ export default function OfferSummaryPage() {
                       value={secondPairFrameMRP}
                       onChange={(e) => {
                         setSecondPairFrameMRP(e.target.value);
-                        if (e.target.value && parseFloat(e.target.value) > 0) {
-                          recalculateOffersWithSecondPair({
-                            frameMRP: parseFloat(e.target.value),
+                        const m = e.target.value ? parseFloat(e.target.value) : 0;
+                        if (!m || m <= 0) return;
+                        if (secondPairProductKind === 'SUNGLASS' && secondPairBrand) {
+                          void recalculateOffersWithSecondPair({
+                            frameMRP: m,
                             brand: secondPairBrand,
                             subBrand: secondPairSubBrand,
-                            lensId: secondPairLensId,
-                            lensPrice: secondPairLensPrice,
+                            lensId: '',
+                            lensPrice: 0,
                           });
+                          return;
                         }
+                        recalculateOffersWithSecondPair({
+                          frameMRP: m,
+                          brand: secondPairBrand,
+                          subBrand: secondPairSubBrand,
+                          lensId: secondPairLensId,
+                          lensPrice: secondPairLensPrice,
+                        });
                       }}
                       className="!bg-slate-100 dark:!bg-slate-700/80 !border-2 !border-slate-300 dark:!border-slate-600 !text-slate-900 dark:!text-white !placeholder:text-slate-500 dark:!placeholder:text-slate-500"
                     />
@@ -1627,15 +2432,26 @@ export default function OfferSummaryPage() {
                       onChange={(e) => {
                         setSecondPairBrand(e.target.value);
                         setSecondPairSubBrand(''); // Reset sub-brand when brand changes
-                        if (e.target.value && secondPairFrameMRP && parseFloat(secondPairFrameMRP) > 0) {
-                          recalculateOffersWithSecondPair({
-                            frameMRP: parseFloat(secondPairFrameMRP),
+                        if (!e.target.value) return;
+                        const mrp = secondPairFrameMRP ? parseFloat(secondPairFrameMRP) : 0;
+                        if (mrp <= 0) return;
+                        if (secondPairProductKind === 'SUNGLASS') {
+                          void recalculateOffersWithSecondPair({
+                            frameMRP: mrp,
                             brand: e.target.value,
                             subBrand: '',
-                            lensId: secondPairLensId,
-                            lensPrice: secondPairLensPrice,
+                            lensId: '',
+                            lensPrice: 0,
                           });
+                          return;
                         }
+                        recalculateOffersWithSecondPair({
+                          frameMRP: mrp,
+                          brand: e.target.value,
+                          subBrand: '',
+                          lensId: secondPairLensId,
+                          lensPrice: secondPairLensPrice,
+                        });
                       }}
                       options={[
                         { value: '', label: 'Select Brand' },
@@ -1651,15 +2467,24 @@ export default function OfferSummaryPage() {
                         value={secondPairSubBrand}
                         onChange={(e) => {
                           setSecondPairSubBrand(e.target.value);
-                          if (secondPairFrameMRP && parseFloat(secondPairFrameMRP) > 0) {
-                            recalculateOffersWithSecondPair({
+                          if (!secondPairFrameMRP || parseFloat(secondPairFrameMRP) <= 0) return;
+                          if (secondPairProductKind === 'SUNGLASS') {
+                            void recalculateOffersWithSecondPair({
                               frameMRP: parseFloat(secondPairFrameMRP),
                               brand: secondPairBrand,
                               subBrand: e.target.value,
-                              lensId: secondPairLensId,
-                              lensPrice: secondPairLensPrice,
+                              lensId: '',
+                              lensPrice: 0,
                             });
+                            return;
                           }
+                          void recalculateOffersWithSecondPair({
+                            frameMRP: parseFloat(secondPairFrameMRP),
+                            brand: secondPairBrand,
+                            subBrand: e.target.value,
+                            lensId: secondPairLensId,
+                            lensPrice: secondPairLensPrice,
+                          });
                         }}
                         options={[
                           { value: '', label: 'Select Sub Brand (Optional)' },
@@ -1669,22 +2494,31 @@ export default function OfferSummaryPage() {
                       />
                     )}
                     
-                    {/* Lens Selection */}
+                    {secondPairProductKind === 'EYEGLASS' && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                        Second Pair Lens
-                      </label>
+                      <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                        <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Second Pair Lens
+                        </span>
+                        {secondPairLensRecipient && (
+                          <span className="text-xs font-semibold text-purple-600 dark:text-purple-300">
+                            {secondPairLensRecipient === 'self'
+                              ? '2nd pair for: same customer'
+                              : '2nd pair for: someone else'}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex gap-3">
                         <Input
                           type="text"
                           placeholder={secondPairLensId ? 'Lens selected' : 'Click to select lens'}
                           value={secondPairLensId ? availableLenses.find(l => l.id === secondPairLensId)?.name || '' : ''}
                           readOnly
-                          onClick={() => setShowLensSelectionModal(true)}
+                          onClick={() => openSecondPairRecipientStep()}
                           className="flex-1 !bg-slate-100 dark:!bg-slate-700/80 !border-2 !border-slate-300 dark:!border-slate-600 !text-slate-900 dark:!text-white cursor-pointer"
                         />
                         <Button
-                          onClick={() => setShowLensSelectionModal(true)}
+                          onClick={() => openSecondPairRecipientStep()}
                           variant="outline"
                           className="border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-purple-500 dark:hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400"
                         >
@@ -1692,12 +2526,44 @@ export default function OfferSummaryPage() {
                           Select Lens
                         </Button>
                       </div>
-                      {secondPairLensPrice > 0 && (
+                      {!!secondPairLensId && secondPairLensPrice >= 0 && (
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                           Selected lens price: ₹{Math.round(secondPairLensPrice).toLocaleString()}
                         </p>
                       )}
                     </div>
+                    )}
+
+                    {secondPairProductKind === 'POWER_SUNGLASS' && (
+                    <div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          onClick={() => openSecondPairRecipientStep()}
+                          variant="outline"
+                          disabled={!isPowerSunFrameComplete()}
+                          className="border-2 border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {secondPairLensRecipient ? 'Change who it’s for' : 'Start: who is it for?'}
+                        </Button>
+                        {secondPairLensId && secondPairTintSelection && (
+                          <p className="text-xs text-slate-400 self-center">
+                            {availableLenses.find((l) => l.id === secondPairLensId)?.name || 'Lens'} · {secondPairTintSelection.tintName}
+                            {typeof secondPairTintSelection.tintAddOn === 'number' && secondPairTintSelection.tintAddOn > 0
+                              ? ` · tint ₹${Math.round(secondPairTintSelection.tintAddOn).toLocaleString()}`
+                              : ''}
+                            {secondPairTintSelection.mirrorAddOn > 0
+                              ? ` + mirror ₹${secondPairTintSelection.mirrorAddOn.toLocaleString()}`
+                              : ''}
+                          </p>
+                        )}
+                      </div>
+                      {secondPairLensId && availableLenses.find((l) => l.id === secondPairLensId) && secondPairTintSelection && secondPairLensPrice >= 0 && (
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                          2nd pair lens+shade: ₹{Math.round(secondPairLensPrice).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1740,6 +2606,19 @@ export default function OfferSummaryPage() {
                           setSecondPairSubBrand('');
                           setSecondPairLensId('');
                           setSecondPairLensPrice(0);
+                          setSecondPairLensRecipient(null);
+                          setSecondPairProductKind('EYEGLASS');
+                          setSecondPairOtherRx(null);
+                          setSecondPairTintSelection(null);
+                          try {
+                            await fetch(`/api/public/questionnaire/sessions/${sessionId}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ secondPairData: null }),
+                            });
+                          } catch (e) {
+                            console.warn('[OfferSummary] Failed to clear secondPairData on deselect', e);
+                          }
                         }
                         await fetchOfferSummary();
                       } else {
@@ -1757,6 +2636,20 @@ export default function OfferSummaryPage() {
                           setSecondPairSubBrand('');
                           setSecondPairLensId('');
                           setSecondPairLensPrice(0);
+                          setSecondPairLensRecipient(null);
+                          setSecondPairProductKind('EYEGLASS');
+                          setSecondPairOtherRx(null);
+                          setSecondPairTintSelection(null);
+                          // Clear session immediately so restore effect / debounced save cannot re-hydrate BOGO
+                          try {
+                            await fetch(`/api/public/questionnaire/sessions/${sessionId}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ secondPairData: null }),
+                            });
+                          } catch (e) {
+                            console.warn('[OfferSummary] Failed to clear secondPairData on session', e);
+                          }
                         }
                         
                         // Recalculate with selected offer
@@ -2000,42 +2893,54 @@ export default function OfferSummaryPage() {
           </Button>
           <Button
             onClick={async () => {
-              // ✅ IMPORTANT: Save second pair data immediately before navigation
-              // This ensures data is saved even if debounce hasn't fired yet
-              if (secondPairEnabled && secondPairFrameMRP && secondPairLensId && secondPairLensPrice > 0) {
-                const selectedLens = availableLenses.find(l => l.id === secondPairLensId);
-                const lensName = selectedLens?.name || 'Lens';
-                
-                const secondPairData = {
+              const mrp = parseFloat(secondPairFrameMRP) || 0;
+              const canPreSave =
+                secondPairEnabled &&
+                mrp > 0 &&
+                secondPairBrand &&
+                (secondPairProductKind === 'SUNGLASS' ||
+                  (secondPairProductKind === 'EYEGLASS' && secondPairLensId && secondPairLensPrice >= 0) ||
+                  (secondPairProductKind === 'POWER_SUNGLASS' &&
+                    secondPairLensId &&
+                    secondPairLensPrice >= 0 &&
+                    secondPairTintSelection));
+              if (canPreSave) {
+                const selectedLens = availableLenses.find((l) => l.id === secondPairLensId);
+                const baseData: Record<string, unknown> = {
                   enabled: true,
-                  frameMRP: parseFloat(secondPairFrameMRP),
+                  frameMRP: mrp,
                   brand: secondPairBrand,
                   subBrand: secondPairSubBrand,
-                  lensId: secondPairLensId,
-                  lensName: lensName,
-                  lensPrice: secondPairLensPrice,
+                  secondPairProductKind,
+                  lensRecipient: secondPairLensRecipient,
                 };
-                
+                if (secondPairProductKind === 'SUNGLASS') {
+                  baseData.lensName = 'Ready-made sunglasses (no separate lens selection)';
+                  baseData.lensId = '';
+                  baseData.lensPrice = 0;
+                  baseData.readyMadeSunglasses = true;
+                } else {
+                  baseData.lensId = secondPairLensId;
+                  baseData.lensName = selectedLens?.name || 'Lens';
+                  baseData.lensPrice = secondPairLensPrice;
+                }
+                if (secondPairProductKind === 'POWER_SUNGLASS') {
+                  if (secondPairOtherRx) baseData.secondPairOtherRx = secondPairOtherRx;
+                  if (secondPairTintSelection) baseData.tintSelection = secondPairTintSelection;
+                }
                 try {
                   const response = await fetch(`/api/public/questionnaire/sessions/${sessionId}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      secondPairData: secondPairData,
-                    }),
+                    body: JSON.stringify({ secondPairData: baseData }),
                   });
-                  
                   if (response.ok) {
-                    console.log('[OfferSummary] ✅ Saved second pair data before checkout navigation:', secondPairData);
-                  } else {
-                    console.warn('[OfferSummary] ⚠️ Failed to save second pair data before checkout');
+                    console.log('[OfferSummary] ✅ Saved second pair before checkout:', baseData);
                   }
                 } catch (error) {
-                  console.error('[OfferSummary] Error saving second pair data before checkout:', error);
+                  console.error('[OfferSummary] Save before checkout:', error);
                 }
               }
-              
-              // Navigate directly to checkout, skipping accessories page
               router.push(`/questionnaire/${sessionId}/checkout/${productId}`);
             }}
             className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-3 shadow-lg hover:shadow-green-500/50 transform hover:scale-[1.02] transition-all duration-300 border-2 border-green-400/50"
@@ -2293,6 +3198,312 @@ export default function OfferSummaryPage() {
         </div>
       )}
 
+      {/* BOGO: who is the 2nd pair of lenses for? (before lens list) — eyeglass + “someone else” offers full merge flow in this modal */}
+      {showSecondPairRecipientModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in zoom-in-95 duration-200">
+            {bogoSecondPairModalScreen === 'who' ? (
+              <>
+                <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-5 py-4">
+                  <h2 className="text-lg font-bold text-white">Second pair: who is it for?</h2>
+                  <p className="text-violet-100 text-sm mt-1">
+                    Tell us whether the second pair of lenses is for the same person as the first pair, or for someone
+                    else.
+                  </p>
+                </div>
+                <div className="p-5 space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => applySecondPairRecipientAndOpenLenses('self')}
+                    className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 hover:border-purple-500 dark:hover:border-purple-500 text-left transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center shrink-0">
+                      <User className="text-purple-600 dark:text-purple-400" size={22} />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 dark:text-white">Same customer</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">Both pairs for the person being served now</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applySecondPairRecipientAndOpenLenses('other')}
+                    className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 hover:border-purple-500 dark:hover:border-purple-500 text-left transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center shrink-0">
+                      <Users className="text-indigo-600 dark:text-indigo-400" size={22} />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 dark:text-white">Someone else</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">E.g. family member, child, or another prescription</div>
+                    </div>
+                  </button>
+                </div>
+                <div className="px-5 pb-5">
+                  <Button
+                    fullWidth
+                    variant="outline"
+                    onClick={() => {
+                      setShowSecondPairRecipientModal(false);
+                      setBogoSecondPairModalScreen('who');
+                    }}
+                    className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-5 py-4">
+                  <h2 className="text-lg font-bold text-white">Other person — how do you want to add lenses?</h2>
+                  <p className="text-violet-100 text-sm mt-1">
+                    Use the full flow (name, prescription, questions, then pick lens and merge). Or select a lens from
+                    the catalog on this offer page only.
+                  </p>
+                </div>
+                <div className="p-5 space-y-3">
+                  <Button
+                    fullWidth
+                    className="bg-violet-600 hover:bg-violet-700 text-white"
+                    disabled={startingBogoChildQuestionnaire}
+                    onClick={() => void startBogoOtherPersonFullQuestionnaire()}
+                  >
+                    {startingBogoChildQuestionnaire
+                      ? 'Starting…'
+                      : 'Full flow for other person (merge back here)'}
+                  </Button>
+                  <Button
+                    fullWidth
+                    variant="outline"
+                    onClick={() => openEyeglassSecondPairLensCatalogFromModal()}
+                    className="border-slate-300 dark:border-slate-600"
+                  >
+                    Select lens from catalog
+                  </Button>
+                </div>
+                <div className="px-5 pb-5">
+                  <Button
+                    fullWidth
+                    variant="outline"
+                    onClick={() => {
+                      setBogoSecondPairModalScreen('who');
+                      setSecondPairLensRecipient(null);
+                    }}
+                    className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300"
+                  >
+                    Back
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* POWER SUN: prescription for “someone else” */}
+      {showSecondPairRxModal && secondPairOtherRx && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[75] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-600 p-5">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">2nd pair — other person Rx</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Enter prescription for the person receiving this power sunglass pair.</p>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <Input label="OD Sph" type="text" value={secondPairOtherRx.odSphere} onChange={(e) => setSecondPairOtherRx({ ...secondPairOtherRx, odSphere: e.target.value })} className="!text-slate-900" />
+              <Input label="OS Sph" type="text" value={secondPairOtherRx.osSphere} onChange={(e) => setSecondPairOtherRx({ ...secondPairOtherRx, osSphere: e.target.value })} className="!text-slate-900" />
+              <Input label="OD Cyl" type="text" value={secondPairOtherRx.odCylinder} onChange={(e) => setSecondPairOtherRx({ ...secondPairOtherRx, odCylinder: e.target.value })} className="!text-slate-900" />
+              <Input label="OS Cyl" type="text" value={secondPairOtherRx.osCylinder} onChange={(e) => setSecondPairOtherRx({ ...secondPairOtherRx, osCylinder: e.target.value })} className="!text-slate-900" />
+              <Input label="Add (if any)" type="text" value={secondPairOtherRx.odAdd} onChange={(e) => setSecondPairOtherRx({ ...secondPairOtherRx, odAdd: e.target.value })} className="!text-slate-900 col-span-2" />
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button fullWidth variant="outline" onClick={() => { setShowSecondPairRxModal(false); setBogoSecondPairModalScreen('who'); setShowSecondPairRecipientModal(true); }}>Back</Button>
+              <Button fullWidth onClick={() => { void finishSecondPairRxForPowerSun(); }}>Save &amp; continue</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POWER SUN: full tint chart first (lens list skipped; uses 1st-pair lens SKU + index) */}
+      {showSecondPairTintModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-6xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+            <div className="shrink-0 bg-gradient-to-r from-cyan-700 to-slate-900 px-4 sm:px-6 py-4 border-b border-cyan-900/50">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Palette className="text-cyan-300" size={24} />
+                    2nd pair — tint chart
+                  </h2>
+                  <p className="text-cyan-100/90 text-sm mt-1 pr-2">
+                    Every shade: swatch, product code, darkness, and add-on price for index{' '}
+                    {pendingPowerSunLens?.index ? formatLensIndexDisplay(pendingPowerSunLens.index) : '—'}. Lens
+                    base = your 1st-pair lens (not the long lens list).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSecondPairTintModal(false);
+                    setTintFormPick({ tintId: null, mirrorId: null });
+                  }}
+                  className="text-white/90 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                  aria-label="Close"
+                >
+                  <X size={22} />
+                </button>
+              </div>
+            </div>
+            {tintPricesLoading && (
+              <div className="shrink-0 px-4 py-2 bg-amber-50 dark:bg-amber-950/40 text-sm text-amber-900 dark:text-amber-200">
+                Loading prices for all shades…
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              {tintChartGrouped.map(([cat, items]) => (
+                <div key={cat} className="mb-8 last:mb-0">
+                  <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 border-b border-slate-200 dark:border-slate-700 pb-1">
+                    {humanizeLensEnum(cat)}
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {items.map((c) => {
+                      const pt = tintColorPrices[c.id];
+                      const hasPrice = typeof pt === 'number' && !tintPricesLoading;
+                      const selected = tintFormPick.tintId === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setTintFormPick((p) => ({ ...p, tintId: c.id }))}
+                          className={`text-left rounded-xl border-2 overflow-hidden transition-all hover:shadow-lg ${
+                            selected
+                              ? 'border-cyan-500 ring-2 ring-cyan-500/30 bg-cyan-50/50 dark:bg-cyan-950/30'
+                              : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/80'
+                          }`}
+                        >
+                          <div
+                            className="h-32 w-full flex items-center justify-center relative overflow-hidden"
+                            style={
+                              c.imageUrl
+                                ? undefined
+                                : c.hexColor
+                                  ? { backgroundColor: c.hexColor }
+                                  : { background: 'linear-gradient(180deg, #e2e8f0, #94a3b8)' }
+                            }
+                          >
+                            {c.imageUrl ? (
+                              <img
+                                src={c.imageUrl}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : null}
+                            {c.isPolarized && (
+                              <span className="absolute top-2 right-2 text-[10px] font-bold bg-black/65 text-white px-1.5 py-0.5 rounded">
+                                POL
+                              </span>
+                            )}
+                          </div>
+                          <div className="p-3">
+                            <p className="font-mono text-xs text-slate-500 dark:text-slate-400">{c.code}</p>
+                            <p className="font-semibold text-slate-900 dark:text-white text-sm leading-snug mt-0.5">
+                              {c.name}
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                              Shade {c.darknessPercent}% darkness
+                            </p>
+                            <p className="text-lg font-bold text-cyan-700 dark:text-cyan-300 mt-1.5">
+                              {tintPricesLoading ? '…' : hasPrice ? `+ ₹${Math.round(pt).toLocaleString()}` : '—'}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {tintModalMirrors.length > 0 && (
+              <div className="shrink-0 border-t border-slate-200 dark:border-slate-600 px-4 sm:px-6 py-3 bg-slate-50/80 dark:bg-slate-800/30">
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Mirror (optional)</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTintFormPick((p) => ({ ...p, mirrorId: null }))}
+                    className={`px-3 py-2 rounded-lg text-sm border-2 ${
+                      !tintFormPick.mirrorId
+                        ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/40'
+                        : 'border-slate-200 dark:border-slate-600'
+                    }`}
+                  >
+                    None
+                  </button>
+                  {tintModalMirrors.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setTintFormPick((p) => ({ ...p, mirrorId: m.id }))}
+                      className={`px-3 py-2 rounded-lg text-sm border-2 flex items-center gap-2 ${
+                        tintFormPick.mirrorId === m.id
+                          ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/40'
+                          : 'border-slate-200 dark:border-slate-600'
+                      }`}
+                    >
+                      {m.imageUrl ? (
+                        <img src={m.imageUrl} alt="" className="h-7 w-7 object-cover rounded" />
+                      ) : null}
+                      <span>
+                        {m.name}
+                        {m.addOnPrice > 0 ? (
+                          <span className="text-cyan-700 dark:text-cyan-300"> (+₹{m.addOnPrice.toLocaleString()})</span>
+                        ) : null}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {tintFormPick.tintId && typeof tintColorPrices[tintFormPick.tintId] === 'number' && pendingPowerSunLens && (
+              <div className="shrink-0 border-t border-slate-200 dark:border-slate-600 px-4 sm:px-6 py-3 bg-slate-100/90 dark:bg-slate-800/50">
+                <p className="text-sm text-slate-800 dark:text-slate-100">
+                  <span className="font-semibold">Total (2nd pair lens line):</span> lens ₹
+                  {Math.round(pendingPowerSunLens.price).toLocaleString()} + tint ₹
+                  {Math.round(tintColorPrices[tintFormPick.tintId] || 0).toLocaleString()}
+                  {tintFormPick.mirrorId
+                    ? (() => {
+                        const mir = tintModalMirrors.find((x) => x.id === tintFormPick.mirrorId);
+                        return mir ? ` + mirror ₹${Math.round(mir.addOnPrice).toLocaleString()}` : '';
+                      })()
+                    : ''}
+                </p>
+              </div>
+            )}
+            <div className="shrink-0 flex flex-col sm:flex-row gap-2 p-4 border-t border-slate-200 dark:border-slate-600">
+              <Button
+                fullWidth
+                variant="outline"
+                onClick={() => {
+                  setShowSecondPairTintModal(false);
+                  setTintFormPick({ tintId: null, mirrorId: null });
+                  setBogoSecondPairModalScreen('who');
+                  setShowSecondPairRecipientModal(true);
+                }}
+                className="order-2 sm:order-1"
+              >
+                Back
+              </Button>
+              <Button
+                fullWidth
+                onClick={() => {
+                  void confirmPowerSunTint();
+                }}
+                className="order-1 sm:order-2 bg-cyan-600 hover:bg-cyan-700"
+              >
+                Apply &amp; continue with BOGO
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Lens Selection Modal for Second Pair */}
       {showLensSelectionModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -2302,7 +3513,14 @@ export default function OfferSummaryPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-white mb-1">Select Second Pair Lens</h2>
-                  <p className="text-purple-100 text-sm">Choose a lens for your second pair</p>
+                  <p className="text-purple-100 text-sm">
+                    {secondPairProductKind === 'EYEGLASS' && (
+                      <>
+                        Choose a clear lens for{' '}
+                        {secondPairLensRecipient === 'other' ? 'the other person' : 'this customer'}.
+                      </>
+                    )}
+                  </p>
                 </div>
                 <button
                   onClick={() => setShowLensSelectionModal(false)}
@@ -2322,69 +3540,109 @@ export default function OfferSummaryPage() {
                 </div>
               ) : availableLenses.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-slate-600">No lenses available</p>
+                  <p className="text-slate-700 font-medium">No lenses available for this option</p>
+                  <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+                    {data?.selectedLens?.visionType
+                      ? `There are no ${humanizeLensEnum(data.selectedLens.visionType).toLowerCase()} lenses in this catalog for the selected product type. You can go back and pick another 2nd-pair product type, or check inventory.`
+                      : 'No lenses were returned. Try again or check store configuration.'}
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {availableLenses.map((lens) => (
-                    <div
-                      key={lens.id}
-                      className={`border-2 rounded-xl p-5 hover:shadow-lg transition-all bg-white group ${
-                        secondPairLensId === lens.id
-                          ? 'border-purple-500 bg-purple-50'
-                          : 'border-slate-200 hover:border-purple-400'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-6">
-                        <div className="flex-1">
-                          <h3 className="text-xl font-bold text-slate-900 mb-2">{lens.name}</h3>
-                          <div className="flex items-center gap-3 text-sm text-slate-600 mb-3 flex-wrap">
-                            {lens.brandLine && (
-                              <>
-                                <span className="font-medium text-slate-700">{lens.brandLine}</span>
-                                <span className="text-slate-400">•</span>
-                              </>
-                            )}
-                            {lens.index && (
-                              <>
-                                <span>Index {lens.index}</span>
-                                <span className="text-slate-400">•</span>
-                              </>
-                            )}
-                            {lens.itCode && (
-                              <span className="text-slate-500">IT Code: {lens.itCode}</span>
-                            )}
-                          </div>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-2xl font-bold text-slate-900">₹{Math.round(lens.price || 0).toLocaleString()}</span>
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => {
-                            setSecondPairLensId(lens.id);
-                            setSecondPairLensPrice(lens.price || 0);
-                            setShowLensSelectionModal(false);
-                            // Recalculate offers with selected lens
-                            if (secondPairFrameMRP && parseFloat(secondPairFrameMRP) > 0) {
-                              recalculateOffersWithSecondPair({
-                                frameMRP: parseFloat(secondPairFrameMRP),
-                                brand: secondPairBrand,
-                                subBrand: secondPairSubBrand,
-                                lensId: lens.id,
-                                lensPrice: lens.price || 0,
-                              });
-                            }
-                          }}
-                          className={`font-bold px-8 py-3 shadow-md hover:shadow-lg transition-all whitespace-nowrap ${
-                            secondPairLensId === lens.id
-                              ? 'bg-purple-600 text-white'
-                              : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white'
-                          }`}
-                        >
-                          {secondPairLensId === lens.id ? 'Selected' : 'Select'}
-                        </Button>
+                <div className="space-y-10">
+                  {groupedSecondPairLenses.map(({ brand, lenses }) => (
+                    <section key={brand} className="scroll-mt-4">
+                      <div className="sticky top-0 z-[1] -mx-1 px-1 py-2 mb-3 bg-white/95 backdrop-blur border-b border-slate-200">
+                        <h3 className="text-sm font-bold uppercase tracking-wide text-purple-800">{brand}</h3>
+                        <p className="text-xs text-slate-500">{lenses.length} option{lenses.length === 1 ? '' : 's'}</p>
                       </div>
-                    </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        {lenses.map((lens) => (
+                          <div
+                            key={lens.id}
+                            className={`border-2 rounded-xl p-4 hover:shadow-md transition-all bg-white ${
+                              secondPairLensId === lens.id
+                                ? 'border-purple-500 bg-purple-50/80 ring-1 ring-purple-200'
+                                : 'border-slate-200 hover:border-purple-300'
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-stretch gap-4">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-base font-bold text-slate-900 leading-snug">{lens.name}</h4>
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 border border-slate-200">
+                                    Index {formatLensIndexDisplay(lens.index)}
+                                  </span>
+                                  {lens.visionType && (
+                                    <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-800 border border-indigo-100">
+                                      {humanizeLensEnum(lens.visionType)}
+                                    </span>
+                                  )}
+                                  {lens.category && (
+                                    <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900 border border-amber-100">
+                                      {humanizeLensEnum(lens.category)}
+                                    </span>
+                                  )}
+                                  {lens.tintOption && lens.tintOption !== 'CLEAR' && (
+                                    <span className="inline-flex items-center rounded-md bg-cyan-50 px-2 py-0.5 text-[11px] font-medium text-cyan-900 border border-cyan-100">
+                                      {humanizeLensEnum(lens.tintOption)}
+                                    </span>
+                                  )}
+                                </div>
+                                <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                                  <div>
+                                    <dt className="text-slate-400 font-medium">IT code</dt>
+                                    <dd className="text-slate-800 font-mono truncate" title={lens.itCode}>
+                                      {lens.itCode || '—'}
+                                    </dd>
+                                  </div>
+                                  <div>
+                                    <dt className="text-slate-400 font-medium">Delivery</dt>
+                                    <dd className="text-slate-800">
+                                      {typeof lens.deliveryDays === 'number' ? `${lens.deliveryDays} days` : '—'}
+                                    </dd>
+                                  </div>
+                                  <div className="col-span-2">
+                                    <dt className="text-slate-400 font-medium">Brand line</dt>
+                                    <dd className="text-slate-800">{lens.brandLine || '—'}</dd>
+                                  </div>
+                                </dl>
+                                <div className="mt-3 flex items-baseline gap-2">
+                                  <span className="text-xl font-bold text-slate-900">
+                                    ₹{Math.round(lens.price || 0).toLocaleString()}
+                                  </span>
+                                  <span className="text-xs text-slate-500">offer price</span>
+                                </div>
+                              </div>
+                              <div className="flex sm:flex-col justify-end shrink-0">
+                                <Button
+                                  onClick={() => {
+                                    setSecondPairLensId(lens.id);
+                                    setSecondPairLensPrice(lens.price || 0);
+                                    setShowLensSelectionModal(false);
+                                    if (secondPairFrameMRP && parseFloat(secondPairFrameMRP) > 0) {
+                                      void recalculateOffersWithSecondPair({
+                                        frameMRP: parseFloat(secondPairFrameMRP),
+                                        brand: secondPairBrand,
+                                        subBrand: secondPairSubBrand,
+                                        lensId: lens.id,
+                                        lensPrice: lens.price || 0,
+                                      });
+                                    }
+                                  }}
+                                  className={`font-bold px-6 py-2.5 shadow-md w-full sm:w-auto ${
+                                    secondPairLensId === lens.id
+                                      ? 'bg-purple-600 text-white'
+                                      : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white'
+                                  }`}
+                                >
+                                  {secondPairLensId === lens.id ? 'Selected' : 'Select'}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
               )}

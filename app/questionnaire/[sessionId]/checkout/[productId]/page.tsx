@@ -22,6 +22,16 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { OfferCalculationResult, OfferApplied } from '@/types/offer-engine';
+import { getCustomerDetails } from '@/lib/secure-storage';
+
+function isPlaceholderQuestionnaireCustomer(name: string | null | undefined, phone: string | null | undefined) {
+  const n = (name || '').trim().toLowerCase();
+  const p = (phone || '').replace(/\D/g, '');
+  if (!n && !p) return true;
+  if (n === 'guest' || n === 'second customer') return true;
+  if (p === '0000000000' || p === '000000000') return true;
+  return false;
+}
 
 interface Staff {
   id: string;
@@ -103,28 +113,69 @@ export default function CheckoutPage() {
   const [loadingStaff, setLoadingStaff] = useState(false);
 
   useEffect(() => {
-    // Load customer details from database session
     const loadCustomerDetails = async () => {
+      let name: string = '';
+      let phone: string = '';
+
       try {
-        // First try to get from the questionnaire session itself
         const sessionResponse = await fetch(`/api/public/questionnaire/sessions/${sessionId}`);
         if (sessionResponse.ok) {
           const sessionData = await sessionResponse.json();
           if (sessionData.success && sessionData.data?.session) {
             const session = sessionData.data.session;
-            if (session.customerName) setCustomerName(session.customerName);
-            if (session.customerPhone) setCustomerPhone(session.customerPhone);
-            console.log('[Checkout] ✅ Loaded customer details from questionnaire session');
-            return;
+            name = session.customerName || '';
+            phone = session.customerPhone || '';
+            if (name) setCustomerName(name);
+            if (phone) setCustomerPhone(phone);
+            if (!isPlaceholderQuestionnaireCustomer(name, phone)) {
+              console.log('[Checkout] Loaded customer from questionnaire session');
+              return;
+            }
           }
         }
-
-        // ✅ No localStorage fallback - all data from session (database) only
-        console.log('[Checkout] No customer details found in session database');
       } catch (error) {
-        console.error('[Checkout] Failed to load customer details from database:', error);
-        // ✅ No localStorage fallback - we only use session database
+        console.error('[Checkout] Failed to load questionnaire session:', error);
       }
+
+      // Same client as /questionnaire/frame: real name/phone when DB session is Guest/0000000000
+      try {
+        const fromSecure = getCustomerDetails();
+        if (
+          fromSecure?.name &&
+          fromSecure?.phone &&
+          !isPlaceholderQuestionnaireCustomer(fromSecure.name, fromSecure.phone)
+        ) {
+          setCustomerName(fromSecure.name);
+          setCustomerPhone(fromSecure.phone);
+          console.log('[Checkout] Loaded customer from secure storage');
+          return;
+        }
+      } catch (e) {
+        console.error('[Checkout] secure storage read failed:', e);
+      }
+
+      // Customer details step session (lenstrack_customer_session_id) — DB copy of the form
+      try {
+        const detailSessionId =
+          typeof window !== 'undefined' ? localStorage.getItem('lenstrack_customer_session_id') : null;
+        if (detailSessionId) {
+          const r = await fetch(`/api/customer-details/${detailSessionId}`);
+          if (r.ok) {
+            const j = await r.json();
+            const d = j.data?.customerDetails;
+            if (d?.name && d?.phone) {
+              setCustomerName(d.name);
+              setCustomerPhone(d.phone);
+              console.log('[Checkout] Loaded customer from customer-details session API');
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[Checkout] customer-details API failed:', e);
+      }
+
+      console.log('[Checkout] No non-placeholder customer details found');
     };
 
     loadCustomerDetails();

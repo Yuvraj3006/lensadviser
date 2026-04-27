@@ -58,11 +58,36 @@ export default function PrescriptionPage() {
     }
   }, [language, router, rx, setRx]); // Now safe to include rx and setRx since we use ref to prevent re-runs
 
+  const sampleDevRx = {
+    odSphere: -2,
+    osSphere: -1.5,
+    odCylinder: -0.5,
+    osCylinder: -0.5,
+    odAxis: 90,
+    osAxis: 85,
+    visionType: 'SINGLE_VISION' as const,
+  };
+
+  const fillDevSamplePrescription = () => {
+    setRx(sampleDevRx);
+    showToast('success', 'Sample prescription applied (development only).');
+  };
+
+  /** One-shot: fill + persist + route (avoids any store/read timing in automated browsers). */
+  const devFillAndGoToFrame = async () => {
+    setRx(sampleDevRx);
+    const { setPrescriptionData } = await import('@/lib/secure-storage');
+    setPrescriptionData(sampleDevRx);
+    router.push('/questionnaire/frame');
+  };
+
   const handleNext = async () => {
+    // Always read latest store state (avoids stale closure when dev tools call Next right after Fill)
+    const r = useLensAdvisorStore.getState().rx;
     // REQUIRED: Validate prescription is present (at least one SPH value)
-    const hasPrescription = (rx.odSphere !== undefined && rx.odSphere !== null) || 
-                           (rx.osSphere !== undefined && rx.osSphere !== null);
-    
+    const hasPrescription =
+      (r.odSphere !== undefined && r.odSphere !== null) || (r.osSphere !== undefined && r.osSphere !== null);
+
     if (!hasPrescription) {
       const { useToast } = await import('@/contexts/ToastContext');
       const { showToast } = useToast();
@@ -72,10 +97,10 @@ export default function PrescriptionPage() {
 
     // Validation: SPH ±20 range, CYL negative only
     const isValid =
-      (rx.odSphere === undefined || rx.odSphere === null || (rx.odSphere >= -20 && rx.odSphere <= 20)) &&
-      (rx.osSphere === undefined || rx.osSphere === null || (rx.osSphere >= -20 && rx.osSphere <= 20)) &&
-      (rx.odCylinder === undefined || rx.odCylinder === null || rx.odCylinder <= 0) &&
-      (rx.osCylinder === undefined || rx.osCylinder === null || rx.osCylinder <= 0);
+      (r.odSphere === undefined || r.odSphere === null || (r.odSphere >= -20 && r.odSphere <= 20)) &&
+      (r.osSphere === undefined || r.osSphere === null || (r.osSphere >= -20 && r.osSphere <= 20)) &&
+      (r.odCylinder === undefined || r.odCylinder === null || r.odCylinder <= 0) &&
+      (r.osCylinder === undefined || r.osCylinder === null || r.osCylinder <= 0);
 
     if (!isValid) {
       return; // PrescriptionForm will show validation error
@@ -83,8 +108,8 @@ export default function PrescriptionPage() {
 
     // SECURITY: Store prescription data encrypted
     const { setPrescriptionData } = await import('@/lib/secure-storage');
-    setPrescriptionData(rx);
-    
+    setPrescriptionData(r);
+
     // Navigate to frame page (session will be created there, then redirect to tint selection if Power Sunglasses)
     router.push('/questionnaire/frame');
   };
@@ -93,6 +118,29 @@ export default function PrescriptionPage() {
     <div className="min-h-safe-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl w-full mx-auto">
         <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur rounded-2xl p-4 sm:p-6 lg:p-8 border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-2xl">
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/90 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 flex flex-wrap items-center gap-2 text-sm text-amber-950 dark:text-amber-100">
+              <span className="font-medium">Dev</span>
+              <span className="text-amber-800/90 dark:text-amber-200/90">
+                Drag fields are hard to automate — use this to continue testing.
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-amber-400 text-amber-900 dark:text-amber-100"
+                onClick={fillDevSamplePrescription}
+              >
+                Fill sample prescription
+              </Button>
+              <Button
+                type="button"
+                className="bg-amber-600 text-white hover:bg-amber-700"
+                onClick={() => void devFillAndGoToFrame()}
+              >
+                Fill + go to frame (dev)
+              </Button>
+            </div>
+          )}
           {/* Use enhanced PrescriptionForm component */}
           <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 sm:p-6 border border-slate-200 dark:border-slate-700">
             <PrescriptionForm hideNextButton={true} onNext={handleNext} />

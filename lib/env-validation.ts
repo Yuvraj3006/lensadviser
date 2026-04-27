@@ -66,7 +66,12 @@ if (typeof window === 'undefined') {
     getEnv();
   } catch (error) {
     console.error('❌ Environment validation failed:', error);
-    // In production, we might want to exit the process
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(
+        'Local fix: copy .env.example → .env.local and set DATABASE_URL + JWT_SECRET (≥32 chars). ' +
+          'On Vercel, copy the same variable names from Project → Settings → Environment Variables.'
+      );
+    }
     if (process.env.NODE_ENV === 'production') {
       console.error('Exiting due to invalid environment configuration');
       process.exit(1);

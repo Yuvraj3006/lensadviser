@@ -44,6 +44,11 @@ export async function GET(
       );
     }
 
+    const organization = await prisma.organization.findUnique({
+      where: { id: store.organizationId },
+      select: { bogoPowerSunSecondPairLensBasePrice: true },
+    });
+
     // Get questions for category
     const questions = await prisma.question.findMany({
       where: {
@@ -70,6 +75,8 @@ export async function GET(
       success: true,
       data: {
         session,
+        bogoPowerSunSecondPairLensBasePrice:
+          organization?.bogoPowerSunSecondPairLensBasePrice ?? null,
         questions: questions.map((q) => ({
           id: q.id,
           key: q.key,
@@ -172,6 +179,16 @@ export async function PATCH(
     // Update secondPairData (for BOGO offers)
     if (body.secondPairData !== undefined) {
       updateData.secondPairData = body.secondPairData || null;
+    }
+    if (body.customerName !== undefined && typeof body.customerName === 'string') {
+      updateData.customerName = body.customerName;
+    }
+    if (body.customerPhone !== undefined && typeof body.customerPhone === 'string') {
+      updateData.customerPhone = body.customerPhone;
+    }
+    if (body.mergeSessionNotes && typeof body.mergeSessionNotes === 'object' && body.mergeSessionNotes) {
+      const prev = (session.customerEmail as Record<string, unknown> | null) || {};
+      updateData.customerEmail = { ...prev, ...(body.mergeSessionNotes as Record<string, unknown>) };
     }
 
     const updated = await prisma.session.update({

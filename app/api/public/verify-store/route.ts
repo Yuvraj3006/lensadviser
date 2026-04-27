@@ -3,18 +3,20 @@ import { prisma, ensureConnection } from '@/lib/prisma';
 import { handleApiError } from '@/lib/errors';
 
 // GET /api/public/verify-store?code=STORE-CODE
+// GET /api/public/verify-store?storeId=OBJECTID  (e.g. from questionnaire session)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const code = searchParams.get('code');
+    const code = searchParams.get('code')?.trim();
+    const storeId = searchParams.get('storeId')?.trim();
 
-    if (!code) {
+    if (!code && !storeId) {
       return Response.json(
         {
           success: false,
           error: {
             code: 'MISSING_CODE',
-            message: 'Store code is required',
+            message: 'Either store code or storeId is required',
           },
         },
         { status: 400 }
@@ -38,20 +40,35 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const store = await prisma.store.findFirst({
-      where: {
-        code: code.toUpperCase(),
-        isActive: true,
-      },
-      select: {
-        id: true,
-        code: true,
-        name: true,
-        city: true,
-        state: true,
-        organizationId: true,
-      },
-    });
+    const store = code
+      ? await prisma.store.findFirst({
+          where: {
+            code: code.toUpperCase(),
+            isActive: true,
+          },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            city: true,
+            state: true,
+            organizationId: true,
+          },
+        })
+      : await prisma.store.findFirst({
+          where: {
+            id: storeId!,
+            isActive: true,
+          },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            city: true,
+            state: true,
+            organizationId: true,
+          },
+        });
 
     if (!store) {
       return Response.json(

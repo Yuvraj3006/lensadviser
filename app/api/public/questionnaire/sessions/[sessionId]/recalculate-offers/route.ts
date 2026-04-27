@@ -210,6 +210,19 @@ export async function POST(
       };
     }
 
+    // Optional: 2nd pair (BOGO) different person — RX for second pair add-on only
+    const spRx = body.secondPairPrescription;
+    let secondPairPrescriptionInput = null;
+    if (spRx && typeof spRx === 'object') {
+      secondPairPrescriptionInput = {
+        rSph: spRx.rSph ?? spRx.odSphere ?? null,
+        rCyl: spRx.rCyl ?? spRx.odCylinder ?? null,
+        lSph: spRx.lSph ?? spRx.osSphere ?? null,
+        lCyl: spRx.lCyl ?? spRx.osCylinder ?? null,
+        add: spRx.add ?? spRx.odAdd ?? spRx.osAdd ?? null,
+      };
+    }
+
     // Prepare inputs for Offer Engine
     // For "Only Lens" flow, frame is optional/null
     let frameInput: FrameInput | null = null;
@@ -285,6 +298,7 @@ export async function POST(
       frame: frameInput, // null for lens-only flow
       lens: lensInput,
       prescription: prescriptionInput,
+      secondPairPrescription: secondPairPrescriptionInput,
       customerCategory: finalCustomerCategory,
       couponCode: couponCode || null,
       secondPair: secondPairWithItCode || null,

@@ -31,6 +31,7 @@ interface Session {
   customerName?: string;
   category: string;
   status: string;
+  parentSessionId?: string | null;
 }
 
 export default function QuestionnaireSessionPage() {
@@ -298,6 +299,12 @@ export default function QuestionnaireSessionPage() {
       <div className="max-w-3xl mx-auto">
         {/* Progress Bar */}
         <div className="mb-8">
+          {session?.parentSessionId && (
+            <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50/90 dark:bg-violet-950/40 dark:border-violet-700 px-3 py-2 text-sm text-violet-900 dark:text-violet-100">
+              Second-pair questionnaire for <strong>another person</strong> (BOGO). Complete the questions, then choose a
+              lens on the next screen.
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
               Question {currentQuestionIndex + 1} of {questions.length}

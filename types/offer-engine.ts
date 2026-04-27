@@ -70,6 +70,8 @@ export interface OfferCalculationInput {
   frame?: FrameInput | null; // Optional for "Only Lens" flow
   lens?: LensInput | null; // Optional for CONTACT_LENS_ONLY mode
   prescription?: RxInput | null; // Prescription data for RX add-on pricing
+  /** When set, 2nd pair (BOGO) RX add-on uses this instead of `prescription` (e.g. 2nd pair for someone else) */
+  secondPairPrescription?: RxInput | null;
   customerCategory?: CustomerCategoryCode | null;
   couponCode?: string | null;
   // For second pair flow

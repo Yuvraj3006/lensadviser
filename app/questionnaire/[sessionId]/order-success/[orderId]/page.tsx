@@ -49,6 +49,8 @@ interface OrderData {
     lensId: string;
     lensName: string;
     lensPrice: number;
+    secondPairProductKind?: 'EYEGLASS' | 'SUNGLASS' | 'POWER_SUNGLASS';
+    lensRecipient?: 'self' | 'other';
   } | null;
 }
 
@@ -148,6 +150,8 @@ export default function OrderSuccessPage() {
                   lensId: parsed.lensId,
                   lensName: parsed.lensName || 'Lens',
                   lensPrice: parsed.lensPrice,
+                  secondPairProductKind: parsed.secondPairProductKind,
+                  lensRecipient: parsed.lensRecipient,
                 };
                 console.log('[OrderSuccess] ✅ Loaded second pair data from session:', secondPairData);
               }
@@ -1131,6 +1135,20 @@ export default function OrderSuccessPage() {
                 <Gift size={16} className="text-green-600 dark:text-green-400" />
                 2nd Pair (BOGO Offer)
               </h3>
+              {orderData.secondPairData?.secondPairProductKind && (
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+                  Type:{' '}
+                  {orderData.secondPairData.secondPairProductKind === 'EYEGLASS' && 'Eyeglasses'}
+                  {orderData.secondPairData.secondPairProductKind === 'SUNGLASS' && 'Sunglasses'}
+                  {orderData.secondPairData.secondPairProductKind === 'POWER_SUNGLASS' && 'Power sunglasses'}
+                  {orderData.secondPairData.lensRecipient && (
+                    <>
+                      {' '}
+                      · {orderData.secondPairData.lensRecipient === 'self' ? 'Same customer' : 'Another person'}
+                    </>
+                  )}
+                </p>
+              )}
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-300 dark:border-green-500/50">
                   <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Frame</h3>

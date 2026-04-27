@@ -472,6 +472,8 @@ model StoreOfferMap {
 model Organization {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   baseLensPrice Float
+  /// When set, BOGO 2nd-pair "power sun" flow uses this as lens base (not 1st-pair lens offer price) for tint totals.
+  bogoPowerSunSecondPairLensBasePrice Float?
   code          String   @unique
   createdAt     DateTime @db.Date
   isActive      Boolean
@@ -915,7 +917,11 @@ model Session {
   selectedComboCode String? // Selected combo tier code (BRONZE, SILVER, GOLD, PLATINUM)
   comboVersionUsed  Int? // Combo tier version used when tier was selected (for safe updates)
   secondPairData    Json? // Second pair data for BOGO offers: { enabled, frameMRP, brand, subBrand, lensId, lensName, lensPrice }
-  needsProfile      NeedsProfile? // One-to-one relationship
+  /// Set when this session is the 2nd-person (BOGO) sub-flow; merge merges into `parentSessionId` offer.
+  parentSessionId              String?   @db.ObjectId
+  bogoParentFirstPairProductId String?   @db.ObjectId
+  bogoChildMergedAt            DateTime? @db.Date
+  needsProfile                 NeedsProfile? // One-to-one relationship
 
   @@index([storeId])
   @@index([userId])
@@ -924,6 +930,7 @@ model Session {
   @@index([category])
   @@index([prescriptionId])
   @@index([purchaseContext])
+  @@index([parentSessionId])
 }
 
 model SessionAnswer {

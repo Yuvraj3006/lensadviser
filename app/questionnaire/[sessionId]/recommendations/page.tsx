@@ -191,6 +191,12 @@ export default function RecommendationsPage() {
   const [sortBy, setSortBy] = useState<'price-high' | 'price-low' | 'match' | 'index'>('match');
   const [activeTab, setActiveTab] = useState<'best-match' | 'all' | 'anti-walkout'>('best-match');
   const [prescription, setPrescription] = useState<any>(null);
+  /** BOGO: child session for 2nd person; lens pick merges into parent and redirects */
+  const [bogoChildMode, setBogoChildMode] = useState<{
+    parentSessionId: string;
+    parentFirstPairProductId: string | null;
+    merged: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (sessionId) {
@@ -207,8 +213,18 @@ export default function RecommendationsPage() {
       if (sessionResponse.ok) {
         const sessionData = await sessionResponse.json();
         if (sessionData.success && sessionData.data) {
+          const sess = sessionData.data.session;
+          if (sess?.parentSessionId) {
+            setBogoChildMode({
+              parentSessionId: sess.parentSessionId,
+              parentFirstPairProductId: sess.bogoParentFirstPairProductId || null,
+              merged: Boolean(sess.bogoChildMergedAt),
+            });
+          } else {
+            setBogoChildMode(null);
+          }
           // Extract prescription from session notes (stored in customerEmail field)
-          const sessionNotes = sessionData.data.customerEmail as any;
+          const sessionNotes = sess?.customerEmail as any;
           const prescriptionData = sessionNotes?.prescription;
           if (prescriptionData) {
             // Convert to RxInput format
@@ -492,6 +508,61 @@ export default function RecommendationsPage() {
     }
   };
 
+  const handleSelectLens = async (rec: Recommendation) => {
+    setSelectedProduct(rec.id);
+    if (bogoChildMode && !bogoChildMode.merged) {
+      try {
+        const m = await fetch(
+          `/api/public/questionnaire/sessions/${sessionId}/merge-bogo-second-pair`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ secondPairLensId: rec.id }),
+          }
+        );
+        const j = await m.json();
+        if (j.success && j.data?.offerSummaryPath) {
+          router.push(j.data.offerSummaryPath);
+          return;
+        }
+        showToast('error', (j as { error?: { message?: string } }).error?.message || 'Could not merge 2nd pair. Try again.');
+        return;
+      } catch {
+        showToast('error', 'Could not merge 2nd pair.');
+        return;
+      }
+    }
+    if (bogoChildMode?.merged && bogoChildMode.parentFirstPairProductId) {
+      router.push(
+        `/questionnaire/${bogoChildMode.parentSessionId}/offer-summary/${bogoChildMode.parentFirstPairProductId}`
+      );
+      return;
+    }
+    const isOnlyLens = data?.category === 'ONLY_LENS';
+    if (isOnlyLens) {
+      router.push(`/questionnaire/${sessionId}/checkout/${rec.id}`);
+      return;
+    }
+    const lensType = localStorage.getItem('lenstrack_lens_type');
+    const isPowerSunglasses = lensType === 'SUNGLASSES';
+    const isTintLens =
+      rec.tintOption && ['TINT', 'PHOTOCHROMIC', 'TRANSITION'].includes(rec.tintOption);
+    if (isPowerSunglasses && isTintLens) {
+      localStorage.setItem(
+        `lenstrack_selected_lens_${sessionId}`,
+        JSON.stringify({
+          id: rec.id,
+          name: rec.name,
+          baseOfferPrice: rec.pricing?.lensPrice?.totalLensPrice || rec.basePrice || 0,
+          tintOption: rec.tintOption,
+        })
+      );
+      router.push(`/questionnaire/${sessionId}/tint-color-selection`);
+    } else {
+      router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);
+    }
+  };
+
   // Price calculation - return lens price with RX add-on if applicable
   const getLensPrice = (rec: Recommendation) => {
     const basePrice = rec.pricing.lensPrice.totalLensPrice;
@@ -722,6 +793,36 @@ export default function RecommendationsPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+        {bogoChildMode && (
+          <div
+            className="mb-4 rounded-xl border border-violet-300 bg-violet-50 dark:bg-violet-950/50 dark:border-violet-600 px-4 py-3 text-sm text-violet-950 dark:text-violet-100"
+            role="status"
+          >
+            {bogoChildMode.merged ? (
+              <p>
+                This visit was already merged into the first customer’s BOGO offer.{' '}
+                {bogoChildMode.parentFirstPairProductId ? (
+                  <button
+                    type="button"
+                    className="underline font-semibold text-violet-800 dark:text-violet-200"
+                    onClick={() =>
+                      router.push(
+                        `/questionnaire/${bogoChildMode.parentSessionId}/offer-summary/${bogoChildMode.parentFirstPairProductId}`
+                      )
+                    }
+                  >
+                    Open combined offer
+                  </button>
+                ) : null}
+              </p>
+            ) : (
+              <p>
+                You’re choosing a lens for the <strong>other person’s</strong> second pair. Select one lens — you’ll
+                return to the first customer’s offer with prices merged.
+              </p>
+            )}
+          </div>
+        )}
         {/* Sorting Controls */}
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -919,39 +1020,7 @@ export default function RecommendationsPage() {
                   {/* Primary CTA */}
                   <Button
                     fullWidth
-                    onClick={async () => {
-                      setSelectedProduct(rec.id);
-                      
-                      // Check if this is ONLY_LENS flow - skip offer summary
-                      const isOnlyLens = data?.category === 'ONLY_LENS';
-                      
-                      if (isOnlyLens) {
-                        // For ONLY_LENS, skip offer summary and go directly to checkout
-                        router.push(`/questionnaire/${sessionId}/checkout/${rec.id}`);
-                        return;
-                      }
-                      
-                      // Check if this is Power Sunglasses flow
-                      const lensType = localStorage.getItem('lenstrack_lens_type');
-                      const isPowerSunglasses = lensType === 'SUNGLASSES';
-                      
-                      // Check if lens has tint option (TINT/PHOTOCHROMIC/TRANSITION)
-                      const isTintLens = rec.tintOption && ['TINT', 'PHOTOCHROMIC', 'TRANSITION'].includes(rec.tintOption);
-                      
-                      if (isPowerSunglasses && isTintLens) {
-                        // Save selected lens and navigate to tint color selection
-                        localStorage.setItem(`lenstrack_selected_lens_${sessionId}`, JSON.stringify({
-                          id: rec.id,
-                          name: rec.name,
-                          baseOfferPrice: rec.pricing?.lensPrice?.totalLensPrice || rec.basePrice || 0,
-                          tintOption: rec.tintOption,
-                        }));
-                        router.push(`/questionnaire/${sessionId}/tint-color-selection`);
-                      } else {
-                        // Navigate to offer summary page (normal flow)
-                        router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);
-                      }
-                    }}
+                    onClick={() => void handleSelectLens(rec)}
                     className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 text-white font-bold py-3 sm:py-4 text-sm sm:text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] flex-shrink-0"
                   >
                     <ShoppingBag size={18} className="sm:w-5 sm:h-5 mr-2" />
@@ -1212,39 +1281,7 @@ export default function RecommendationsPage() {
                         {/* Primary CTA */}
                         <Button
                           fullWidth
-                          onClick={async () => {
-                            setSelectedProduct(rec.id);
-                            
-                            // Check if this is ONLY_LENS flow - skip offer summary
-                            const isOnlyLens = data?.category === 'ONLY_LENS';
-                            
-                            if (isOnlyLens) {
-                              // For ONLY_LENS, skip offer summary and go directly to checkout
-                              router.push(`/questionnaire/${sessionId}/checkout/${rec.id}`);
-                              return;
-                            }
-                            
-                            // Check if this is Power Sunglasses flow
-                            const lensType = localStorage.getItem('lenstrack_lens_type');
-                            const isPowerSunglasses = lensType === 'SUNGLASSES';
-                            
-                            // Check if lens has tint option (TINT/PHOTOCHROMIC/TRANSITION)
-                            const isTintLens = rec.tintOption && ['TINT', 'PHOTOCHROMIC', 'TRANSITION'].includes(rec.tintOption);
-                            
-                            if (isPowerSunglasses && isTintLens) {
-                              // Save selected lens and navigate to tint color selection
-                              localStorage.setItem(`lenstrack_selected_lens_${sessionId}`, JSON.stringify({
-                                id: rec.id,
-                                name: rec.name,
-                                baseOfferPrice: rec.pricing?.lensPrice?.totalLensPrice || rec.basePrice || 0,
-                                tintOption: rec.tintOption,
-                              }));
-                              router.push(`/questionnaire/${sessionId}/tint-color-selection`);
-                            } else {
-                              // Navigate to offer summary page (normal flow)
-                              router.push(`/questionnaire/${sessionId}/offer-summary/${rec.id}`);
-                            }
-                          }}
+                          onClick={() => void handleSelectLens(rec)}
                           className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 text-white font-bold py-3 sm:py-4 text-sm sm:text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] flex-shrink-0"
                         >
                           Select Lens <ArrowRight size={18} className="ml-2" />

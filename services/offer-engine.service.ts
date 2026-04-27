@@ -172,9 +172,16 @@ export class OfferEngineService {
     let secondPairRxAddOn = 0;
     let secondPairRxAddOnBreakdown: RxAddOnBreakdown[] = [];
     
-    if (input.secondPair?.enabled) {
-      // Calculate RX add-on for second pair lens if prescription and IT code are available
-      if (input.prescription && input.secondPair.secondPairLensItCode) {
+    // YOPO and second-pair BOGO/BOG50 are mutually exclusive (same cart cannot use both)
+    if (input.secondPair?.enabled && primaryRule?.offerType === OfferType.YOPO) {
+      console.log('[OfferEngine] Second pair skipped — YOPO is already applied on first pair');
+    } else if (input.secondPair?.enabled) {
+      // 2nd pair uses dedicated Rx when provided (e.g. another person), else same as 1st pair
+      const rxForSecondPair =
+        input.secondPairPrescription != null
+          ? input.secondPairPrescription
+          : input.prescription;
+      if (rxForSecondPair && input.secondPair.secondPairLensItCode) {
         try {
           const secondPairLensProduct = await prisma.lensProduct.findUnique({
             where: { itCode: input.secondPair.secondPairLensItCode },
@@ -183,7 +190,7 @@ export class OfferEngineService {
           if (secondPairLensProduct) {
             const secondPairRxAddOnResult = await rxAddOnPricingService.calculateRxAddOnPricing(
               secondPairLensProduct.id,
-              input.prescription,
+              rxForSecondPair,
               'HIGHEST_ONLY' // Business rule: Apply only highest matching band
             );
 
@@ -768,6 +775,12 @@ export class OfferEngineService {
           continue; // Skip this rule - not activated for this store
         }
       }
+
+      // YOPO and BOGO/BOG50 second pair cannot stack — prefer second pair path when enabled
+      if (input.secondPair?.enabled && rule.offerType === OfferType.YOPO) {
+        console.log('[OfferEngine] Skipping YOPO — second pair is active (mutually exclusive with YOPO)');
+        continue;
+      }
       
       const isApplicable = this.isRuleApplicable(rule, frame, lens, now);
       console.log('[OfferEngine] Checking rule applicability:', {
@@ -803,6 +816,14 @@ export class OfferEngineService {
     // Validate organizationId before querying
     if (!organizationId || organizationId.trim() === '' || !/^[0-9a-fA-F]{24}$/.test(organizationId)) {
       console.warn('[OfferEngine] Invalid organizationId, skipping rule lookup');
+      return null;
+    }
+
+    if (
+      input.secondPair?.enabled &&
+      String(offerType).toUpperCase() === OfferType.YOPO
+    ) {
+      console.log('[OfferEngine] YOPO not applied — second pair (BOGO) is active; mutually exclusive');
       return null;
     }
 

@@ -11,6 +11,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const storeCode = searchParams.get('storeCode');
     const context = searchParams.get('context'); // COMBO | REGULAR | null
+    /** EYEGLASS=FRAME, SUNGLASS, POWER_SUNGLASS (BOGO 2nd pair) — default FRAME */
+    const retailType = (searchParams.get('retailType') || 'FRAME').toUpperCase();
 
     if (!storeCode) {
       return Response.json(
@@ -49,10 +51,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const typeField =
+      retailType === 'SUNGLASS'
+        ? 'SUNGLASS'
+        : retailType === 'POWER_SUNGLASS'
+          ? 'POWER_SUNGLASS'
+          : 'FRAME';
+
     // Build where clause with context filtering
     const whereClause: any = {
       isActive: true,
-      productTypes: { has: 'FRAME' }, // Only frame brands
+      productTypes: { has: typeField },
     };
 
     // If context is COMBO, filter by combo_allowed=true
@@ -81,8 +90,8 @@ export async function GET(request: NextRequest) {
 
     // Map to response format (ProductBrand -> FrameBrand format for backward compatibility)
     const brandsData = brands.map((brand) => {
-      // For Lenstrack brand, use hardcoded sub-categories
-      if (brand.name.toLowerCase() === 'lenstrack') {
+      // For Lenstrack eyeglass (FRAME) brand, use hardcoded sub-categories
+      if (typeField === 'FRAME' && brand.name.toLowerCase() === 'lenstrack') {
         return {
           id: brand.id,
           brandName: brand.name, // Map name -> brandName for backward compatibility

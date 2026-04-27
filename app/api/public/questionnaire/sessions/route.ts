@@ -7,7 +7,18 @@ import { z } from 'zod';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { storeCode, category, customerName, customerPhone, customerEmail, customerCategory, prescription, frame } = body;
+    const {
+      storeCode,
+      category,
+      customerName,
+      customerPhone,
+      customerEmail,
+      customerCategory,
+      prescription,
+      frame,
+      parentSessionId: parentSessionIdRaw,
+      bogoParentFirstPairProductId: bogoParentFirstPairProductIdRaw,
+    } = body;
 
     // Validate required fields
     if (!storeCode || typeof storeCode !== 'string' || !storeCode.trim()) {
@@ -82,36 +93,83 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // REQUIRED: Validate prescription is present (at least one SPH value)
-    const hasPrescription = prescription && 
-      ((prescription.odSphere !== undefined && prescription.odSphere !== null) || 
-       (prescription.osSphere !== undefined && prescription.osSphere !== null));
-    
-    if (!hasPrescription) {
-      return Response.json(
-        {
-          success: false,
-          error: {
-            code: 'MISSING_PRESCRIPTION',
-            message: 'Prescription is required. Please enter at least one eye power (SPH).',
+    const isBogoSecondPersonChild =
+      typeof parentSessionIdRaw === 'string' && parentSessionIdRaw.trim().length > 0;
+
+    // REQUIRED: prescription — except BOGO 2nd-person sub-session (captured in child flow, starts with 0/0)
+    if (!isBogoSecondPersonChild) {
+      const hasPrescription =
+        prescription &&
+        ((prescription.odSphere !== undefined && prescription.odSphere !== null) ||
+          (prescription.osSphere !== undefined && prescription.osSphere !== null));
+
+      if (!hasPrescription) {
+        return Response.json(
+          {
+            success: false,
+            error: {
+              code: 'MISSING_PRESCRIPTION',
+              message: 'Prescription is required. Please enter at least one eye power (SPH).',
+            },
           },
-        },
-        { status: 400 }
-      );
+          { status: 400 }
+        );
+      }
     }
 
     // Create prescription if provided
     // NOTE: Prescription model schema is incomplete, so we'll skip creating prescription for now
-    // Prescription data will be stored in session notes or handled separately
     let prescriptionId: string | null = null;
-    
-    // Skip prescription creation until schema is updated
-    // The prescription data can be stored in session notes or retrieved from the request later
-    if (prescription && (prescription.odSphere !== undefined || prescription.osSphere !== undefined)) {
-      console.log('[PublicSessionAPI] Prescription data received but skipping creation due to incomplete schema');
-      console.log('[PublicSessionAPI] Prescription data:', JSON.stringify(prescription, null, 2));
-      // prescriptionId will remain null
-      // Prescription data is available in the request and can be stored elsewhere if needed
+
+    const prescriptionForNotes = isBogoSecondPersonChild
+      ? (prescription || { odSphere: 0, osSphere: 0, odCylinder: 0, osCylinder: 0 })
+      : prescription;
+
+    if (
+      prescriptionForNotes &&
+      (prescriptionForNotes.odSphere !== undefined || prescriptionForNotes.osSphere !== undefined)
+    ) {
+      console.log('[PublicSessionAPI] Prescription in session notes (no separate prescription row).');
+    }
+
+    let bogoParent: {
+      id: string;
+      storeId: string;
+      purchaseContext: string | null;
+      selectedComboCode: string | null;
+      comboVersionUsed: number | null;
+    } | null = null;
+    if (isBogoSecondPersonChild) {
+      const pid = String(parentSessionIdRaw).trim();
+      const parent = await prisma.session.findUnique({
+        where: { id: pid },
+        select: {
+          id: true,
+          storeId: true,
+          purchaseContext: true,
+          selectedComboCode: true,
+          comboVersionUsed: true,
+        },
+      });
+      if (!parent) {
+        return Response.json(
+          {
+            success: false,
+            error: { code: 'PARENT_NOT_FOUND', message: 'Parent session not found' },
+          },
+          { status: 404 }
+        );
+      }
+      if (parent.storeId !== store.id) {
+        return Response.json(
+          {
+            success: false,
+            error: { code: 'STORE_MISMATCH', message: 'Store does not match the parent session' },
+          },
+          { status: 400 }
+        );
+      }
+      bogoParent = parent;
     }
 
     // Create session with error handling
@@ -131,10 +189,23 @@ export async function POST(request: NextRequest) {
         frameType: frame.frameType || null,
       };
     }
-    // Store prescription data in notes if needed
-    if (prescription) {
-      sessionNotes.prescription = prescription;
+    if (prescriptionForNotes) {
+      sessionNotes.prescription = prescriptionForNotes;
     }
+
+    const bogoLink =
+      bogoParent && isBogoSecondPersonChild
+        ? {
+            parentSessionId: bogoParent.id,
+            bogoParentFirstPairProductId:
+              typeof bogoParentFirstPairProductIdRaw === 'string' && bogoParentFirstPairProductIdRaw.trim()
+                ? bogoParentFirstPairProductIdRaw.trim()
+                : null,
+            purchaseContext: bogoParent.purchaseContext,
+            selectedComboCode: bogoParent.selectedComboCode,
+            comboVersionUsed: bogoParent.comboVersionUsed,
+          }
+        : null;
     
     const sessionData: any = {
       storeId: store.id,
@@ -147,6 +218,15 @@ export async function POST(request: NextRequest) {
       status: 'IN_PROGRESS',
       startedAt: now,
       completedAt: now, // Set to current date, will be updated when session completes
+      ...(bogoLink
+        ? {
+            parentSessionId: bogoLink.parentSessionId,
+            bogoParentFirstPairProductId: bogoLink.bogoParentFirstPairProductId,
+            purchaseContext: bogoLink.purchaseContext,
+            selectedComboCode: bogoLink.selectedComboCode,
+            comboVersionUsed: bogoLink.comboVersionUsed,
+          }
+        : {}),
     };
       
       // prescriptionId is Json? type in schema, so we need to handle it carefully
